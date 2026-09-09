@@ -79,6 +79,34 @@ single-translation-unit CMake build, procedural GLib workers, an `.ini` beside t
 2. Its `setupNotes.txt` disables Wi-Fi. This box lives in a wheel-well cavity with no Ethernet,
    so Wi-Fi is the only way back in; it is gated per session instead.
 
+## Repository and where the code is built
+
+Upstream is **https://github.com/chrumck/KnurLogger** (`origin`), and it is **public** — see the
+note at the end of this section before adding anything host-specific.
+
+The box has the full toolchain (`git 2.47.3`, `cmake 3.31.6`, `gcc`/`g++`, `libglib2.0-dev`), so
+**the code is built on the Pi**, not cross-compiled. First time:
+
+```bash
+ssh KnurLogger 'git clone https://github.com/chrumck/KnurLogger.git'
+```
+
+Thereafter `git -C ~/KnurLogger pull` on the box. The `build/` directory is gitignored except for
+its tracked `KnurLogger.ini` template; the deployed `.ini` carries real values and is ignored.
+
+**Do not put push credentials on the box.** Commit and push from the workstation; the box pulls
+only. A logger in a wheel-well cavity is physically exposed — if the car is broken into or the SD
+card is pulled, any PAT or writable deploy key on it becomes an attacker's write access to this
+repo. A public repo needs no credential to clone or pull, so read-only costs nothing.
+
+For a tight edit-build loop, round-tripping through GitHub is slow; copy the tree to the box
+instead (`scp -r` or `rsync -a --exclude build/`) and keep GitHub for durable commits.
+
+**The `../ndLouvers/...` links throughout this repository are broken on github.com and that is
+deliberate.** `ndLouvers` is a separate repository that happens to sit alongside this one on disk.
+The links resolve locally, which is where the work happens. Do not "fix" them by copying
+requirements across — a duplicated requirement is one that will drift, and `CLAUDE.md` says so.
+
 ## Getting on the box
 
 SSH alias `KnurLogger` (`192.168.118.52`, user `chrum`), key-only.

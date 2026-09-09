@@ -14,6 +14,16 @@ alert the developer and record it in this file so the next agent does not hit it
 - **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
   sit alongside this one. Relative links between them work on disk and break on a git host. Do not
   "fix" them by copying content across; a duplicated requirement is a requirement that will drift.
+  **This is now live rather than hypothetical:** this repository has a public upstream at
+  `github.com/chrumck/KnurLogger`, so every `../ndLouvers/...` link 404s there. That is accepted.
+- **This repository is PUBLIC. Weigh that before writing host specifics into it.** It already
+  carries the box's LAN IP, its username and its Bluetooth MAC, and — until `ssh-harden.sh` runs —
+  a statement that password authentication is enabled on it. None of that is reachable from the
+  internet (RFC1918 address, and the BT MAC is broadcast to anyone in range anyway), and no
+  credential, key or Wi-Fi PSK is in the repo. But **git history is not retractable**, so the test
+  for anything new is "would I mind this being permanent and public", not "is it useful now".
+  Measured-state notes are the ones that age badly: they are accurate and useful when written, and
+  they become a public status page for an unhardened host.
 
 ## Naming
 

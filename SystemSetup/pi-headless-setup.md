@@ -336,6 +336,13 @@ ssh -t KnurLogger './ssh-harden.sh --execute --port 60022'   # ...and add the iS
 
 **Password authentication is currently enabled** on this box: `50-cloud-init.conf` is 27 bytes,
 which is the length of `PasswordAuthentication yes`, and it sorts before our drop-in so it wins.
+**This step is no longer merely optional, and the reason is this repository, not the box.** The
+repo now has a **public** upstream at `github.com/chrumck/KnurLogger`, which publishes the box's
+LAN IP, its username and the sentence above — so the fact that this host accepts password
+authentication is a matter of public record until the script runs. The exposure is bounded (the
+address is RFC1918, no credential is in the repo) and it is not an emergency, but running this
+step is what makes the published statement false, and it is the cheapest of the remaining host
+tasks.
 The script reports the file's actual contents before touching it.
 
 The script refuses to run if `~/.ssh/authorized_keys` is empty, validates with `sshd -t` before
@@ -407,7 +414,7 @@ exactly the condition the box shipped in.
 | 4. Read pre-flight output | **done** 2026-09-09 | All four scripts pre-flight against the box with exit 0 and no suspicious output, repeatedly, including the `--drop-mdns`, `--no-hdmi` and `--port` paths and every bad-argument case. Pre-flight changes nothing, so this does not advance step 5. |
 | 5. Apply boot-time reduction | **done** 2026-09-09 | `--execute` from a login shell, all eight phases, both optional flags left off (`--drop-mdns` costs `.local` resolution, `--no-hdmi` costs the emergency console). No `FAILED to mask`, no `modprobe i2c-dev` warning. **Boot 19.468 s → 11.105 s**, userspace 17.463 → 9.108 s, `multi-user.target` 11.305 → 9.108 s. 17 units newly masked, enabled timers 9 → 2, cloud-init disabled, no failed units. Backups at `/boot/firmware/{config,cmdline}.txt.bak-20260909-123716`. Rebooted; `before`/`after` audits diffed. `NetworkManager.service` at 5.236 s is now the whole critical chain and cutting it costs the way back in. |
 | 6. Confirm nothing broke | **done** 2026-09-09 | All five criteria pass. **`rfkill list bluetooth` → `Soft blocked: no`, and it survived the reboot**; `hciconfig` → `UP RUNNING`; BlueZ → `Powered: yes` / `PowerState: on`, which is better than the criterion asked for. Wi-Fi enabled and this SSH session never dropped. **`/dev/i2c-1` exists**, scans empty as expected. 1-Wire master registered — but the devices directory is **not** empty, see correction 25. `System clock synchronized: yes` after ~1 min, see correction 28. `throttled=0x0` at 56.0 °C. |
-| 7. SSH hardening | **not started** | Optional, and now the only unrun script. Its blocker is cleared: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. Password authentication is still enabled on this box. |
+| 7. SSH hardening | **not started** | The only unrun script, and **no longer just optional** — the repo's public upstream publishes this box's IP, username and the fact that password authentication is enabled, so running this is what makes that statement false. Its blocker is cleared: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. Password authentication is still enabled on this box. |
 | 8. Wi-Fi gating | **decision open** | Manual `nmcli`/`rfkill block wifi` for now. Still waiting on plan item 5a's installed link check to have been *run* — but 5a itself is **no longer blocked**, since clearing the Bluetooth soft block was its precondition and step 5 phase 7 did that. What 5a now waits on is a logger binary, not this file. |
 
 ### Corrections the first real audit forced
