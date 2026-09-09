@@ -19,9 +19,14 @@ alert the developer and record it in this file so the next agent does not hit it
 
 - **Channel names are positional and mean nothing.** Pressure channels are `P0`–`P5`, fixed by mux
   position. Thermal channels are `temp0`–`temp3`, fixed by DS18B20 ROM ID at build time. The
-  mapping to measurement roles (`T_ambient`, `T_core_in`, `T_core_out`, `T_aft`, and `U`/`X`/`C`
-  for pressure) is **deliberately undecided**, is a per-session record, and is logged at boot. Do
-  not invent one, and never rename a channel after a role.
+  mapping to measurement roles is a per-session record, logged at boot, and **a channel is never
+  renamed after a role**.
+  - **Pressure (`U`/`X`/`C`) is still deliberately undecided.** Do not invent one.
+  - **Thermal is decided but not yet applied.** Installing the probes on the car decided it (owner,
+    2026-09-09): enrolled in installed order, lowest first, it is **temp0 = `T_ambient`,
+    temp1 = `T_core_in`, temp2 = `T_core_out`, temp3 = `T_aft`**. No channel is bound yet, because
+    enrollment needs a logger. The plan owns the positions and the reasoning; this is a pointer,
+    not a second copy.
 - **`P` names a logger channel only.** The two pitot probes are `T1`/`T2`, never `P1`/`P2`.
 
 ## Hardware facts that surprise people
@@ -191,9 +196,30 @@ Four requirements come from the plan rather than from iSitePiLogger:
      ROM ID, the channel, the timestamp it was bound, and a calibration offset that attaches to
      the ROM ID rather than to the slot. Thermal item 1 needs the offsets; retrofitting the field
      later means a format change.
-  5. **Enrollment must tell the owner which ROM ID it just bound, and to mark the probe body.**
-     After installation the four probes are indistinguishable by eye and the physical label is
-     what survives. The logger cannot do that half.
+  5. **Enrollment must report which ROM ID it just bound**, so the binding can be checked against
+     the lead being plugged in. **The probes are already installed on the car** (owner,
+     2026-09-09) and the owner can identify each lead at the logger end, so enrollment binds
+     channel → location directly and the older "mark the probe body" step is moot. Provide an
+     identification fallback anyway: with all four bound, **warming one probe by hand must be
+     visible as one channel moving**, which confirms the map in situ and doubles as a liveness
+     test.
+- **A cold-soak spread is recorded at session start** (plan thermal item 1). With the probes
+  installed, the bench cross-comparison is replaced by an in-situ common-temperature check, and
+  the logger is what captures it: on a cold car at equilibrium all four probes are at one
+  temperature, so the spread between them *is* the set of relative offsets — the quantity
+  ΔT_preheat depends on, since a difference of two ±0.5 °C probes carries ~1 K against a signal of
+  order 6 K. Requirements:
+  1. **Record the four raw readings and their spread before anything warms up**, into the session
+     file, with the timestamp and the elapsed-since-boot.
+  2. **Flag whether the car looks settled rather than asserting it.** A spread taken on a
+     heat-soaked or sunlit car is worse than none, because it bakes a false offset into the one
+     number the thermal workstream exists to produce. Sun through the grille lands on the
+     T_ambient probe specifically. If the four are still visibly drifting relative to each other,
+     say so in the record and mark the sample unusable.
+  3. **Never auto-apply an offset.** Record the spread as data; applying corrections is the plan's
+     decision, not the logger's, and an offset applied silently cannot be un-applied later.
+  4. Repeated across sessions at different ambients, these snapshots accumulate the multi-point
+     calibration the bench comparison would have given, at no cost.
 - **Supply health is logged telemetry, read after a run** (owner decision, 2026-09-09), standing
   in for a bench instrument on commissioning item 5.7 — **not** for build sheet §10 step 2's
   meter. What to record, and the traps:
