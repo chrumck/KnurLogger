@@ -8,7 +8,7 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status: the logger builds, runs and advertises to RaceChrono.** The session writer (append-only,
+**Status: the logger builds, runs, and its channels decode correctly in RaceChrono on a phone** (verified 2026-09-09: `0x602` reads −327.68 °C on all four thermal channels, the deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling end to end). The session writer (append-only,
 ~1 s `fsync`, both measured), the supply-telemetry worker and the RaceChrono BLE worker are done;
 DS18B20 enrollment is the remaining one of the four. Getting BLE working needed an
 `apt full-upgrade` on 2026-09-09 — `bluez 5.82-1.1+rpt1` on kernel `6.18.34` could not register an
