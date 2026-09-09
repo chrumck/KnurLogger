@@ -392,9 +392,11 @@ exactly the condition the box shipped in.
    complicates development on the same machine, and because plan item 5b's `fsync` cadence plus
    step 5 phase 6's dirty-page ratios already bound the loss to about a second. Revisit before the
    first event, not after.
-2. **A logger systemd unit.** There is no logger binary yet. `iSitePiLogger.service` is the
-   template; its `ExecStartPre=/usr/bin/sleep 12` is a readiness hack that KnurLogger should
-   replace with real `After=` dependencies rather than copy.
+2. **Installing the logger systemd unit.** The unit is **written** — `SystemSetup/KnurLogger.service`
+   — but deliberately **not installed**, because installing it needs `sudo` and the logger should
+   earn a boot-time start on the bench first. It does not copy `iSitePiLogger.service`'s
+   `ExecStartPre=/usr/bin/sleep 12` readiness hack, and it must never name
+   `network-online.target`, which cannot be reached on this box.
 3. **Powering the Bluetooth controller.** Clearing the rfkill *block* is host configuration and
    step 5 phase 7 does it. Bringing the controller up and advertising afterwards is the logger's
    job, not this runbook's.

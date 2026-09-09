@@ -48,7 +48,7 @@ alert the developer and record it in this file so the next agent does not hit it
   SDP810s are still being delivered. Every document in both repositories previously said this zone
   was unbuilt and that **an empty I2C scan and zero `28-*` devices were the correct results**.
   That is no longer true and the acceptance criteria moved with it. The first scan of the assembled
-  board found two things worth knowing before writing any bus code:
+  board found three things worth knowing before writing any bus code:
   1. **The BME280 is at `0x77`, and that is now the specified address** (owner decision,
      2026-09-09). It is a genuine BME280, not a mux at a strapped address — chip-ID register
      `0xD0` reads `0x60`. The build sheet used to say "**Do not use `0x77`**" and put `U3.SDO` on
@@ -56,7 +56,7 @@ alert the developer and record it in this file so the next agent does not hit it
      to code against** and `0x77` is no longer free for anything else. No collision results,
      because the mux is strapped to `0x70` alone.
   2. **The mux was silent because `~RESET` was soldered to header pin 9 instead of pin 11** —
-     found and being resoldered (owner, 2026-09-09). **Pin 9 is a ground pin and pin 11 is
+     resoldered and verified answering at `0x70`, control register `0x00` (owner, 2026-09-09). **Pin 9 is a ground pin and pin 11 is
      GPIO17, and they are adjacent in the same row**, so this is a one-position off-by-one onto
      the worst possible neighbour: a PCA9548A held in reset does not degrade or partly work, it
      goes **completely silent**, which is indistinguishable from an absent or dead part.
@@ -77,7 +77,7 @@ alert the developer and record it in this file so the next agent does not hit it
 - **Testing the thermal channels requires a trip to the car, and the car has no network**
   (owner, 2026-09-09). The four DS18B20s are installed on the car; the car is in an underground
   garage with **no cell coverage and no internet**. So the logger is carried there, run, and
-  brought back with artefacts to inspect. Four consequences:
+  brought back with artefacts to inspect. Five consequences:
   1. **There IS a way in: the owner's phone hotspot.** The owner can raise a local Wi-Fi network
      from the phone and SSH into the box — no internet, but a shell. So enrollment does not have
      to be blind. **The precondition is that the box already knows that SSID and its PSK**, since
@@ -308,8 +308,8 @@ Five requirements come from the plan rather than from iSitePiLogger:
      sensor temperature, product/revision/serial, per-sample validity flags.
   3. **Supply telemetry is SD-only by nature**, because the event worth catching is a brownout at
      ignition-off — the moment the link and the logger both stop.
-- **The session-start clock offset is no longer load-bearing, and its stated mechanism does not
-  exist.** Because RaceChrono stamps every source on arrival, box 1 and box 2 are never aligned
+- **Note, not a sixth requirement — this one RETIRES part of an earlier requirement.** The
+  session-start clock offset is no longer load-bearing, and its stated mechanism does not exist. Because RaceChrono stamps every source on arrival, box 1 and box 2 are never aligned
   against each other's clocks. Keep recording elapsed-since-boot beside the wall clock in local
   records, but **do not build a GPS-time fetch**: the RaceChrono DIY protocol is device→phone
   notifications plus a filter-write channel and carries no time transfer.
