@@ -248,8 +248,6 @@ gpointer raceChronoBleLoop(gpointer _) {
 
     log_set_level(LOG_WARN);
 
-    initialiseBlePackets();
-
     appData.bluetooth.dbusConn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (appData.bluetooth.dbusConn == NULL) {
         g_critical("Bluetooth: could not reach the system D-Bus, no BLE this session");

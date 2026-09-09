@@ -15,6 +15,7 @@
 #include <optional>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -46,8 +47,9 @@ namespace chr = std::chrono;
 
 #define CONFIG_GROUP_THERMAL "thermal"
 #define CONFIG_KEY_TEMP_INTERVAL_MS "tempIntervalMs"
-#define CONFIG_KEY_SETTLING_WINDOW_SECONDS "settlingWindowSeconds"
-#define CONFIG_KEY_SETTLING_MAX_DRIFT_MK_PER_MIN "settlingMaxDriftMilliKPerMin"
+// One per channel: temp0OffsetC .. temp3OffsetC. Keyed to the SLOT, not to the probe's ROM ID
+// (owner decision, 2026-09-10) — see the note on TEMP_OFFSET_IMPLAUSIBLE_C.
+#define CONFIG_KEY_TEMP_OFFSET_C_FORMAT "temp{}OffsetC"
 
 #define CONFIG_GROUP_BLUETOOTH "bluetooth"
 #define CONFIG_KEY_BLE_DEVICE_NAME "bleDeviceName"
@@ -91,6 +93,20 @@ namespace chr = std::chrono;
 #define TEMP_VALID_MIN_CENTI_C -5500
 #define TEMP_VALID_MAX_CENTI_C 12500
 
+// Calibration offsets are hand-entered in KnurLogger.ini, one per CHANNEL SLOT, and applied to the
+// value sent to RaceChrono (owner decision, 2026-09-10). Slot-keyed rather than ROM-ID-keyed is a
+// deliberate simplification with one consequence worth stating: an offset is a property of a
+// particular DS18B20, so **re-enrolling the probes in a different order, or swapping a probe,
+// leaves the offsets pointing at the wrong parts and they must be re-checked.** In exchange the
+// calibration lives in the git-tracked config beside every other setting, rather than in the
+// data directory where a wipe would take it.
+//
+// A relative offset between two DS18B20s is a fraction of a kelvin, so anything past this is a
+// decimal-point slip. Warned about and applied anyway; the hard bound below only rejects nonsense,
+// because a logger that refuses to start in the car over a typo loses the whole session.
+#define TEMP_OFFSET_IMPLAUSIBLE_C 5.0
+#define TEMP_OFFSET_MAX_C 50.0
+
 // The DS18B20's power-on scratchpad default. The probe answered but never converted, which points
 // at power or a marginal pull-up rather than at a hot probe, so it is flagged and not trusted.
 #define TEMP_POWER_ON_DEFAULT_CENTI_C 8500
@@ -133,8 +149,8 @@ typedef struct {
     gint supplyIntervalMs;
 
     gint tempIntervalMs;
-    gint settlingWindowSeconds;
-    gint settlingMaxDriftMilliKPerMin;
+    // Indexed by channel, so tempOffsetsC[1] belongs to temp1 whichever probe is bound there.
+    gdouble tempOffsetsC[TEMP_CHANNEL_COUNT];
 
     gchar* bleDeviceName;
 
@@ -160,28 +176,57 @@ typedef struct {
     std::string romId;
     gboolean isBound;
 
+    // Bound but absent is a THIRD state, distinct from unbound and from reading badly, and it has
+    // to survive into the record: a channel whose ROM ID stops appearing on the bus is logged as
+    // present-but-invalid, never omitted. Omitting it would make a mid-session dropout
+    // indistinguishable from the logger not having run.
+    gboolean isPresent;
+
     gint16 centiC;
     gboolean isValid;
     guint64 sampleBootUs;
 
     guint32 readErrors;
-    // Keyed to the ROM ID rather than to the slot, and present from the store's first version
-    // because thermal item 1's calibration needs somewhere to put offsets and a later format
-    // change is a drift liability. Recorded only — never applied to a logged reading.
-    gdouble offsetC;
     guint64 boundTaiUs;
 } TempChannel;
 
+// One probe read, as parsed out of the w1_therm `w1_slave` attribute. Transient rather than state,
+// but it lands verbatim in the session record, so it is a data contract.
+typedef struct {
+    gboolean isPresent;
+    gboolean crcOk;
+    gboolean isValid;
+    gint16 centiC;
+    gint32 milliC;
+    // The nine scratchpad bytes as the kernel printed them, kept because commissioning item 4 asks
+    // for the raw reading beside the corrected one and this is the rawest form available.
+    std::string scratchpadHex;
+    const gchar* invalidReason;
+    guint32 readMs;
+} ProbeReading;
+
+// No lock: every field here is written and read by the oneWireProbes worker alone. The only
+// cross-thread boundary the thermal data crosses is the BLE packet, which carries its own mutex.
+// An unused mutex parked here would imply this state is shared, and the next reader would trust it.
 typedef struct {
     TempChannel channels[TEMP_CHANNEL_COUNT];
-    std::mutex lock;
 
     guint32 sampleCycles;
     guint32 readErrors;
     guint32 lastConversionMs;
+    guint32 lastCycleMs;
+    guint32 enumeratedCount;
+    // Entries under the devices directory that were neither the bus master nor a `28-*` probe.
+    // This is the family filter's own output: a non-zero count is the churning-phantom trap
+    // happening again, and it is the only way anyone will see that the filter did something.
+    guint32 nonProbeEntries;
+    gboolean isBulkReadAvailable;
+
+    // Rate limiters, so a permanent condition produces one record rather than one per second.
+    std::vector<std::string> reportedUnknownRomIds;
+    std::string lastAmbiguousRomIds;
 
     std::atomic<bool> isRunning;
-    std::atomic<bool> settlingSampleDone;
 } ThermalData;
 
 typedef struct {

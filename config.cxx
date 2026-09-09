@@ -8,6 +8,8 @@
         logErrorAndKill("Error getting config: '%s', error: %s, exiting...", _key, error->message); \
     }
 
+#define getConfigDouble(_target, _group, _key, _min, _max)                                             appConfig._target = g_key_file_get_double(config, _group, _key, &error);                            if (error != NULL) {                                                                                    logErrorAndKill("Error getting config: '%s', error: %s, exiting...", _key, error->message);      }                                                                                                   if (appConfig._target < _min || appConfig._target > _max) {                                              logErrorAndKill("Value out of range for config: %s: '%f', expected %f..%f, exiting...",                   _key, appConfig._target, (gdouble)_min, (gdouble)_max);                                      }
+
 #define getConfigInteger(_target, _group, _key, _min, _max)                                        \
     appConfig._target = g_key_file_get_integer(config, _group, _key, &error);                      \
     if (error != NULL) {                                                                           \
@@ -55,14 +57,14 @@ void loadConfig()
     // much faster leaves no idle bus time.
     getConfigInteger(tempIntervalMs, CONFIG_GROUP_THERMAL, CONFIG_KEY_TEMP_INTERVAL_MS, 500, 60000);
 
-    // "Before anything warms up" is not observable from a single instant, so the session-start
-    // common-temperature sample is a window and settledness is judged from each probe's drift rate
-    // across it. The threshold is a measurement decision the plan does not yet give a number for;
-    // this default is deliberately conservative and the raw drift rates are recorded regardless,
-    // so a later owner figure can be applied in post-processing without re-running anything.
-    getConfigInteger(settlingWindowSeconds, CONFIG_GROUP_THERMAL, CONFIG_KEY_SETTLING_WINDOW_SECONDS, 10, 900);
-    getConfigInteger(settlingMaxDriftMilliKPerMin, CONFIG_GROUP_THERMAL,
-        CONFIG_KEY_SETTLING_MAX_DRIFT_MK_PER_MIN, 1, 60000);
+    // One calibration offset per channel SLOT, applied to the value sent to RaceChrono. Absent
+    // keys are an error rather than a silent zero: an offset that quietly stopped being applied
+    // because a key was mistyped would be invisible in the data it corrupts.
+    for (auto i = 0; i < TEMP_CHANNEL_COUNT; i++) {
+        auto key = std::format(CONFIG_KEY_TEMP_OFFSET_C_FORMAT, i);
+        getConfigDouble(tempOffsetsC[i], CONFIG_GROUP_THERMAL, key.c_str(),
+            -TEMP_OFFSET_MAX_C, TEMP_OFFSET_MAX_C);
+    }
 
     getConfigString(bleDeviceName, CONFIG_GROUP_BLUETOOTH, CONFIG_KEY_BLE_DEVICE_NAME);
     if (strlen(g_strstrip(appConfig.bleDeviceName)) == 0) {

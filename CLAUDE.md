@@ -37,9 +37,9 @@ alert the developer and record it in this file so the next agent does not hit it
   - **Pressure (`U`/`X`/`C`) is still deliberately undecided.** Do not invent one.
   - **Thermal is decided but not yet applied.** Installing the probes on the car decided it (owner,
     2026-09-09): enrolled in installed order, lowest first, it is **temp0 = `T_ambient`,
-    temp1 = `T_core_in`, temp2 = `T_core_out`, temp3 = `T_aft`**. No channel is bound yet, because
-    enrollment needs a logger. The plan owns the positions and the reasoning; this is a pointer,
-    not a second copy.
+    temp1 = `T_core_in`, temp2 = `T_core_out`, temp3 = `T_aft`**. **No channel is bound yet** —
+    the enrollment mode exists and works, but the probes are on the car, so binding needs the trip.
+    The plan owns the positions and the reasoning; this is a pointer, not a second copy.
 - **`P` names a logger channel only.** The two pitot probes are `T1`/`T2`, never `P1`/`P2`.
 
 ## Hardware facts that surprise people
@@ -103,7 +103,9 @@ alert the developer and record it in this file so the next agent does not hit it
   aerodynamically live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands. It is
   tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
 - **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
-  once at build. As of 2026-09-09 no ROM ID has been recorded, so no `temp` channel is yet defined.
+  once at enrollment. As of 2026-09-10 **no ROM ID has been recorded, so no `temp` channel is yet
+  defined** — `oneWireProbes.cxx` and its `channels.ini` store exist, and the store is empty on the
+  box because the probes are on the car. Build sheet §5a's table is correspondingly still blank.
 - **The bare 1-Wire bus invented phantom devices, the set CHURNED, and it has now STOPPED —
   because the line is terminated.** With the overlay loaded and **the sensor zone unbuilt**,
   `/sys/bus/w1/devices/` held `w1_bus_master1` plus a varying number of `00-*` entries whose IDs
@@ -126,7 +128,30 @@ alert the developer and record it in this file so the next agent does not hit it
   3. **An *empty* devices directory is the real failure signal**, because a working bus always
      registers its master.
   4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
-     latency for anything that watches for a probe being connected.
+     latency for anything that watches for a probe being connected. It cannot be shortened without
+     root — the master attributes are root-owned and the logger runs as `chrum`.
+  5. **`therm_bulk_read` does not exist on this box, and its absence is not a fault** (measured
+     2026-09-10). It is the documented way to convert every probe at once, and it is the only way
+     to sample four probes at 1 Hz — without it each `w1_slave` read pays its own ~750 ms
+     conversion and a four-probe cycle takes ~3 s, so plan thermal item 2's "start around 1 Hz"
+     silently becomes 0.33 Hz. `w1_therm` registers it as a **master** attribute only once a slave
+     of its family attaches, so with no probes on the bench there is nothing to test and nothing
+     to fix. `oneWireProbes.cxx` triggers it when it exists and falls through when it does not;
+     **the bulk path has therefore never run.** Its worst case is the per-probe path, which is why
+     it was shipped unexercised, but treat the cycle time in the session record (`cycleMs`,
+     `conversionMs`, `bulkConversion`) as the first thing to read after the first real run.
+  6. **The whole 1-Wire path IS testable without probes, and this is how** (2026-09-10).
+     `unshare -Urm --map-root-user` gives an unprivileged user namespace with a private mount
+     namespace, so a fake tree can be bind-mounted over `/sys/bus/w1/devices` — **no root, no sudo,
+     no risk to the real box, and nothing to undo** since the namespace dies with the shell.
+     Populate it with `w1_bus_master1/`, `28-…/w1_slave` files in the kernel's two-line
+     `crc=xx YES` / `t=<millidegrees>` format, and a `00-…` entry to prove the family filter drops
+     it. Enrollment order, the ambiguous-step refusal, the store's family and duplicate guards,
+     bound-but-absent, CRC failure, the 85.00 °C default, out-of-range rejection and the
+     application of a hand-entered offset were all verified this way. It is also what measured the
+     session-start sample's inference failing, which is what retired that requirement. **Reach for this before concluding a sysfs-driven path is
+     untestable.** What it does not establish: real bus timing, real conversion time, or
+     `therm_bulk_read`.
 
 ## BLE advertising: the platform bug that cost a day, and how it was found
 
@@ -276,19 +301,25 @@ alert the developer and record it in this file so the next agent does not hit it
 - **`ssh-harden.sh` must not be run under `sudo`** — it reads `$HOME/.ssh/authorized_keys`, and as
   root that is the wrong file entirely. It refuses, but do not work around it.
 
-## Architecture, when there is code
+## Architecture
 
 Follow `iSitePiLogger`, which is the structural model:
 
 - **Single translation unit.** All `.cxx` files are `#include`-d into `main.cxx`. Do not add them
   to `CMakeLists.txt` as independent targets.
+- **`initialiseBlePackets()` is called exactly once, from `main`, before any worker starts.**
+  `raceChronoBleLoop` used to call it a second time and that was a latent bug, harmless only while
+  nothing produced a thermal reading: it re-runs `g_mutex_init` on live mutexes and resets `0x602`
+  to the all-invalid sentinel, so once `oneWireProbes` existed a real reading taken before the BLE
+  worker finished starting would have been silently clobbered back to −327.68 °C. Removed
+  2026-09-10. Initialise shared packet state in `main`, never in a worker.
 - **Procedural workers, no OOP.** Plain `gpointer fn(gpointer)` passed to `g_thread_new()`.
 - **`CLOCK_TAI` throughout**, to avoid leap-second discontinuities in sample timestamps and file
   names.
 - **The `.ini` sits beside the binary** and its path is resolved from `/proc/self/exe`, not the
   working directory.
 
-Five requirements come from the plan rather than from iSitePiLogger:
+Five requirements came from the plan rather than from iSitePiLogger. **Four stand; the session-start thermal sample was retired whole on 2026-09-10 and is the fifth entry below, kept as a retirement note rather than deleted** — git history and plan revisions up to rev 71 still describe it as live.
 
 - **BLE is the primary data path; the SD card is the durable raw and diagnostic record**
   (owner decision, 2026-09-09, item 5b — this **reverses** the earlier "SD primary, BLE
@@ -334,10 +365,12 @@ Five requirements come from the plan rather than from iSitePiLogger:
   3. **One probe per enrollment step.** If two unbound `28-*` IDs appear in the same 10 s scan the
      arrival order between them is unknowable — sysfs order is not arrival order — so the logger
      must refuse the ambiguous step and say so rather than guess.
-  4. **The store carries provenance and a per-probe offset field from the first version.** The
-     ROM ID, the channel, the timestamp it was bound, and a calibration offset that attaches to
-     the ROM ID rather than to the slot. Thermal item 1 needs the offsets; retrofitting the field
-     later means a format change.
+  4. **The store carries provenance: the ROM ID, the channel and the bind timestamp.** It also
+     carried a per-probe `offsetC` from its first version, on the reasoning that thermal item 1
+     needed somewhere to put offsets and retrofitting the field later would be a format change.
+     **That is retired** (owner decision, 2026-09-10): offsets are slot-keyed in
+     `KnurLogger.ini`, and the key is gone from the store rather than left dead — two fields that
+     look like an offset, one of which does nothing, is worse than one.
   5. **Enrollment must report which ROM ID it just bound**, so the binding can be checked against
      the lead being plugged in. **The probes are already installed on the car** (owner,
      2026-09-09) and the owner can identify each lead at the logger end, so enrollment binds
@@ -345,23 +378,75 @@ Five requirements come from the plan rather than from iSitePiLogger:
      identification fallback anyway: with all four bound, **warming one probe by hand must be
      visible as one channel moving**, which confirms the map in situ and doubles as a liveness
      test.
-- **A cold-soak spread is recorded at session start** (plan thermal item 1). With the probes
-  installed, the bench cross-comparison is replaced by an in-situ common-temperature check, and
-  the logger is what captures it: on a cold car at equilibrium all four probes are at one
-  temperature, so the spread between them *is* the set of relative offsets — the quantity
-  ΔT_preheat depends on, since a difference of two ±0.5 °C probes carries ~1 K against a signal of
-  order 6 K. Requirements:
-  1. **Record the four raw readings and their spread before anything warms up**, into the session
-     file, with the timestamp and the elapsed-since-boot.
-  2. **Flag whether the car looks settled rather than asserting it.** A spread taken on a
-     heat-soaked or sunlit car is worse than none, because it bakes a false offset into the one
-     number the thermal workstream exists to produce. Sun through the grille lands on the
-     T_ambient probe specifically. If the four are still visibly drifting relative to each other,
-     say so in the record and mark the sample unusable.
-  3. **Never auto-apply an offset.** Record the spread as data; applying corrections is the plan's
-     decision, not the logger's, and an offset applied silently cannot be un-applied later.
-  4. Repeated across sessions at different ambients, these snapshots accumulate the multi-point
-     calibration the bench comparison would have given, at no cost.
+  6. **A BOUND channel whose ROM ID goes absent must be logged as present-but-invalid, never
+     omitted** (owner, 2026-09-10 — this was NOT in the five above and it is not implied by them).
+     Iterating the four channels rather than the devices present on the bus is what produces it. If
+     the record simply loses the channel, a mid-session dropout becomes indistinguishable from the
+     logger not having run — which destroys the one property the SD file exists for, namely that a
+     gap in the local stream is the only evidence a sample was missing rather than held. The
+     sentinel goes out on `0x602` for it, and `reason` in the session record separates `unbound`,
+     `absent`, `crc`, `powerOnDefault`, `outOfRange` and `readFailed`.
+     **`absent` must not increment the read-error counter.** A dropped lead and a marginal bus send
+     you to different parts of the car, and inflating `0x603` byte 2–3 with absences would bury the
+     bus-quality signal it exists to carry.
+  7. **Enrollment must keep running after the fourth bind** (owner, 2026-09-10 — also not in the
+     five). Requirement 5's fallback check *is* "warm one probe and watch which channel moves", and
+     that needs a logger still sampling and still notifying. An enroller that exits on the fourth
+     bind silently removes the only in-situ verification of the map. It reports a fifth ROM ID once
+     and refuses it; `--enroll --reset` is the way to start over.
+- **RETIRED, and do not reinstate it: the logger takes NO session-start thermal sample**
+  (owner decision, 2026-09-10). It used to. A "cold-soak spread" / `sessionStartCommonTemperature`
+  requirement stood here from 2026-09-09, was implemented, and was then **dropped whole** — the
+  `commonTemperature` record, the `settling*` config keys and the drift fit are all gone. Git
+  history and plan revisions up to rev 71 still describe it, so this note exists to stop the next
+  agent rebuilding it from either.
+  **Why it went, because the reasoning is worth more than the feature.** The requirement was to
+  *flag* whether the car looked settled rather than assert it, and settledness was inferred from
+  each probe's drift rate across a 90 s window. That inference does not work, and it was measured
+  failing: a car parked ~5–6 h drifts about 11 mK/min, which over 90 s is ~18 mK against the
+  DS18B20's 62.5 mK code step — so **zero code transitions, a fitted drift of exactly 0.0 mK/min,
+  and `spreadUsable: true`** while the bay still held an 810 mK real gradient that would have gone
+  straight into ΔT_preheat. Note what that rules out: **no threshold fixes it**, because the
+  reported drift is exactly zero rather than merely small, and resolving 11 mK/min needs a
+  20–30 minute window, which is not a session start. Drift *rate* and level *gradient* are
+  independent quantities, and inferring "no gradient" from "no drift" was the error.
+  **Nothing is lost by dropping it.** Every session already logs all four probes' absolute
+  readings at 1 Hz, so a cold soak the owner *knows* was a cold soak is still fully derivable from
+  the ordinary `temp` records by hand. What went was the automatic 90 s summary and its unreliable
+  verdict, not the calibration.
+- **Per-channel offsets are hand-entered in `KnurLogger.ini` and ARE APPLIED to what goes to
+  RaceChrono** (owner decisions, 2026-09-10). Two things were reversed here on the same day and
+  both are recorded so nobody restores them from git history:
+  1. **"Never auto-apply an offset — an offset applied silently cannot be un-applied later" is
+     REVERSED.** The objection was put to the owner and answered on its own terms: it is neither
+     silent nor irreversible, because the session record carries the raw reading (`centiC`), the
+     offset in force (`offsetC`) and the value that actually went on the air (`sentCentiC`) side by
+     side. A mistyped offset costs a reprocess, not a session. **That record-both property is the
+     entire basis on which the reversal is safe — anything that later drops the raw value re-opens
+     the original objection.**
+  2. **The offsets are SLOT-keyed in the config, not ROM-ID-keyed in the store.** They were
+     briefly the latter; `channels.ini` no longer has an `offsetC` key at all. The owner chose the
+     simplification after the trade-off was put to them, so do not "restore" ROM-ID keying.
+  **The consequence of slot-keying, stated once because it is real:** an offset is a property of
+  one particular DS18B20, so if the probes are re-enrolled in a different order, or one is swapped,
+  the offsets stay with the slots and no longer describe the parts in them. **Re-check them after
+  any re-enrollment.** What it buys is not nothing: `build/KnurLogger.ini` is **tracked in git**,
+  so the calibration is version-controlled and survives a wiped data directory, which
+  `channels.ini` — data-directory field state, never in git — would not.
+  Four further properties, all verified 2026-09-10:
+  1. **All four keys must be present.** `temp0OffsetC`..`temp3OffsetC` in `[thermal]`; a missing
+     one is a startup failure rather than a silent zero, because an offset that quietly stopped
+     being applied would be invisible in the data it corrupts. A non-numeric value and one past
+     the bound also refuse to start.
+  2. **Two bounds, deliberately different in kind.** Past ±5 °C it warns about a likely
+     decimal-point slip and applies the value anyway; past ±50 °C it refuses to start. A logger
+     that will not start in the car over a plausible-but-large typo loses the whole session, which
+     is worse than a wrong offset that is recorded and reversible.
+  3. **Only relative offsets mean anything.** There is no reference thermometer on the car, and
+     ΔT_preheat depends on the four probes' differences rather than their absolute accuracy, so
+     what belongs there is each probe's deviation from the four-probe mean at equilibrium.
+  4. **The result is clamped clear of `INT16_MIN`.** A corrected reading that landed exactly on the
+     invalid sentinel would be indistinguishable from "no reading at all".
 - **Supply health is logged telemetry, read after a run** (owner decision, 2026-09-09), standing
   in for a bench instrument on commissioning item 5.7 — **not** for build sheet §10 step 2's
   meter. What to record, and the traps:
