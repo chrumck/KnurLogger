@@ -34,6 +34,14 @@ alert the developer and record it in this file so the next agent does not hit it
   tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
 - **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
   once at build. As of 2026-09-09 no ROM ID has been recorded, so no `temp` channel is yet defined.
+- **The bare 1-Wire bus reports a phantom device, and it is not a probe.** With the overlay loaded
+  and nothing wired, `/sys/bus/w1/devices/` holds `w1_bus_master1` **and
+  `00-800000000000`**, and `w1_master_slave_count` reads **`1`**. Family code `00` is not a valid
+  1-Wire family; a DS18B20 is family **`28`**. So **count `28-*` entries and never
+  `w1_master_slave_count`** — trusting the count gives you one probe when there are none, and
+  five when the four-probe star is wired. Two further traps in the same place: an *empty*
+  `/sys/bus/w1/devices/` is the real failure signal, because a working bus always registers its
+  master, and a `00-*` ROM ID must never be written down as a `temp` channel definition.
 
 ## The box
 
@@ -56,6 +64,12 @@ alert the developer and record it in this file so the next agent does not hit it
   `/etc/modules-load.d/knurlogger.conf`. 1-Wire has no equivalent gap because `w1_therm` carries
   the alias `w1-family-0x28`. A missing `/dev/i2c-1` after a reboot means one of the two halves
   did not take — it is never "the sensors are not built yet", which only explains an *empty scan*.
+  **Both halves took on 2026-09-09** and `/dev/i2c-1` exists, scanning empty across all 112
+  addresses as expected. **`/dev/i2c-20` and `/dev/i2c-21` exist too and are not yours** — they
+  are the VC4 display DDC buses, which `i2c-dev` exposes against adapters the KMS driver
+  registers. The perfboard is on **bus 1** and nothing else. Their appearance is how the two
+  halves were told apart mid-run: loading `i2c-dev` before the reboot produced 20 and 21 but no 1,
+  because the `i2c_arm` adapter does not exist until the firmware re-reads `config.txt`.
 - **`w1-gpio`'s `pullup` parameter is ignored** on this firmware — the overlays README says so
   outright. The overlay that drives an external strong pullup is a different one,
   `w1-gpio-pullup`, and this build must not use it: `R11` is a plain 2.2 kΩ resistor to 3V3.
@@ -67,12 +81,20 @@ alert the developer and record it in this file so the next agent does not hit it
   answers "missing" on a box where rfkill is installed. Every script in `SystemSetup/` prepends
   the sbin directories; do the same in anything new, and distrust any "tool missing" result that
   has not accounted for this.
-- **`i2c-tools`, `cmake`, `git` and `libglib2.0-dev` are not installed.**
-  `SystemSetup/install-dependencies.sh` is the list. `rfkill`, `build-essential`, `nmcli` and
-  `bluetoothctl` are already present.
-- **The Bluetooth radio ships SOFT-BLOCKED, and it is persistent.** `rfkill list` reports
-  `Soft blocked: yes`; BlueZ reports `PowerState: off-blocked`. **In this state there is no BLE
-  and therefore no product.** Two traps worth stating plainly:
+- **`i2c-tools`, `cmake`, `git` and `libglib2.0-dev` are installed** as of 2026-09-09, by
+  `SystemSetup/install-dependencies.sh --execute`. `rfkill`, `build-essential`, `nmcli` and
+  `bluetoothctl` were already present. That run also dragged the whole util-linux family forward
+  from `2.41-5` to `2.41.5-0+deb13u1` as a dependency — **`rfkill` among them**, despite the
+  script correctly reporting it present and skipping it. Nothing broke, but a four-package
+  pre-flight list is not a statement of what apt will change.
+- **The Bluetooth radio shipped SOFT-BLOCKED, persistently — and the block is now CLEARED.**
+  `harden-headless.sh` phase 7 ran on 2026-09-09 and the unblock **survived the reboot**:
+  `rfkill list bluetooth` reads `Soft blocked: no`, `hciconfig` reads `UP RUNNING`, BlueZ reads
+  `Powered: yes` / `PowerState: on`. `systemd-rfkill` now restores *unblocked* from the same
+  state directory that used to restore the block. Everything below is why it mattered and how it
+  comes back if anyone re-blocks it — as it shipped, `rfkill list` reported `Soft blocked: yes`
+  and BlueZ `PowerState: off-blocked`. **In that state there is no BLE and therefore no
+  product.** Two traps worth stating plainly:
   1. **`bluetoothctl power on` cannot clear it.** rfkill sits below BlueZ. The service runs, the
      controller enumerates, and it still refuses to power.
   2. **It survives reboots.** `systemd-rfkill` saves per-device state under

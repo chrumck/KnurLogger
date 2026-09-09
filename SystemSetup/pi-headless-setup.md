@@ -32,10 +32,19 @@ Each numbered step is self-contained and states its own background, commands and
 
 ---
 
-## 0. Measured state of the box
+## 0. Measured state of the box — **as it shipped, before any change**
 
 Read off the machine on 2026-09-09 by `audit-boot.sh`. These are measurements, not assumptions;
 the full output is the artefact this section summarises.
+
+> **⚠ This section is the BEFORE state and is deliberately frozen.** Steps 3 and 5 have since
+> been run (2026-09-09). It is kept as written because it is the baseline the after-audit is
+> diffed against, and rewriting it would destroy the only record of what the box shipped as.
+> **Do not read it as current.** Four items in it are now false by design — item 5 (buses not
+> configured), item 6 (missing tools), item 7 (Bluetooth soft-blocked) and item 8a (volatile
+> journal) are exactly what steps 3 and 5 changed. **The `Work Progress` table at the bottom of
+> this file is the authority on current state**, and the corrections sections after it record
+> what running the scripts actually found.
 
 1. **Hardware:** Raspberry Pi 4 Model B Rev 1.5, 4 GB. Powered from the HW-384 buck module through
    the USB-C pigtail (`J1`); the GPIO 5 V pins are not in the power path.
@@ -130,10 +139,12 @@ the only record of the stock state.
 
 ## 3. Step 3 — Install what the build needs
 
-**Background.** The box has `gcc` and `g++` but no `cmake`, no `git` and no GLib development
-package, so nothing can be built on it yet. `i2c-tools` is needed for `i2cdetect` during bring-up.
-`rfkill` is already installed; the script keeps it in the list as a guard and will report it
-present.
+**Background — and this step has been RUN; see the Work Progress table.** As the box shipped it
+had `gcc` and `g++` but no `cmake`, no `git` and no GLib development package, so nothing could be
+built on it. `i2c-tools` is needed for `i2cdetect` during bring-up. `rfkill` was already
+installed; the script keeps it in the list as a guard and reports it present. **Re-running is
+safe** — the script installs only what `dpkg-query` says is missing and exits early with
+"Nothing to do" when the list is satisfied, which is what it does now.
 
 **Do.**
 
@@ -165,8 +176,11 @@ the part worth disagreeing with if you are going to disagree with anything.
 
 ## 5. Step 5 — Apply the boot-time reduction
 
-**Background.** Eight phases, each justified against *this* box rather than a generic Pi. The
-figures below are measured, from step 2.
+**Background — and this step has been RUN; see the Work Progress table.** Eight phases, each
+justified against *this* box rather than a generic Pi. The figures below are measured, from step 2,
+and are therefore the *before* figures: the phases are described in the tense of a box that has
+not had them applied, because that is what makes the justifications legible. What they actually
+achieved is in the Work Progress table and in the corrections list after it.
 
 1. **`NetworkManager-wait-online` (5.983 s) and cloud-init (2.53 s).** The first blocks
    `multi-user.target` and runs to its timeout in a car with no access point in range. The second
@@ -176,10 +190,18 @@ figures below are measured, from step 2.
 2. **apt / man-db / dpkg / e2scrub / fstrim / logrotate timers** — masked, not merely disabled,
    because apt's timers re-enable themselves on package upgrade. These cause multi-second I/O
    stalls at unpredictable moments, which on a 10 Hz logger means dropped samples.
-   `e2scrub_reap.service` alone measured 1.092 s at boot.
-3. **ModemManager, rpi-eeprom-update (848 ms), rsyslog, triggerhappy, udisks2, rpcbind, cups,
-   keyboard-setup (280 ms), console-setup** — nothing on this box consumes any of them. `rsyslog`
-   in particular duplicates journald into `/var/log`, doubling SD writes for no reader.
+   The before-audit caught three of them mid-stall and they are the strongest evidence in this
+   section: **`fstrim.service` 3.467 s**, **`apt-daily-upgrade.service` 1.581 s** and
+   **`e2scrub_reap.service` 1.092 s** — 6.14 s of I/O between them, none of it at a moment
+   anybody chose. `fstrim` was the third-slowest unit on the box and went unmentioned here until
+   the `--execute` run's diff surfaced it.
+3. **rpi-eeprom-update (848 ms), udisks2, keyboard-setup (280 ms), console-setup** — nothing on
+   this box consumes any of them, and these four are the ones that actually exist here. The script
+   also names ModemManager, rsyslog, triggerhappy, bluealsa, rpcbind, nfs-client.target, cups and
+   cups-browsed, and the `--execute` run reported every one of them **"not installed, skipping"**
+   (correction 26). They stay in the list as guards against a future image, but nothing on *this*
+   box is recovered by them — in particular there is no `rsyslog` here duplicating journald into
+   `/var/log`, which an earlier draft of this section claimed as a saving.
 4. **Serial console** — `serial-getty@ttyS0` off and `console=serial0` removed from
    `cmdline.txt`. `ttyAMA0` is the Bluetooth UART on a Pi 4B and is untouched.
 5. **zram writeback off, zram swap kept.** Swap here is RAM-backed and costs no card wear, so
@@ -270,8 +292,21 @@ timedatectl
 3. `/dev/i2c-1` **exists**. An empty `i2cdetect -y 1` scan is expected — the sensor zone is not
    built (§0 item 9) — but a *missing* `/dev/i2c-1` is a failure, and means either the dtparam or
    the `i2c-dev` module did not take (§0 item 5a).
-4. `/sys/bus/w1/devices/` exists and is empty, for the same reason.
-5. `timedatectl` shows `System clock synchronized: yes` while on Wi-Fi.
+   **`/dev/i2c-20` and `/dev/i2c-21` also appear, and they are not yours.** They are the VC4
+   display DDC buses, created by `i2c-dev` against adapters the KMS driver registers. Their
+   presence proves only the module half; the perfboard is on **bus 1** and nothing else.
+   Watching them appear is in fact how the two halves were told apart mid-run: loading `i2c-dev`
+   before the reboot produced 20 and 21 but no 1, because the `i2c_arm` adapter does not exist
+   until the firmware re-reads `config.txt`.
+4. `/sys/bus/w1/devices/` exists. **It is not empty, and an empty one would be the failure.**
+   A working bus always holds `w1_bus_master1`, and with no probes attached this box also shows a
+   **phantom slave `00-800000000000`**, with `w1_master_slave_count` reading `1`. Family code
+   `00` is not a valid 1-Wire family and a DS18B20 is family `28`, so this is a bus with nothing
+   on it, not a device. **Count only `28-*` entries during bring-up** (correction 25) — reading
+   `w1_master_slave_count` will give you four probes plus one, or one probe when there are none.
+5. `timedatectl` shows `System clock synchronized: yes` while on Wi-Fi. **Give it a minute.**
+   Run immediately after boot it reads `no` and `NTP service: active`, because timesyncd has not
+   yet reached a server; that is the expected transient, not a failure.
 
 ---
 
@@ -365,12 +400,12 @@ exactly the condition the box shipped in.
 | 0. Measured state | **done** 2026-09-09 | Full `audit-boot.sh` run over SSH. Pi 4B Rev 1.5 4 GB, RPi OS Lite 64-bit Trixie, kernel 6.18.34. Boot 19.468 s, `multi-user.target` 11.305 s. No failed units. |
 | 1. `get_throttled` | **done (idle only)** 2026-09-09 | **`throttled=0x0`**, `volt=0.9060V` core, SoC 43.8 °C, no voltage/throttling lines in `dmesg`. Plan item 5.4 passes **at idle with no sensors attached**. Does not retire build sheet §10 step 2's `TP2` meter measurement, and item 5.7's under-load re-read is impossible until a logger exists. |
 | 2. Baseline audit | **done** 2026-09-09 | Piped over stdin, so nothing was written to the box. Findings folded into §0 and into the scripts — see the three corrections below. |
-| 3. Install dependencies | **not started** | `cmake`, `git`, `libglib2.0-dev` and `i2c-tools` are missing; `rfkill` and `build-essential` are already present. Nothing can be built on the box until this runs. |
+| 3. Install dependencies | **done** 2026-09-09 | `--execute` run from a login shell. `git 2.47.3`, `cmake 3.31.6`, `i2cdetect 4.4` and `glib-2.0 2.84.4` all answer; `build-essential` and `rfkill` were already present and were skipped. **It also upgraded 14 packages it never named** — the util-linux family, `rfkill` included — see correction 27. The box can now build. |
 | 4. Read pre-flight output | **done** 2026-09-09 | All four scripts pre-flight against the box with exit 0 and no suspicious output, repeatedly, including the `--drop-mdns`, `--no-hdmi` and `--port` paths and every bad-argument case. Pre-flight changes nothing, so this does not advance step 5. |
-| 5. Apply boot-time reduction | **not started** | Target: recover the measured 5.983 s of `NetworkManager-wait-online` plus 2.53 s of cloud-init. Record the after figure here. |
-| 6. Confirm nothing broke | **not started** | `bluetoothctl show` is the stop-everything check. |
-| 7. SSH hardening | **not started** | Optional. |
-| 8. Wi-Fi gating | **decision open** | Manual `nmcli` for now. Blocked on plan item 5a's installed link check. |
+| 5. Apply boot-time reduction | **done** 2026-09-09 | `--execute` from a login shell, all eight phases, both optional flags left off (`--drop-mdns` costs `.local` resolution, `--no-hdmi` costs the emergency console). No `FAILED to mask`, no `modprobe i2c-dev` warning. **Boot 19.468 s → 11.105 s**, userspace 17.463 → 9.108 s, `multi-user.target` 11.305 → 9.108 s. 17 units newly masked, enabled timers 9 → 2, cloud-init disabled, no failed units. Backups at `/boot/firmware/{config,cmdline}.txt.bak-20260909-123716`. Rebooted; `before`/`after` audits diffed. `NetworkManager.service` at 5.236 s is now the whole critical chain and cutting it costs the way back in. |
+| 6. Confirm nothing broke | **done** 2026-09-09 | All five criteria pass. **`rfkill list bluetooth` → `Soft blocked: no`, and it survived the reboot**; `hciconfig` → `UP RUNNING`; BlueZ → `Powered: yes` / `PowerState: on`, which is better than the criterion asked for. Wi-Fi enabled and this SSH session never dropped. **`/dev/i2c-1` exists**, scans empty as expected. 1-Wire master registered — but the devices directory is **not** empty, see correction 25. `System clock synchronized: yes` after ~1 min, see correction 28. `throttled=0x0` at 56.0 °C. |
+| 7. SSH hardening | **not started** | Optional, and now the only unrun script. Its blocker is cleared: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. Password authentication is still enabled on this box. |
+| 8. Wi-Fi gating | **decision open** | Manual `nmcli`/`rfkill block wifi` for now. Still waiting on plan item 5a's installed link check to have been *run* — but 5a itself is **no longer blocked**, since clearing the Bluetooth soft block was its precondition and step 5 phase 7 did that. What 5a now waits on is a logger binary, not this file. |
 
 ### Corrections the first real audit forced
 
@@ -512,6 +547,71 @@ each config file it writes actually wins its ordering contest. Plus real `shellc
 means `network-online.target` can no longer be reached. Nothing needs it now, but the KnurLogger
 service must never declare `Wants=`/`After=network-online.target`.
 
+### Corrections from the first `--execute` run (2026-09-09)
+
+The far side of `--execute`. Both scripts ran to completion, no phase failed, no unit reported
+`FAILED to mask`, and the box came back. Everything below is something no static pass could have
+found, which is the point.
+
+25. **`/sys/bus/w1/devices/` is not empty on a bare bus, and this file said it would be.** It
+   holds `w1_bus_master1` plus a **phantom slave `00-800000000000`**, and
+   `w1_master_slave_count` reads `1` with zero probes attached. Family `00` is not a valid 1-Wire
+   family — a DS18B20 is family `28` — so it is a bus with nothing on it. The acceptance criterion
+   was wrong in both directions: it called an empty directory the pass, when an empty directory
+   would actually mean the overlay had not loaded, and it would have had the next person counting
+   a non-device as a probe. Bring-up counts `28-*` and nothing else. Step 6 item 4 corrected.
+26. **Six of the nine units phase 3 claims to retire are not installed on this image.**
+   `ModemManager`, `rsyslog`, `triggerhappy` (service and socket), `bluealsa`, `rpcbind` (service
+   and socket), `nfs-client.target`, `cups` and `cups-browsed` all reported "not installed,
+   skipping". Only `rpi-eeprom-update`, `udisks2`, `keyboard-setup` and `console-setup` existed.
+   §5 item 3's specific claim that `rsyslog` "duplicates journald into `/var/log`, doubling SD
+   writes for no reader" was a saving credited to an absent package — the same defect class as
+   correction 24's `fake-hwclock`. Section rewritten.
+27. **`install-dependencies.sh` changed 14 packages it never named, `rfkill` among them.** The four
+   requested packages pulled the whole util-linux family forward from `2.41-5` to
+   `2.41.5-0+deb13u1` — `util-linux`, `mount`, `login`, `bsdutils`, `bsdextrautils`, `fdisk`,
+   `libfdisk1`, `eject`, `libblkid1`, `libmount1`, `libsmartcols1`, `libuuid1`, `liblastlog2-2`
+   and **`rfkill`**. The script had reported `rfkill` "present" and correctly skipped it; apt
+   replaced it anyway, one script before the run whose most consequential single action is
+   `rfkill unblock bluetooth`. Nothing broke — but "installs four packages" is not what happened,
+   and a pre-flight that lists only the four cannot tell you that. `read-edid` also arrived as an
+   `i2c-tools` dependency, which is odd on a headless box and harmless.
+28. **`System clock synchronized` reads `no` if you check it at once.** Step 6 item 5 treats `yes`
+   as the acceptance. At 0 min uptime timesyncd has not reached a server yet; ~1 min later it
+   reported `Contacted time server 89.161.47.139:123 (2.debian.pool.ntp.org)` and flipped to
+   `yes`. A literal reading of the old text would have failed a passing box. Item 5 corrected.
+29. **`polkit.service` is `static` and D-Bus-activated, and is currently inactive.** The "Retained
+   on purpose" block says "polkit is a NetworkManager dependency", which reads as though it runs
+   at boot. It ran in the before-audit and does not in the after — not because anything retired
+   it, but because nothing has asked it for an authorisation this boot. Retained is still the
+   right call; the wording overstates what retaining it costs.
+
+**Measured outcomes, not defects.**
+
+1. **Boot 19.468 s → 11.105 s**, a 43% cut. Kernel unchanged at ~2.0 s; **userspace 17.463 s →
+   9.108 s**; `multi-user.target` 11.305 s → 9.108 s. `NetworkManager.service` at 5.236 s is now
+   the entire critical chain past `sysinit`, and the chain no longer runs through cloud-init at
+   all. Reducing it further means not waiting on NetworkManager, which costs the way back in.
+2. **Enabled timers 9 → 2**, and one of the two (`rpi-zram-writeback.timer`) is masked and shows
+   no next elapse. **17 units newly masked**, none of them with a failed status.
+3. **The Bluetooth unblock survived the reboot** — the whole question this box turned on.
+   `rfkill list bluetooth` reads `Soft blocked: no`, `hciconfig` reads **`UP RUNNING`**, and
+   BlueZ reports `Powered: yes` / `PowerState: on`. Better than the acceptance asked for: it
+   allowed `Powered: no` on an unblocked controller as the logger's problem to fix, and BlueZ
+   powered it unprompted. `systemd-rfkill.service` now restores *unblocked* from the same
+   `/var/lib/systemd/rfkill/` state that used to restore the block.
+4. **`/dev/i2c-1` exists** and scans empty across all 112 addresses, as §0 item 9 predicts. The
+   1-Wire bus master registered. Both halves of §0 item 5a took.
+5. **Journal 8 M volatile → 16 M persistent** in `/var/log/journal`, which is phase 6's deliberate
+   trade (correction 22) with a real number against it for the first time.
+6. **Dirty ratios took**: `vm.dirty_background_ratio` 10 → 5, `vm.dirty_ratio` 20 → 10. Wi-Fi
+   power save is now `wifi.powersave = 2`, where it had been unconfigured and defaulting to 3.
+7. **`throttled=0x0` still**, at `volt=0.9060V` and 56.0 °C shortly after boot against 43.8 °C at
+   idle earlier. Plan item 5.4 remains a pass at idle and item 5.7's under-load re-read remains
+   impossible until there is a logger.
+8. **No failed units, and the SSH session survived.** `cmdline.txt` kept `console=tty1` while
+   `console=serial0,115200` went, and its absent final newline was preserved.
+
 ### Script review status
 
 The four scripts have been through **five review passes** (2026-09-09; history revs 66–66d in the
@@ -522,11 +622,18 @@ plan's companion file). What that did and did not establish:
    `config.txt`; every unit they mask is `WantedBy` something and `RequiredBy` nothing; every
    config file they write wins its ordering contest; every unit named in the "Retained on purpose"
    block exists.
-2. **Not established.** **No script has been run with `--execute`.** Nothing on the box has been
-   changed. Passes 2–5 each needed a *new method* to find anything — executing against the box,
-   sandbox replay, dependency analysis, claim verification — and the remaining unknowns are all on
-   the far side of `--execute`. A sixth static pass is not the next useful thing; running step 3
-   and step 5 is.
+2. **Now also established, by running them.** `install-dependencies.sh --execute` and
+   `harden-headless.sh --execute` have both been run, followed by a reboot and a diffed re-audit
+   (2026-09-09). Every phase completed, no unit failed to mask, the box came back, and the five
+   step 6 acceptance criteria pass. That run produced corrections 25–29, and every one of them is
+   a thing the five static passes could not have reached: what the kernel does with a bare 1-Wire
+   bus, which units this image actually ships, what apt drags in behind a four-package list, how
+   long timesyncd takes, and which retained units are D-Bus-activated rather than booted. The
+   prediction that the remaining unknowns were all on the far side of `--execute` held.
+3. **Still not established.** `ssh-harden.sh` has **not** been run with `--execute` — step 7 is
+   still not started, and it is the one that can lock you out. Nothing here has been exercised
+   under logging load, because there is no logger: no bus has carried a transaction, no BLE
+   connection has been made, and `throttled` has only ever been read at idle.
 
 ### Open items owned by this file
 
