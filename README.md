@@ -7,8 +7,11 @@ It logs differential pressure, temperature and enclosure conditions to the SD ca
 the same channels over Bluetooth LE as a [RaceChrono DIY BLE
 device](https://github.com/aollin/racechrono-ble-diy-device) for live viewing on a phone.
 
-**Status: repository created 2026-09-09. There is no logger binary yet.** What exists is the host
-setup under `SystemSetup/`, and even that has not been applied to the box.
+**Status: there is no logger binary yet.** The host setup under `SystemSetup/` **has been applied**
+(2026-09-09): dependencies installed, the boot-time pass run, rebooted and re-audited. `/dev/i2c-1`
+and the 1-Wire bus exist, the build toolchain is installed, boot fell 19.468 s → 11.105 s, and the
+Bluetooth soft block is cleared and survived a reboot. `ssh-harden.sh` is the one script still
+unrun. **The perfboard's sensor zone is not built**, so no sensor answers on either bus yet.
 
 ---
 
@@ -35,8 +38,11 @@ Read, in this order, before changing anything here:
 
 **Channel names are positional and carry no meaning.** `P0`–`P5` are fixed by mux position;
 `temp0`–`temp3` are fixed by ROM ID at build time. The mapping from these to measurement roles
-(`T_ambient`, `T_core_in`, `U`, `X`, `C` …) is a per-session record, deliberately not yet decided,
-and is logged at boot. Do not rename a channel after a role.
+(`T_ambient`, `T_core_in`, `U`, `X`, `C` …) is a per-session record and is logged at boot. Do not
+rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided but
+not yet applied** — installing the probes on the car pinned it, and enrolled in installed order it
+is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. No channel is bound
+yet, because binding needs a logger.
 
 All five SDP810s answer at the same fixed I2C address and cannot be strapped apart, which is why
 the mux is mandatory rather than a convenience.
@@ -83,5 +89,17 @@ ssh KnurLogger
 
 ## Next
 
-Nothing in `SystemSetup/` has been run. `pi-headless-setup.md` §Work Progress is the authority on
-where that stands. The logger architecture beyond "iSitePiLogger's shape" is not yet decided.
+**The logger binary is the whole critical path.** Three owner decisions in the plan set routed
+commissioning items 5a and 5.7 and the thermal channel assignment through it, so four open items
+now wait on one artefact that does not exist.
+
+`pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the five
+architecture requirements the plan imposes — SD-primary record, append-only file with a ~1 s
+`fsync` cadence, DS18B20 channel enrollment, a session-start cold-soak spread, and supply-health
+telemetry — plus the hardware traps. Read it before writing code.
+
+**What is testable on the box today, with no sensor zone:** the build itself, config loading,
+the session-file writer and its fsync cadence, the supply-telemetry worker (`vcgencmd` and the
+`rpi_volt` hwmon both answer), the 1-Wire enrollment's phantom filter (the bare bus invents
+churning `00-*` devices, so correct behaviour is to report **zero** probes), and a BLE advertiser
+against a phone. **What is not:** anything requiring a real SDP810, BME280 or DS18B20 reading.

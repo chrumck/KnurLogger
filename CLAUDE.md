@@ -175,7 +175,7 @@ Follow `iSitePiLogger`, which is the structural model:
 - **The `.ini` sits beside the binary** and its path is resolved from `/proc/self/exe`, not the
   working directory.
 
-Four requirements come from the plan rather than from iSitePiLogger:
+Five requirements come from the plan rather than from iSitePiLogger:
 
 - **The SD card is the primary record and BLE is secondary** (item 5b). Raw readings, timestamps,
   counters and validity flags are written locally regardless of link state.
