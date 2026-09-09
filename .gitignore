@@ -1,0 +1,19 @@
+build/
+!build/*.ini
+
+*.o
+*.a
+*.so
+compile_commands.json
+.cache/
+
+# Deployed config carries real values; the template in build/ is what is tracked.
+KnurLogger.ini
+!build/KnurLogger.ini
+
+# Session data never belongs in the repo.
+sessions/
+*.csv
+*.log
+
+boot-audit-*.txt

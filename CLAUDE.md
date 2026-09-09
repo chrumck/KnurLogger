@@ -1,0 +1,144 @@
+The role of this file is to describe common mistakes and confusion points that agents might
+encounter as they work in this project. If you ever encounter something here that surprises you,
+alert the developer and record it in this file so the next agent does not hit it.
+
+# CLAUDE.md — KnurLogger
+
+## Where authority lives
+
+- **This repository owns software and host configuration. It owns no measurement decision.**
+  `../ndLouvers/CFD-Learning-Plan.md` Step 0b is the authority on channels, acceptance criteria,
+  calibration and commissioning. `../ndLouvers/step0b-rig/logger-perfboard-wiring.md` is the
+  authority on wiring, I2C addresses, mux channel numbering and bring-up order — its §3a net list
+  specifically, against which §3, §4 and §6 are views.
+- **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
+  sit alongside this one. Relative links between them work on disk and break on a git host. Do not
+  "fix" them by copying content across; a duplicated requirement is a requirement that will drift.
+
+## Naming
+
+- **Channel names are positional and mean nothing.** Pressure channels are `P0`–`P5`, fixed by mux
+  position. Thermal channels are `temp0`–`temp3`, fixed by DS18B20 ROM ID at build time. The
+  mapping to measurement roles (`T_ambient`, `T_core_in`, `T_core_out`, `T_aft`, and `U`/`X`/`C`
+  for pressure) is **deliberately undecided**, is a per-session record, and is logged at boot. Do
+  not invent one, and never rename a channel after a role.
+- **`P` names a logger channel only.** The two pitot probes are `T1`/`T2`, never `P1`/`P2`.
+
+## Hardware facts that surprise people
+
+- **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The
+  TCA9548A mux is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups
+  downstream, so every populated channel has its own pair.
+- **The BME280's pressure channel is enclosure pressure, never a static reference.** The cavity is
+  aerodynamically live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands. It is
+  tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
+- **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
+  once at build. As of 2026-09-09 no ROM ID has been recorded, so no `temp` channel is yet defined.
+
+## The box
+
+- **SSH alias `KnurLogger`** — `192.168.118.52`, user `chrum`, key-only.
+- **Raspberry Pi OS Lite 64-bit, Trixie**, kernel `6.18.34+rpt-rpi-v8`, Pi 4B Rev 1.5, 4 GB.
+  `/boot/firmware/config.txt` is the boot config path. NetworkManager is the network stack.
+- **There is no `hciuart.service` on this image.** The BCM43455 is attached by udev and
+  `bluetooth.service` is the only unit involved. Recipes that name `hciuart` predate this.
+- **`wpa_supplicant.service` is enabled and running, and NetworkManager drives it over D-Bus.**
+  Disabling it because "NetworkManager spawns its own" loses Wi-Fi, which is the only way onto a
+  box in a wheel-well cavity. An earlier draft of `harden-headless.sh` did exactly that; the first
+  real audit caught it.
+- **Swap is zram (`/dev/zram0`), not a file.** It is RAM-backed and costs no SD wear, so there is
+  nothing to gain by turning it off. `dphys-swapfile` does not exist here. The one thing worth
+  retiring is `rpi-zram-writeback.timer`, whose job is to push zram pages onto the card.
+- **I2C needs a module that nothing loads; 1-Wire does not.** `dtparam=i2c_arm=on` registers the
+  adapter but does **not** create `/dev/i2c-1` — the `i2c-dev` module does, and `/etc/modules` is
+  empty with no modalias path to pull it in. `raspi-config`'s `do_i2c` does both steps and any
+  script replacing it must too; `harden-headless.sh` writes
+  `/etc/modules-load.d/knurlogger.conf`. 1-Wire has no equivalent gap because `w1_therm` carries
+  the alias `w1-family-0x28`. A missing `/dev/i2c-1` after a reboot means one of the two halves
+  did not take — it is never "the sensors are not built yet", which only explains an *empty scan*.
+- **`w1-gpio`'s `pullup` parameter is ignored** on this firmware — the overlays README says so
+  outright. The overlay that drives an external strong pullup is a different one,
+  `w1-gpio-pullup`, and this build must not use it: `R11` is a plain 2.2 kΩ resistor to 3V3.
+- **`sudo` requires a password.** Pre-flight runs pipe fine over `ssh host 'bash -s'`; anything
+  that changes state must run from a login shell (`ssh -t`), and every mutating script checks this
+  up front rather than failing halfway.
+- **`/usr/sbin` is not on `PATH`** for a non-interactive SSH session or a non-root Debian login
+  shell. `sysctl`, `rfkill`, `swapon` and `i2cdetect` all live there, so `command -v rfkill`
+  answers "missing" on a box where rfkill is installed. Every script in `SystemSetup/` prepends
+  the sbin directories; do the same in anything new, and distrust any "tool missing" result that
+  has not accounted for this.
+- **`i2c-tools`, `cmake`, `git` and `libglib2.0-dev` are not installed.**
+  `SystemSetup/install-dependencies.sh` is the list. `rfkill`, `build-essential`, `nmcli` and
+  `bluetoothctl` are already present.
+- **The Bluetooth radio ships SOFT-BLOCKED, and it is persistent.** `rfkill list` reports
+  `Soft blocked: yes`; BlueZ reports `PowerState: off-blocked`. **In this state there is no BLE
+  and therefore no product.** Two traps worth stating plainly:
+  1. **`bluetoothctl power on` cannot clear it.** rfkill sits below BlueZ. The service runs, the
+     controller enumerates, and it still refuses to power.
+  2. **It survives reboots.** `systemd-rfkill` saves per-device state under
+     `/var/lib/systemd/rfkill/` and restores it at boot.
+  `sudo rfkill unblock bluetooth` clears it, and is persisted the same way.
+  `harden-headless.sh` phase 7 does this. For the same reason, **never run `rfkill block all`**
+  to gate Wi-Fi — it takes BLE down with it, persistently. Use `rfkill block wifi`.
+
+- **`fake-hwclock` is not installed, and the clock in the car will be wrong.** A Pi 4B has no RTC.
+  `systemd-timesyncd` saves the time to `/var/lib/systemd/timesync/clock` and restores it at boot,
+  so a session file is never stamped 1970 — but with no NTP in the car the clock simply resumes
+  from the last bench sync and is **wrong by however long ago that was**, while looking perfectly
+  plausible. **The logger must record an offset against an external time source at session start**
+  (the phone's GPS time over the RaceChrono link is the obvious one) rather than trusting the Pi
+  clock for anything that has to line up with RaceChrono data.
+- **`network-online.target` can no longer be reached** once `harden-headless.sh` masks
+  `NetworkManager-wait-online.service`. Nothing needs it today — only cloud-init did, and that is
+  disabled too. But the KnurLogger service must **not** use `Wants=`/`After=network-online.target`;
+  it would wait on a target that never comes up. `After=multi-user.target` and the box's own
+  readiness checks are the right shape. Verified: every unit this script masks is `WantedBy`
+  something and `RequiredBy` nothing, so masking breaks no dependency chain.
+
+## Never disable
+
+- **Bluetooth.** BLE is the RaceChrono link and the reason this box exists. `iSitePiLogger`'s
+  `setupNotes.txt` sets `dtoverlay=disable-bt` and is otherwise this project's model — that one
+  line is not to be copied.
+- **Wi-Fi, permanently.** `dtoverlay=disable-wifi` needs an SD card and a text editor to undo.
+  Gate it per session with `rfkill block wifi` or `nmcli radio wifi off` instead — never
+  `rfkill block all`, which takes BLE down with it and persists. Whether it needs gating at all is
+  plan item 5a's installed link check to answer, and that check has not been run.
+
+## Scripts
+
+- **Every script in `SystemSetup/` defaults to pre-flight and needs `--execute`.** This is the
+  `iSitePiLogger` `prepare-image.sh` idiom and it is deliberate. Run with no arguments, read the
+  `+` lines, then re-run.
+- **`harden-headless.sh` masks rather than disables.** apt's timers re-enable themselves on
+  package upgrade. `sudo systemctl unmask <unit>` is the rollback.
+- **`disable --now` is not a way to stop a unit that has no `[Install]` section.** systemd refuses
+  the whole command, so the `--now` half never runs, and masking does not stop a running unit
+  either. `retire_unit` therefore issues `disable`, `stop` and `mask` as three separate steps,
+  tolerating the first two. Twelve units on this box are active when it runs.
+- **`ssh-harden.sh` must not be run under `sudo`** — it reads `$HOME/.ssh/authorized_keys`, and as
+  root that is the wrong file entirely. It refuses, but do not work around it.
+
+## Architecture, when there is code
+
+Follow `iSitePiLogger`, which is the structural model:
+
+- **Single translation unit.** All `.cxx` files are `#include`-d into `main.cxx`. Do not add them
+  to `CMakeLists.txt` as independent targets.
+- **Procedural workers, no OOP.** Plain `gpointer fn(gpointer)` passed to `g_thread_new()`.
+- **`CLOCK_TAI` throughout**, to avoid leap-second discontinuities in sample timestamps and file
+  names.
+- **The `.ini` sits beside the binary** and its path is resolved from `/proc/self/exe`, not the
+  working directory.
+
+Two requirements come from the plan rather than from iSitePiLogger:
+
+- **The SD card is the primary record and BLE is secondary** (item 5b). Raw readings, timestamps,
+  counters and validity flags are written locally regardless of link state.
+- **Append-only session file, `fsync` on a fixed ~1 s cadence** — not per sample, not only at
+  close. The accessory feed disappears without warning at ignition-off, so the last durable write
+  bounds the loss. Flushing per sample at 10 Hz buys a shorter window at the price of write
+  amplification without changing the failure mode.
+
+Preserve CRC failures, clipping, disconnects and stale samples as **invalid data**, never as
+carried-forward values presented as new.
