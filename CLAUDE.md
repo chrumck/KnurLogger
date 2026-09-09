@@ -44,6 +44,58 @@ alert the developer and record it in this file so the next agent does not hit it
 
 ## Hardware facts that surprise people
 
+- **The sensor zone is ASSEMBLED, minus the pressure-sensor part** (owner, 2026-09-09) — the five
+  SDP810s are still being delivered. Every document in both repositories previously said this zone
+  was unbuilt and that **an empty I2C scan and zero `28-*` devices were the correct results**.
+  That is no longer true and the acceptance criteria moved with it. The first scan of the assembled
+  board found two things worth knowing before writing any bus code:
+  1. **The BME280 is at `0x77`, and that is now the specified address** (owner decision,
+     2026-09-09). It is a genuine BME280, not a mux at a strapped address — chip-ID register
+     `0xD0` reads `0x60`. The build sheet used to say "**Do not use `0x77`**" and put `U3.SDO` on
+     `GND_SIG`; the owner amended the document rather than the board, so **`0x77` is the address
+     to code against** and `0x77` is no longer free for anything else. No collision results,
+     because the mux is strapped to `0x70` alone.
+  2. **The mux was silent because `~RESET` was soldered to header pin 9 instead of pin 11** —
+     found and being resoldered (owner, 2026-09-09). **Pin 9 is a ground pin and pin 11 is
+     GPIO17, and they are adjacent in the same row**, so this is a one-position off-by-one onto
+     the worst possible neighbour: a PCA9548A held in reset does not degrade or partly work, it
+     goes **completely silent**, which is indistinguishable from an absent or dead part.
+     **The diagnostic that localised it is worth keeping.** `gpio=17=op,dh` is live in
+     `/boot/firmware/config.txt` and `pinctrl get 17` reads `17: op -- pd | hi` — so the Pi was
+     provably driving `~RESET` high while the mux end measured low, which puts the fault on the
+     wire rather than on the host or the part. **Whenever a bus device is silent, check the Pi
+     side with `pinctrl get <n>` before suspecting the device**; it is one command and it splits
+     the search space in half.
+     **Do not try to fix a reset problem in software.** GPIO17 was already high, so no
+     `pinctrl`/libgpiod write could have helped — it would only have masked the diagnosis.
+     Build sheet §2 note 2 and the §3a.7 check table carry the meter checks, including the one
+     that **passes on a board with this fault** (`MUX_RST` ↔ `+3V3` still reads `R12`'s 10 kΩ).
+  3. **The mux is a PCA9548A, not a TCA9548A** — the board is marked PCA9548A (owner,
+     2026-09-09). Functionally equivalent for everything here: same pinout, same `0x70`–`0x77`
+     range, same single-control-byte channel register, same active-LOW `~RESET`. Recorded so that
+     searching the board for a "TCA9548A" does not suggest the wrong part was fitted.
+- **Testing the thermal channels requires a trip to the car, and the car has no network**
+  (owner, 2026-09-09). The four DS18B20s are installed on the car; the car is in an underground
+  garage with **no cell coverage and no internet**. So the logger is carried there, run, and
+  brought back with artefacts to inspect. Four consequences:
+  1. **There IS a way in: the owner's phone hotspot.** The owner can raise a local Wi-Fi network
+     from the phone and SSH into the box — no internet, but a shell. So enrollment does not have
+     to be blind. **The precondition is that the box already knows that SSID and its PSK**, since
+     there is no other way to configure it there; a NetworkManager profile for the hotspot must
+     exist *before* the trip, and no PSK goes in this public repository.
+  2. **It must nonetheless survive unattended from power-on**, because the box is fed from the
+     car's supply and *will* be power-cycled in the garage. A hand-started process does not
+     survive that, which is why the systemd unit exists.
+  3. **BLE is the richest feedback channel at the car**, and the only one that shows the data as
+     RaceChrono will see it. A phone watching `temp0`–`temp3` move is what makes the "warm one
+     probe by hand and watch which channel moves" identification check performable in situ.
+  4. **Do not run the BLE link qualification with Wi-Fi up.** Wi-Fi and BT share one radio and one
+     antenna on the BCM43455, and plan item 1b names background Wi-Fi scanning as a known source
+     of BLE jitter. The hotspot is a debugging convenience, so **gate Wi-Fi off for any
+     measurement of link quality** and bring it back up afterwards to collect artefacts.
+     `rfkill block wifi`, never `rfkill block all`.
+  5. **The pressure sensors have no such problem** — they sit on the perfboard and bench-test
+     directly, once they arrive.
 - **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The
   TCA9548A mux is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups
   downstream, so every populated channel has its own pair.
@@ -52,14 +104,20 @@ alert the developer and record it in this file so the next agent does not hit it
   tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
 - **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
   once at build. As of 2026-09-09 no ROM ID has been recorded, so no `temp` channel is yet defined.
-- **The bare 1-Wire bus invents phantom devices, they are not probes, and THE SET CHURNS.** With
-  the overlay loaded and nothing wired, `/sys/bus/w1/devices/` holds `w1_bus_master1` plus a
-  varying number of `00-*` entries whose IDs change from scan to scan. Measured 2026-09-09 across
-  35 s: first `00-800000000000` alone, then `00-dc0000000000` + `00-3c0000000000`, then
-  `00-3c0000000000` + `00-bc0000000000`. `w1_master_slave_count` read `1`, then `2`, then `2`.
-  These are bus-search results read off a floating line, and `w1_master_attempts` was already
-  past 250 with nothing attached. Family code `00` is not a valid 1-Wire family; a DS18B20 is
-  family **`28`**.
+- **The bare 1-Wire bus invented phantom devices, the set CHURNED, and it has now STOPPED —
+  because the line is terminated.** With the overlay loaded and **the sensor zone unbuilt**,
+  `/sys/bus/w1/devices/` held `w1_bus_master1` plus a varying number of `00-*` entries whose IDs
+  changed from scan to scan. Measured 2026-09-09 across 35 s: first `00-800000000000` alone, then
+  `00-dc0000000000` + `00-3c0000000000`, then `00-3c0000000000` + `00-bc0000000000`, with
+  `w1_master_slave_count` reading `1`, `2`, `2` and `w1_master_attempts` already past 250 with
+  nothing attached. **With the sensor zone assembled, three scans over 36 s returned the master
+  alone, `slave_count = 0`, and no `00-*` at all.** `R11`'s 2.2 kΩ to `+3V3` is in the sensor zone,
+  so `GPIO4` no longer floats on the SoC's internal pull-up and the bus search reads a terminated
+  line instead of noise. Well-supported but not proven — nobody re-floated the line to confirm.
+  Family code `00` is not a valid 1-Wire family; a DS18B20 is family **`28`**.
+  **The filter below is still mandatory** — it is correct regardless of cause, and a marginal
+  4 × 5 m star can produce garbage of its own — but it **can no longer be exercised on this box**,
+  so its correctness now rests on the parser rather than on an observation.
   1. **Match `28-*` and nothing else, everywhere** — enumeration, binding, and reads.
      `w1_master_slave_count` is not "off by one", it is **unstable**, and no code may branch on
      it.
@@ -91,8 +149,8 @@ alert the developer and record it in this file so the next agent does not hit it
   `/etc/modules-load.d/knurlogger.conf`. 1-Wire has no equivalent gap because `w1_therm` carries
   the alias `w1-family-0x28`. A missing `/dev/i2c-1` after a reboot means one of the two halves
   did not take — it is never "the sensors are not built yet", which only explains an *empty scan*.
-  **Both halves took on 2026-09-09** and `/dev/i2c-1` exists, scanning empty across all 112
-  addresses as expected. **`/dev/i2c-20` and `/dev/i2c-21` exist too and are not yours** — they
+  **Both halves took on 2026-09-09** and `/dev/i2c-1` exists. It no longer scans empty, and an
+  empty scan is no longer the expected result — see the sensor-zone status below. **`/dev/i2c-20` and `/dev/i2c-21` exist too and are not yours** — they
   are the VC4 display DDC buses, which `i2c-dev` exposes against adapters the KMS driver
   registers. The perfboard is on **bus 1** and nothing else. Their appearance is how the two
   halves were told apart mid-run: loading `i2c-dev` before the reboot produced 20 and 21 but no 1,
@@ -133,18 +191,25 @@ alert the developer and record it in this file so the next agent does not hit it
 - **Some channels the plan needs will never appear on box 2's SD card.** CAN ambient
   (`0x420` byte 7) and, if it is on the bus, **cooling-fan state** arrive through box 1's CAN
   broadcast into RaceChrono — not through this logger (`../ndLouvers/` §7 open item 35). So the
-  authoritative record for a session is **split across two devices**, and reassembling it depends
-  entirely on the session-start time offset below. That is the concrete reason the offset is
-  load-bearing rather than housekeeping: without it, box 2's pressures and temperatures cannot be
-  aligned to the fan state that explains them, and the fan can change state mid-run with no driver
-  input and no speed change.
+  record for a session is **split across two devices, and RaceChrono is what reassembles it** —
+  which is the whole reason BLE is the primary data path. It is *not* reassembled by a
+  session-start time offset; that was the earlier reading, and it is superseded. The consequence
+  that survives is sharper: **a box-2 channel that never reaches the phone cannot be aligned to
+  the fan state that explains it**, and the fan can change state mid-run with no driver input and
+  no speed change. So a BLE gap is not a cosmetic loss — it is the loss of the only link between
+  box 2's pressures and the fan behaviour that conditions them.
 - **`fake-hwclock` is not installed, and the clock in the car will be wrong.** A Pi 4B has no RTC.
   `systemd-timesyncd` saves the time to `/var/lib/systemd/timesync/clock` and restores it at boot,
   so a session file is never stamped 1970 — but with no NTP in the car the clock simply resumes
   from the last bench sync and is **wrong by however long ago that was**, while looking perfectly
-  plausible. **The logger must record an offset against an external time source at session start**
-  (the phone's GPS time over the RaceChrono link is the obvious one) rather than trusting the Pi
-  clock for anything that has to line up with RaceChrono data.
+  plausible. **The car has no network at all** — it lives in an underground garage with no cell
+  coverage (owner, 2026-09-09) — so there is no NTP to reach even in principle.
+  **Do not build a GPS-time fetch to fix this.** The earlier requirement to record an offset
+  against the phone's GPS time over the RaceChrono link is superseded twice over: RaceChrono
+  stamps every source on arrival, so cross-device alignment does not need the Pi clock, and the
+  DIY BLE protocol carries no time transfer to fetch it with. What the logger does instead is
+  cheap and sufficient: **every local record carries elapsed-since-boot alongside the wall
+  clock**, so intra-session timing is exact regardless of what the absolute epoch says.
 - **`network-online.target` can no longer be reached** once `harden-headless.sh` masks
   `NetworkManager-wait-online.service`. Nothing needs it today — only cloud-init did, and that is
   disabled too. But the KnurLogger service must **not** use `Wants=`/`After=network-online.target`;
@@ -190,8 +255,29 @@ Follow `iSitePiLogger`, which is the structural model:
 
 Five requirements come from the plan rather than from iSitePiLogger:
 
-- **The SD card is the primary record and BLE is secondary** (item 5b). Raw readings, timestamps,
-  counters and validity flags are written locally regardless of link state.
+- **BLE is the primary data path; the SD card is the durable raw and diagnostic record**
+  (owner decision, 2026-09-09, item 5b — this **reverses** the earlier "SD primary, BLE
+  secondary", so do not reinstate it from memory or from git history). The analysis record is
+  RaceChrono's consolidated log, because RaceChrono is what collects box 1's CAN broadcast, box
+  2's channels and the phone's GPS and stamps them into one frame set on one timebase. Box 2's
+  channels have to reach the phone to be useful.
+  **The local file is still mandatory, on three narrower grounds** — and each one is a thing the
+  BLE path physically cannot do:
+  1. **Link-level loss cannot be signalled over BLE.** *Channel*-level invalidity can: send
+     `-32768` (`INT16_MIN`) for any channel with no trustworthy reading and RaceChrono decodes an
+     unmistakable −327.68 °C, which is what the ESP32 rig already does. But a dropped connection,
+     a phone that stopped recording, or a dead logger leaves nobody to send a sentinel, and
+     RaceChrono presents the last value it received indefinitely. **A gap in the local stream is
+     the only evidence that a sample was missing rather than held.**
+  2. **Item 4's diagnostics are not channel-shaped** — raw counts, the retained scale factor,
+     sensor temperature, product/revision/serial, per-sample validity flags.
+  3. **Supply telemetry is SD-only by nature**, because the event worth catching is a brownout at
+     ignition-off — the moment the link and the logger both stop.
+- **The session-start clock offset is no longer load-bearing, and its stated mechanism does not
+  exist.** Because RaceChrono stamps every source on arrival, box 1 and box 2 are never aligned
+  against each other's clocks. Keep recording elapsed-since-boot beside the wall clock in local
+  records, but **do not build a GPS-time fetch**: the RaceChrono DIY protocol is device→phone
+  notifications plus a filter-write channel and carries no time transfer.
 - **Append-only session file, `fsync` on a fixed ~1 s cadence** — not per sample, not only at
   close. The accessory feed disappears without warning at ignition-off, so the last durable write
   bounds the loss. Flushing per sample at 10 Hz buys a shorter window at the price of write

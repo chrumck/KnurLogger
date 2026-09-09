@@ -1,0 +1,50 @@
+[Unit]
+Description=KnurLogger — box-2 RaceChrono BLE logger for the ND hood-louver rig
+Documentation=https://github.com/chrumck/KnurLogger
+
+# NEVER add Wants=/After=network-online.target. harden-headless.sh masks
+# NetworkManager-wait-online.service, so that target can no longer be reached on this box and a
+# unit waiting on it would wait forever. Nothing here needs the network: the primary data path is
+# BLE, and in the car there is no network at all.
+After=multi-user.target
+After=dbus.service
+# BLE is the product, so the controller has to be up before the logger's Bluetooth worker starts.
+# Wants rather than Requires: a session must still record to the SD card with no BLE at all, which
+# is exactly the split Step 0b item 5b now describes.
+Wants=bluetooth.service
+After=bluetooth.service
+
+[Service]
+Type=simple
+
+# Runs as the owner's account rather than root, because that account already carries the group
+# memberships the logger needs and root would add nothing: `video` for vcgencmd's /dev/vcio,
+# `i2c` for /dev/i2c-1, `gpio` for /dev/gpiochip0. No GPIO write is needed today — the mux
+# ~RESET is released at firmware time by `gpio=17=op,dh` — but the group costs nothing to keep.
+User=chrum
+Group=chrum
+SupplementaryGroups=video i2c gpio
+
+ExecStart=/home/chrum/KnurLogger/build/KnurLogger
+
+# Logging mode only. Enrollment binds ROM IDs to channels and must never start unattended: a
+# dropout and reconnect, or a probe replaced after a failure, must not silently re-bind a channel.
+# Run `KnurLogger --enroll` by hand instead.
+
+# The box is fed from the car's accessory circuit and is power-cycled without warning, so a crash
+# must not end logging for the rest of the drive.
+Restart=always
+RestartSec=5
+
+# SIGTERM is the ordinary stop. The logger drains its record queue and fsyncs on the way out, so
+# give it room to finish rather than killing it mid-flush — but not so much that a wedged process
+# delays shutdown, which on this box is usually a power cut anyway.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=KnurLogger
+
+[Install]
+WantedBy=multi-user.target

@@ -3,16 +3,22 @@
 Headless data logger for the ND Miata hood-louver instrumentation ("box 2"), running on a
 Raspberry Pi 4B in the cavity behind the right wheel well.
 
-It logs differential pressure, temperature and enclosure conditions to the SD card, and publishes
-the same channels over Bluetooth LE as a [RaceChrono DIY BLE
-device](https://github.com/aollin/racechrono-ble-diy-device) for live viewing on a phone.
+It publishes differential pressure, temperature and enclosure conditions over Bluetooth LE as a
+[RaceChrono DIY BLE device](https://github.com/aollin/racechrono-ble-diy-device), which is the
+**primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
+durable record and the only thing that can prove a sample was missing rather than held.
 
 **Status: there is no logger binary yet.** The host setup under `SystemSetup/` **has been applied**
 (2026-09-09): dependencies installed, the boot-time pass run, rebooted and re-audited. `/dev/i2c-1`
 and the 1-Wire bus exist, the build toolchain is installed, boot fell 19.468 s → 11.105 s, and the
 Bluetooth soft block is cleared and survived a reboot, and the box is **key-only over SSH**
-(`ssh-harden.sh` ran too, so all four scripts have now been applied). **The perfboard's sensor zone
-is not built**, so no sensor answers on either bus yet.
+(`ssh-harden.sh` ran too, so all four scripts have now been applied).
+**The perfboard's sensor zone is assembled**, minus the pressure-sensor part — the five SDP810s
+are still being delivered. So the buses are no longer silent, and an empty I2C scan is no longer
+the correct result. The BME280 answers at **`0x77`**, which is now its specified address; the mux
+is a **PCA9548A** and was silent because its `~RESET` had been soldered to header pin 9 instead of
+pin 11, now being corrected; and the 1-Wire phantoms have stopped, which is attributed to `R11`
+terminating the line. `CLAUDE.md` has the detail.
 
 ---
 
@@ -33,9 +39,9 @@ Read, in this order, before changing anything here:
 
 | Part | Interface | Channels |
 |---|---|---|
-| 5 × Sensirion SDP810 (4 × ±500 Pa, 1 × ±125 Pa) | I2C `0x25` behind a TCA9548A mux at `0x70` | `P0`–`P5` |
+| 5 × Sensirion SDP810 (4 × ±500 Pa, 1 × ±125 Pa) | I2C `0x25` behind a PCA9548A mux at `0x70` | `P0`–`P5` |
 | 4 × DS18B20 | 1-Wire on GPIO4, addressed by 64-bit ROM ID | `temp0`–`temp3` |
-| BME280 | I2C `0x76` on the main bus | enclosure pressure, humidity |
+| BME280 | I2C `0x77` on the main bus (amended from `0x76`, 2026-09-09) | enclosure pressure, humidity |
 
 **Channel names are positional and carry no meaning.** `P0`–`P5` are fixed by mux position;
 `temp0`–`temp3` are fixed by ROM ID at build time. The mapping from these to measurement roles
@@ -64,7 +70,7 @@ SystemSetup/          host configuration; nothing here is logger code
 | | KnurDash | iSitePiLogger | KnurLogger |
 |---|---|---|---|
 | Display | 4.3" DSI touchscreen, GTK under `startx` | none | none |
-| Primary record | RaceChrono on the phone | files uploaded over HTTP | **SD card**, BLE is secondary |
+| Primary record | RaceChrono on the phone | files uploaded over HTTP | **RaceChrono over BLE**; SD card is the durable raw/diagnostic record |
 | Radios | BLE | both disabled | **BLE required**, Wi-Fi gated per session |
 | Language | C | C++, single translation unit | C++, single translation unit |
 
@@ -123,12 +129,21 @@ commissioning items 5a and 5.7 and the thermal channel assignment through it, so
 now wait on one artefact that does not exist.
 
 `pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the five
-architecture requirements the plan imposes — SD-primary record, append-only file with a ~1 s
-`fsync` cadence, DS18B20 channel enrollment, a session-start cold-soak spread, and supply-health
-telemetry — plus the hardware traps. Read it before writing code.
+architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
+durable raw/diagnostic record, an append-only file with a ~1 s `fsync` cadence, DS18B20 channel
+enrollment, a session-start common-temperature sample, and supply-health telemetry — plus the
+hardware traps. Read it before writing code.
 
-**What is testable on the box today, with no sensor zone:** the build itself, config loading,
-the session-file writer and its fsync cadence, the supply-telemetry worker (`vcgencmd` and the
-`rpi_volt` hwmon both answer), the 1-Wire enrollment's phantom filter (the bare bus invents
-churning `00-*` devices, so correct behaviour is to report **zero** probes), and a BLE advertiser
-against a phone. **What is not:** anything requiring a real SDP810, BME280 or DS18B20 reading.
+**Build order: BLE first** (owner, 2026-09-09). It is the primary data path, and it is also the
+only feedback channel at the car — the probes are installed on a car parked in an underground
+garage with no network, so a phone watching `temp0`–`temp3` move is the only way to see what
+enrollment did without carrying the box home first.
+
+**What is testable on the box today:** the build itself, config loading, the session-file writer
+and its fsync cadence, the supply-telemetry worker (`vcgencmd` and the `rpi_volt` hwmon both
+answer), a BLE advertiser against a phone, and — newly, since the sensor zone was assembled — the
+**BME280 at `0x77`**. **What is not:** anything requiring a real SDP810 (not delivered) or a real
+DS18B20 reading (the probes are on the car), and the mux, which does not answer at `0x70`.
+**No longer testable:** the 1-Wire phantom filter. The phantoms stopped once `R11` terminated the
+line, so the filter is still mandatory but its correctness now rests on the parser rather than on
+an observation.

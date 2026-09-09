@@ -42,7 +42,9 @@ the full output is the artefact this section summarises.
 > diffed against, and rewriting it would destroy the only record of what the box shipped as.
 > **Do not read it as current.** Four items in it are now false by design — item 5 (buses not
 > configured), item 6 (missing tools), item 7 (Bluetooth soft-blocked) and item 8a (volatile
-> journal) are exactly what steps 3 and 5 changed. **The `Work Progress` table at the bottom of
+> journal) are exactly what steps 3 and 5 changed. **Item 9 (sensor zone not built) is now false
+> too**, but by the owner assembling the board rather than by anything in this runbook — see
+> correction 32, which retires the empty-bus expectations that item 9 justified. **The `Work Progress` table at the bottom of
 > this file is the authority on current state**, and the corrections sections after it record
 > what running the scripts actually found.
 
@@ -411,8 +413,8 @@ exactly the condition the box shipped in.
 | 3. Install dependencies | **done** 2026-09-09 | `--execute` run from a login shell. `git 2.47.3`, `cmake 3.31.6`, `i2cdetect 4.4` and `glib-2.0 2.84.4` all answer; `build-essential` and `rfkill` were already present and were skipped. **It also upgraded 14 packages it never named** — the util-linux family, `rfkill` included — see correction 27. The box can now build. |
 | 4. Read pre-flight output | **done** 2026-09-09 | All four scripts pre-flight against the box with exit 0 and no suspicious output, repeatedly, including the `--drop-mdns`, `--no-hdmi` and `--port` paths and every bad-argument case. Pre-flight changes nothing, so this does not advance step 5. |
 | 5. Apply boot-time reduction | **done** 2026-09-09 | `--execute` from a login shell, all eight phases, both optional flags left off (`--drop-mdns` costs `.local` resolution, `--no-hdmi` costs the emergency console). No `FAILED to mask`, no `modprobe i2c-dev` warning. **Boot 19.468 s → 11.105 s**, userspace 17.463 → 9.108 s, `multi-user.target` 11.305 → 9.108 s. 17 units newly masked, enabled timers 9 → 2, cloud-init disabled, no failed units. Backups at `/boot/firmware/{config,cmdline}.txt.bak-20260909-123716`. Rebooted; `before`/`after` audits diffed. `NetworkManager.service` at 5.236 s is now the whole critical chain and cutting it costs the way back in. |
-| 6. Confirm nothing broke | **done** 2026-09-09 | All five criteria pass. **`rfkill list bluetooth` → `Soft blocked: no`, and it survived the reboot**; `hciconfig` → `UP RUNNING`; BlueZ → `Powered: yes` / `PowerState: on`, which is better than the criterion asked for. Wi-Fi enabled and this SSH session never dropped. **`/dev/i2c-1` exists**, scans empty as expected. 1-Wire master registered — but the devices directory is **not** empty, see correction 25. `System clock synchronized: yes` after ~1 min, see correction 28. `throttled=0x0` at 56.0 °C. |
-| 7. SSH hardening | **done** 2026-09-09 | `--execute` from a login shell, no `--port`. `sshd -t` reported **configuration is valid** before the reload. Effective now: `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`, `pubkeyauthentication yes`, `usepam yes` (deliberately kept), `port 22` listening on both stacks. `~/.ssh` 700 and `authorized_keys` 600, one key (`chrum@WielkiRig`). **Verified two ways**: the owner logged in from a second terminal while the first was open, and a forced password-only attempt from the workstation is refused with `Permission denied (publickey)` — the positive check, not just "keys still work". `ssh.service` owns the listener, so the socket-activation path was not needed. No failed units. **See correction 31: re-enabling cloud-init would undo this.** | Its blocker is cleared: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. Password authentication is still enabled on this box. |
+| 6. Confirm nothing broke | **done** 2026-09-09 | All five criteria pass. **`rfkill list bluetooth` → `Soft blocked: no`, and it survived the reboot**; `hciconfig` → `UP RUNNING`; BlueZ → `Powered: yes` / `PowerState: on`, which is better than the criterion asked for. Wi-Fi enabled and this SSH session never dropped. **`/dev/i2c-1` exists**, scanning empty as expected *at the time* — the sensor zone has since been assembled, so an empty scan is no longer the correct result; see correction 32. 1-Wire master registered — but the devices directory was **not** empty, see correction 25, itself now superseded by correction 32. `System clock synchronized: yes` after ~1 min, see correction 28. `throttled=0x0` at 56.0 °C. |
+| 7. SSH hardening | **done** 2026-09-09 | `--execute` from a login shell, no `--port`. `sshd -t` reported **configuration is valid** before the reload. Effective now: `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`, `pubkeyauthentication yes`, `usepam yes` (deliberately kept), `port 22` listening on both stacks. `~/.ssh` 700 and `authorized_keys` 600, one key (`chrum@WielkiRig`). **Verified two ways**: the owner logged in from a second terminal while the first was open, and a forced password-only attempt from the workstation is refused with `Permission denied (publickey)` — the positive check, not just "keys still work". `ssh.service` owns the listener, so the socket-activation path was not needed. No failed units. **See correction 31: re-enabling cloud-init would undo this.** Its blocker had been cleared first: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. |
 | 8. Wi-Fi gating | **decision open** | Manual `nmcli`/`rfkill block wifi` for now. Still waiting on plan item 5a's installed link check to have been *run* — but 5a itself is **no longer blocked**, since clearing the Bluetooth soft block was its precondition and step 5 phase 7 did that. What 5a now waits on is a logger binary, not this file. |
 
 ### Corrections the first real audit forced
@@ -596,6 +598,28 @@ found, which is the point.
    it, but because nothing has asked it for an authorisation this boot. Retained is still the
    right call; the wording overstates what retaining it costs.
 
+### Correction from the assembled sensor zone (2026-09-09)
+
+32. **"An empty I2C scan and an empty 1-Wire slave list are the correct results" is no longer
+    true, and neither is the phantom trap that corrections 25 and 30 describe.** The perfboard's
+    sensor zone has been assembled (owner, 2026-09-09), minus the pressure-sensor part. Three
+    things changed at once, and every acceptance criterion in this file that rests on a silent bus
+    is now stale rather than wrong-when-written:
+    1. **`i2cdetect -y 1` returns `0x77`.** That is a genuine BME280 — chip-ID register `0xD0`
+       reads `0x60` — at the address the build sheet explicitly told us not to use, instead of the
+       specified `0x76`. The build sheet's §2 owns the discrepancy and the owner owns the fix
+       (pull `SDO` down, or accept `0x77` and amend net list row 9).
+    2. **Nothing answers at `0x70`**, so the mux is silent. Expected if the TCA9548A is not
+       populated, since it exists only to serve the SDP810s. `gpio=17=op,dh` rules out a held
+       reset.
+    3. **The 1-Wire phantoms have stopped.** Three scans over 36 s gave `w1_bus_master1` alone,
+       `w1_master_slave_count = 0`, no `00-*` entries. Corrections 25 and 30 recorded a churning
+       phantom set measured while this zone was **unbuilt**, i.e. with `GPIO4` floating on the
+       SoC's internal pull-up; `R11`'s 2.2 kΩ to `+3V3` is in the sensor zone and is now fitted.
+       Attributed to the line now being terminated — well-supported by the timing, not proven.
+       **The `28-*` family filter remains mandatory** and is now **untestable on this box**, so
+       its correctness rests on the parser rather than on an observation.
+
 **Measured outcomes, not defects.**
 
 1. **Boot 19.468 s → 11.105 s**, a 43% cut. Kernel unchanged at ~2.0 s; **userspace 17.463 s →
@@ -610,8 +634,9 @@ found, which is the point.
    allowed `Powered: no` on an unblocked controller as the logger's problem to fix, and BlueZ
    powered it unprompted. `systemd-rfkill.service` now restores *unblocked* from the same
    `/var/lib/systemd/rfkill/` state that used to restore the block.
-4. **`/dev/i2c-1` exists** and scans empty across all 112 addresses, as §0 item 9 predicts. The
-   1-Wire bus master registered. Both halves of §0 item 5a took.
+4. **`/dev/i2c-1` exists** and scanned empty across all 112 addresses, as §0 item 9 predicted at
+   the time. The 1-Wire bus master registered. Both halves of §0 item 5a took. **Superseded as an
+   expectation by correction 32** — the sensor zone has since been assembled.
 5. **Journal 8 M volatile → 16 M persistent** in `/var/log/journal`, which is phase 6's deliberate
    trade (correction 22) with a real number against it for the first time.
 6. **Dirty ratios took**: `vm.dirty_background_ratio` 10 → 5, `vm.dirty_ratio` 20 → 10. Wi-Fi

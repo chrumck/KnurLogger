@@ -1,4 +1,6 @@
-build/
+# `build/*` rather than `build/`: git cannot re-include a file whose PARENT DIRECTORY is
+# excluded, so `build/` plus `!build/*.ini` silently failed to track the ini template at all.
+build/*
 !build/*.ini
 
 *.o
