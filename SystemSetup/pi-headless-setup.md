@@ -635,11 +635,23 @@ found, which is the point.
     **Not a fault and not worth retiring** — SSH is wanted on this box and anyone who can write to
     that partition already has the card in their hand, which is a strictly worse position than this
     service represents. Recorded because it is a service that appeared without anyone asking for it.
-35. **Boot time regressed 11.317 s → 14.029 s across the upgrade, and the figure is not yet
-    trustworthy.** Almost all of it is `NetworkManager.service`, 5.236 s → 7.348 s. This was the
-    **first boot after a 94-package upgrade**, which does first-run work no later boot repeats, so
-    **re-measure after a second reboot before treating 14.029 s as the new baseline.** The
-    boot-time reduction step's 11.105 s figure is now historical either way.
+35. **Boot time regressed 11.317 s → 14.137 s across the upgrade. The regression is REAL and
+    PERSISTENT, and the cause was not identified.** A settled reboot measured 14.137 s against
+    14.029 s on the first post-upgrade boot, which disposes of the obvious explanation — this is
+    not first-boot work. Almost all of it is `NetworkManager.service`, **5.236 s → 7.342 s**, plus
+    `rpi-resize-swap-file.service` 562 ms → 1.034 s.
+    **Two candidates were tested and both are wrong.** It is not the Wi-Fi firmware, despite the
+    upgrade bumping `firmware-brcm80211`: the BCM43455 still loads build `7.45.265` dated
+    2023-08-29 and does so about 6 s into boot as before. And it is not the added `Knurfon` hotspot
+    profile — NetworkManager auto-activates the bench connection directly, with no scan or attempt
+    against the lower-priority profile. Inside NetworkManager there is a **6.7 s window with no log
+    output at all**, between loading its device plugins and the first device state change; that is
+    where the time goes and what it waits on is unknown.
+    **Deliberately not chased further, and that is a judgement rather than an oversight.** Three
+    seconds of boot has no operational consequence for a box that logs 40-minute sessions and that
+    nobody waits on. `NetworkManager` cannot be removed or delayed — it is the only way back into a
+    wheel-well cavity — so the remaining boot time is the part the hardening step already decided
+    not to touch, for the same reason. Recorded so the next person does not rediscover it as new.
 
 **Measured outcomes, not defects.**
 
