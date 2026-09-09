@@ -334,15 +334,13 @@ ssh -t KnurLogger './ssh-harden.sh --execute'                # key-only auth on 
 ssh -t KnurLogger './ssh-harden.sh --execute --port 60022'   # ...and add the iSitePiLogger port
 ```
 
-**Password authentication is currently enabled** on this box: `50-cloud-init.conf` is 27 bytes,
-which is the length of `PasswordAuthentication yes`, and it sorts before our drop-in so it wins.
-**This step is no longer merely optional, and the reason is this repository, not the box.** The
-repo now has a **public** upstream at `github.com/chrumck/KnurLogger`, which publishes the box's
-LAN IP, its username and the sentence above — so the fact that this host accepts password
-authentication is a matter of public record until the script runs. The exposure is bounded (the
-address is RFC1918, no credential is in the repo) and it is not an emergency, but running this
-step is what makes the published statement false, and it is the cheapest of the remaining host
-tasks.
+**Password authentication WAS enabled and is now off — this step has been run** (2026-09-09; see
+the Work Progress table). As the box shipped, `50-cloud-init.conf` was 27 bytes, the length of
+`PasswordAuthentication yes`, and it sorts before our drop-in so it won. The script found exactly
+that, printed the file's contents, and `sed`-ed the keyword to `no` in *that* file rather than only
+writing its own — which is the whole point, since writing `90-knurlogger.conf` alone would have
+looked like it worked and changed nothing. The file is now 26 bytes, one shorter, which is the
+`yes`→`no` edit visible in the byte count.
 The script reports the file's actual contents before touching it.
 
 The script refuses to run if `~/.ssh/authorized_keys` is empty, validates with `sshd -t` before
@@ -414,7 +412,7 @@ exactly the condition the box shipped in.
 | 4. Read pre-flight output | **done** 2026-09-09 | All four scripts pre-flight against the box with exit 0 and no suspicious output, repeatedly, including the `--drop-mdns`, `--no-hdmi` and `--port` paths and every bad-argument case. Pre-flight changes nothing, so this does not advance step 5. |
 | 5. Apply boot-time reduction | **done** 2026-09-09 | `--execute` from a login shell, all eight phases, both optional flags left off (`--drop-mdns` costs `.local` resolution, `--no-hdmi` costs the emergency console). No `FAILED to mask`, no `modprobe i2c-dev` warning. **Boot 19.468 s → 11.105 s**, userspace 17.463 → 9.108 s, `multi-user.target` 11.305 → 9.108 s. 17 units newly masked, enabled timers 9 → 2, cloud-init disabled, no failed units. Backups at `/boot/firmware/{config,cmdline}.txt.bak-20260909-123716`. Rebooted; `before`/`after` audits diffed. `NetworkManager.service` at 5.236 s is now the whole critical chain and cutting it costs the way back in. |
 | 6. Confirm nothing broke | **done** 2026-09-09 | All five criteria pass. **`rfkill list bluetooth` → `Soft blocked: no`, and it survived the reboot**; `hciconfig` → `UP RUNNING`; BlueZ → `Powered: yes` / `PowerState: on`, which is better than the criterion asked for. Wi-Fi enabled and this SSH session never dropped. **`/dev/i2c-1` exists**, scans empty as expected. 1-Wire master registered — but the devices directory is **not** empty, see correction 25. `System clock synchronized: yes` after ~1 min, see correction 28. `throttled=0x0` at 56.0 °C. |
-| 7. SSH hardening | **not started** | The only unrun script, and **no longer just optional** — the repo's public upstream publishes this box's IP, username and the fact that password authentication is enabled, so running this is what makes that statement false. Its blocker is cleared: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. Password authentication is still enabled on this box. |
+| 7. SSH hardening | **done** 2026-09-09 | `--execute` from a login shell, no `--port`. `sshd -t` reported **configuration is valid** before the reload. Effective now: `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`, `pubkeyauthentication yes`, `usepam yes` (deliberately kept), `port 22` listening on both stacks. `~/.ssh` 700 and `authorized_keys` 600, one key (`chrum@WielkiRig`). **Verified two ways**: the owner logged in from a second terminal while the first was open, and a forced password-only attempt from the workstation is refused with `Permission denied (publickey)` — the positive check, not just "keys still work". `ssh.service` owns the listener, so the socket-activation path was not needed. No failed units. **See correction 31: re-enabling cloud-init would undo this.** | Its blocker is cleared: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. Password authentication is still enabled on this box. |
 | 8. Wi-Fi gating | **decision open** | Manual `nmcli`/`rfkill block wifi` for now. Still waiting on plan item 5a's installed link check to have been *run* — but 5a itself is **no longer blocked**, since clearing the Bluetooth soft block was its precondition and step 5 phase 7 did that. What 5a now waits on is a logger binary, not this file. |
 
 ### Corrections the first real audit forced
@@ -644,6 +642,18 @@ a second time instead of trusting the first reading.
    Corrected in step 6 item 4, in `../CLAUDE.md`, and in the plan set's build sheet §10 step 6,
    which is where the probe counting will actually be done.
 
+### Correction from running `ssh-harden.sh` (2026-09-09)
+
+31. **The rollback list presents `sudo rm /etc/cloud/cloud-init.disabled` as an innocuous undo, and
+   after step 7 it is not.** Step 7's fix works by editing `PasswordAuthentication` inside
+   **cloud-init's own** `50-cloud-init.conf`, because that file sorts ahead of ours and wins. That
+   edit only survives because cloud-init is disabled and will not regenerate the file.
+   **So re-enabling cloud-init silently restores `PasswordAuthentication yes`** — it does not just
+   undo phase 1, it undoes step 7 as well, and it does so at the next boot with nothing in the
+   output to say so. Anyone reverting cloud-init for an unrelated reason must re-run
+   `ssh-harden.sh --execute` afterwards, or check `sudo sshd -T | grep passwordauthentication`.
+   The two rollback entries are not independent and the list did not say so.
+
 ### Script review status
 
 The four scripts have been through **five review passes** (2026-09-09; history revs 66–66d in the
@@ -662,10 +672,11 @@ plan's companion file). What that did and did not establish:
    bus, which units this image actually ships, what apt drags in behind a four-package list, how
    long timesyncd takes, and which retained units are D-Bus-activated rather than booted. The
    prediction that the remaining unknowns were all on the far side of `--execute` held.
-3. **Still not established.** `ssh-harden.sh` has **not** been run with `--execute` — step 7 is
-   still not started, and it is the one that can lock you out. Nothing here has been exercised
-   under logging load, because there is no logger: no bus has carried a transaction, no BLE
-   connection has been made, and `throttled` has only ever been read at idle.
+3. **All four scripts have now been run with `--execute`** (2026-09-09), `ssh-harden.sh` last and
+   verified from a second terminal plus a forced password-only attempt. **Still not established:**
+   nothing here has been exercised under logging load, because there is no logger — no bus has
+   carried a transaction, no BLE connection has been made, and `throttled` has only ever been read
+   at idle.
 
 ### Open items owned by this file
 

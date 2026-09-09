@@ -10,8 +10,9 @@ device](https://github.com/aollin/racechrono-ble-diy-device) for live viewing on
 **Status: there is no logger binary yet.** The host setup under `SystemSetup/` **has been applied**
 (2026-09-09): dependencies installed, the boot-time pass run, rebooted and re-audited. `/dev/i2c-1`
 and the 1-Wire bus exist, the build toolchain is installed, boot fell 19.468 s → 11.105 s, and the
-Bluetooth soft block is cleared and survived a reboot. `ssh-harden.sh` is the one script still
-unrun. **The perfboard's sensor zone is not built**, so no sensor answers on either bus yet.
+Bluetooth soft block is cleared and survived a reboot, and the box is **key-only over SSH**
+(`ssh-harden.sh` ran too, so all four scripts have now been applied). **The perfboard's sensor zone
+is not built**, so no sensor answers on either bus yet.
 
 ---
 

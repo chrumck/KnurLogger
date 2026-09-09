@@ -17,13 +17,16 @@ alert the developer and record it in this file so the next agent does not hit it
   **This is now live rather than hypothetical:** this repository has a public upstream at
   `github.com/chrumck/KnurLogger`, so every `../ndLouvers/...` link 404s there. That is accepted.
 - **This repository is PUBLIC. Weigh that before writing host specifics into it.** It already
-  carries the box's LAN IP, its username and its Bluetooth MAC, and — until `ssh-harden.sh` runs —
-  a statement that password authentication is enabled on it. None of that is reachable from the
-  internet (RFC1918 address, and the BT MAC is broadcast to anyone in range anyway), and no
-  credential, key or Wi-Fi PSK is in the repo. But **git history is not retractable**, so the test
-  for anything new is "would I mind this being permanent and public", not "is it useful now".
-  Measured-state notes are the ones that age badly: they are accurate and useful when written, and
-  they become a public status page for an unhardened host.
+  carries the box's LAN IP, its username and its Bluetooth MAC. **The password-authentication
+  exposure is closed** — `ssh-harden.sh --execute` ran on 2026-09-09 and the box is key-only
+  (`passwordauthentication no`, verified by a forced password-only attempt being refused) — but
+  **git history is not retractable**, so the published statement that it once accepted passwords is
+  permanent. Nothing here is reachable from the internet (RFC1918 address, and the BT MAC is
+  broadcast to anyone in range anyway), and no credential, key or Wi-Fi PSK is in the repo. The
+  test for anything new is "would I mind this being permanent and public", not "is it useful now".
+  **Measured-state notes are the ones that age badly**: accurate and useful when written, then a
+  public status page for a host that may not have been hardened yet. This one took a day to close;
+  the next might not.
 
 ## Naming
 
