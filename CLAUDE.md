@@ -117,6 +117,14 @@ alert the developer and record it in this file so the next agent does not hit it
   `harden-headless.sh` phase 7 does this. For the same reason, **never run `rfkill block all`**
   to gate Wi-Fi — it takes BLE down with it, persistently. Use `rfkill block wifi`.
 
+- **Some channels the plan needs will never appear on box 2's SD card.** CAN ambient
+  (`0x420` byte 7) and, if it is on the bus, **cooling-fan state** arrive through box 1's CAN
+  broadcast into RaceChrono — not through this logger (`../ndLouvers/` §7 open item 35). So the
+  authoritative record for a session is **split across two devices**, and reassembling it depends
+  entirely on the session-start time offset below. That is the concrete reason the offset is
+  load-bearing rather than housekeeping: without it, box 2's pressures and temperatures cannot be
+  aligned to the fan state that explains them, and the fan can change state mid-run with no driver
+  input and no speed change.
 - **`fake-hwclock` is not installed, and the clock in the car will be wrong.** A Pi 4B has no RTC.
   `systemd-timesyncd` saves the time to `/var/lib/systemd/timesync/clock` and restores it at boot,
   so a session file is never stamped 1970 — but with no NTP in the car the clock simply resumes
