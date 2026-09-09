@@ -34,14 +34,23 @@ alert the developer and record it in this file so the next agent does not hit it
   tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
 - **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
   once at build. As of 2026-09-09 no ROM ID has been recorded, so no `temp` channel is yet defined.
-- **The bare 1-Wire bus reports a phantom device, and it is not a probe.** With the overlay loaded
-  and nothing wired, `/sys/bus/w1/devices/` holds `w1_bus_master1` **and
-  `00-800000000000`**, and `w1_master_slave_count` reads **`1`**. Family code `00` is not a valid
-  1-Wire family; a DS18B20 is family **`28`**. So **count `28-*` entries and never
-  `w1_master_slave_count`** — trusting the count gives you one probe when there are none, and
-  five when the four-probe star is wired. Two further traps in the same place: an *empty*
-  `/sys/bus/w1/devices/` is the real failure signal, because a working bus always registers its
-  master, and a `00-*` ROM ID must never be written down as a `temp` channel definition.
+- **The bare 1-Wire bus invents phantom devices, they are not probes, and THE SET CHURNS.** With
+  the overlay loaded and nothing wired, `/sys/bus/w1/devices/` holds `w1_bus_master1` plus a
+  varying number of `00-*` entries whose IDs change from scan to scan. Measured 2026-09-09 across
+  35 s: first `00-800000000000` alone, then `00-dc0000000000` + `00-3c0000000000`, then
+  `00-3c0000000000` + `00-bc0000000000`. `w1_master_slave_count` read `1`, then `2`, then `2`.
+  These are bus-search results read off a floating line, and `w1_master_attempts` was already
+  past 250 with nothing attached. Family code `00` is not a valid 1-Wire family; a DS18B20 is
+  family **`28`**.
+  1. **Match `28-*` and nothing else, everywhere** — enumeration, binding, and reads.
+     `w1_master_slave_count` is not "off by one", it is **unstable**, and no code may branch on
+     it.
+  2. **A `00-*` ROM ID must never be persisted** as a `temp` channel definition. Anything that
+     auto-binds "the next device that appears" will bind noise within about ten seconds.
+  3. **An *empty* devices directory is the real failure signal**, because a working bus always
+     registers its master.
+  4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
+     latency for anything that watches for a probe being connected.
 
 ## The box
 
@@ -153,7 +162,7 @@ Follow `iSitePiLogger`, which is the structural model:
 - **The `.ini` sits beside the binary** and its path is resolved from `/proc/self/exe`, not the
   working directory.
 
-Two requirements come from the plan rather than from iSitePiLogger:
+Four requirements come from the plan rather than from iSitePiLogger:
 
 - **The SD card is the primary record and BLE is secondary** (item 5b). Raw readings, timestamps,
   counters and validity flags are written locally regardless of link state.
@@ -161,6 +170,48 @@ Two requirements come from the plan rather than from iSitePiLogger:
   close. The accessory feed disappears without warning at ignition-off, so the last durable write
   bounds the loss. Flushing per sample at 10 Hz buys a shorter window at the price of write
   amplification without changing the failure mode.
+
+- **The logger binds `temp0`–`temp3` itself, by discovery order, and persists the binding**
+  (owner decision, 2026-09-09). The owner plugs the four DS18B20s in one at a time, lowest channel
+  first; the logger notices each new `28-*` ROM ID and writes the binding to a store that survives
+  restarts. This replaces reading ROM IDs off a bench rig and typing them into a config by hand.
+  Five things make it correct rather than merely convenient, and skipping any of them produces
+  silently mislabelled temperature data — which is worse than no data, because ΔT_preheat rests on
+  the *differences* between these four probes:
+  1. **`28-*` only.** The bare bus invents churning `00-*` phantoms every 10 s (see the trap
+     above). Binding "the next new device" without the family filter binds noise.
+  2. **Binding happens only in an explicit enrollment mode, never during a logging run.** A
+     dropout and reconnect mid-session, or a probe replaced after a failure, must not silently
+     re-bind a channel. Outside enrollment an unknown ROM ID is **invalid data and a logged
+     event**, not a new channel.
+  3. **One probe per enrollment step.** If two unbound `28-*` IDs appear in the same 10 s scan the
+     arrival order between them is unknowable — sysfs order is not arrival order — so the logger
+     must refuse the ambiguous step and say so rather than guess.
+  4. **The store carries provenance and a per-probe offset field from the first version.** The
+     ROM ID, the channel, the timestamp it was bound, and a calibration offset that attaches to
+     the ROM ID rather than to the slot. Thermal item 1 needs the offsets; retrofitting the field
+     later means a format change.
+  5. **Enrollment must tell the owner which ROM ID it just bound, and to mark the probe body.**
+     After installation the four probes are indistinguishable by eye and the physical label is
+     what survives. The logger cannot do that half.
+- **Supply health is logged telemetry, read after a run** (owner decision, 2026-09-09), standing
+  in for a bench instrument on commissioning item 5.7 — **not** for build sheet §10 step 2's
+  meter. What to record, and the traps:
+  1. **`vcgencmd get_throttled`** is the useful one, because bits 16–19 **latch** "has occurred
+     since boot". That is what makes a 1 Hz sampler unable to miss a transient. Log the live bits
+     *and* the sticky bits, and log the **first transition with a timestamp** — "something
+     happened during a 40-minute session" is far weaker evidence than "it happened 3 s after the
+     fan engaged". Cost measured at ~3 ms per call, so 1 Hz is free.
+  2. **`/sys/class/hwmon/<n>/in0_lcrit_alarm` on the `rpi_volt` device** is the same undervoltage
+     comparator without a subprocess, but it is **live only, with no sticky history**. Resolve it
+     by reading each hwmon's `name` file — **the hwmon index is not stable across boots**, and it
+     was `hwmon1` on one boot only.
+  3. **`vcgencmd measure_volts core` is NOT the supply rail.** It reports the regulated SoC core
+     voltage (~0.906 V) and says nothing about the 5 V input. Logging it beside the throttle
+     flags invites exactly that misreading; if it is logged, name the field so it cannot be
+     mistaken for a rail measurement.
+  4. **This telemetry must reach the fsync'd session file, not only the journal.** The event most
+     worth having is a brownout at ignition-off, which is the moment the box loses power.
 
 Preserve CRC failures, clipping, disconnects and stale samples as **invalid data**, never as
 carried-forward values presented as new.

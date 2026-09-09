@@ -299,11 +299,14 @@ timedatectl
    before the reboot produced 20 and 21 but no 1, because the `i2c_arm` adapter does not exist
    until the firmware re-reads `config.txt`.
 4. `/sys/bus/w1/devices/` exists. **It is not empty, and an empty one would be the failure.**
-   A working bus always holds `w1_bus_master1`, and with no probes attached this box also shows a
-   **phantom slave `00-800000000000`**, with `w1_master_slave_count` reading `1`. Family code
-   `00` is not a valid 1-Wire family and a DS18B20 is family `28`, so this is a bus with nothing
-   on it, not a device. **Count only `28-*` entries during bring-up** (correction 25) — reading
-   `w1_master_slave_count` will give you four probes plus one, or one probe when there are none.
+   A working bus always holds `w1_bus_master1`, and with no probes attached this box also shows
+   **phantom `00-*` slaves whose identities and count both churn between the 10 s bus scans** —
+   measured across 35 s: `00-800000000000` alone, then `00-dc0000000000` + `00-3c0000000000`,
+   then `00-3c0000000000` + `00-bc0000000000`, with `w1_master_slave_count` reading `1`, `2`, `2`.
+   Family code `00` is not a valid 1-Wire family and a DS18B20 is family `28`, so these are
+   search results off a floating line, not devices. **Match only `28-*`, everywhere** (corrections
+   25 and 30). `w1_master_slave_count` is **unstable**, not merely off by one: nothing may branch
+   on it.
 5. `timedatectl` shows `System clock synchronized: yes` while on Wi-Fi. **Give it a minute.**
    Run immediately after boot it reads `no` and `NTP service: active`, because timesyncd has not
    yet reached a server; that is the expected transient, not a failure.
@@ -560,6 +563,8 @@ found, which is the point.
    was wrong in both directions: it called an empty directory the pass, when an empty directory
    would actually mean the overlay had not loaded, and it would have had the next person counting
    a non-device as a probe. Bring-up counts `28-*` and nothing else. Step 6 item 4 corrected.
+   **Amended by correction 30: the specific ID and count above are a snapshot of something that
+   moves.**
 26. **Six of the nine units phase 3 claims to retire are not installed on this image.**
    `ModemManager`, `rsyslog`, `triggerhappy` (service and socket), `bluealsa`, `rpcbind` (service
    and socket), `nfs-client.target`, `cups` and `cups-browsed` all reported "not installed,
@@ -611,6 +616,26 @@ found, which is the point.
    impossible until there is a logger.
 8. **No failed units, and the SSH session survived.** `cmdline.txt` kept `console=tty1` while
    `console=serial0,115200` went, and its absent final newline was preserved.
+
+### Correction from re-probing the box the same day (2026-09-09)
+
+Found while gathering facts for the logger's channel-enrollment design, by reading the 1-Wire bus
+a second time instead of trusting the first reading.
+
+30. **Correction 25 described a moving target as a fixed one, and the mistake matters.** The
+   phantom is not one device with one ID; it is a **churning set**. Across 35 s with nothing
+   wired: `00-800000000000` alone, then `00-dc0000000000` + `00-3c0000000000`, then
+   `00-3c0000000000` + `00-bc0000000000` — `w1_master_slave_count` reading `1`, `2`, `2`. These
+   are bus-search results off a floating line, and `w1_master_attempts` was already past 250 with
+   no probes attached. Rescan interval is 10 s (`w1_master_timeout = 10`).
+   **Why the difference is not pedantic.** Correction 25's phrasing supported "expect four probes
+   plus one" — a stable, correctable offset. The truth is that the count is **unstable**, so no
+   code and no procedure may branch on it, and `28-*` matching is not a tidiness preference but
+   the only thing separating a probe from noise. It also sets a hard requirement on the channel
+   enrollment the owner asked for: anything that binds "the next device to appear" will bind a
+   phantom within about ten seconds of being switched on.
+   Corrected in step 6 item 4, in `../CLAUDE.md`, and in the plan set's build sheet §10 step 6,
+   which is where the probe counting will actually be done.
 
 ### Script review status
 
