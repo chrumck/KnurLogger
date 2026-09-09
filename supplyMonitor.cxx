@@ -132,9 +132,24 @@ void publishSupplyPacket() {
 
     auto alarm = readUndervoltageAlarm();
 
+    // Byte 7 is a free-running 1 Hz counter and it is the most useful field in this packet for
+    // diagnosis, which is not obvious. Every other field is a physical quantity that may
+    // legitimately sit still — SoC core voltage reads a constant 0.840 V on an idle box for hours
+    // — so none of them can distinguish "the link is alive and the value is steady" from "the
+    // link died". A monotonic counter can, and it makes a notify GAP visible on the phone, which
+    // is what commissioning item 5a asks to be logged. The ESP32 rig reached the same conclusion.
+    static guint8 heartbeat = 0;
+    heartbeat++;
+
+    // The live throttle word only ever uses bits 0-3, so the high nibble carries logger flags
+    // rather than growing the packet.
+    guint8 statusByte = (guint8)(appData.supply.throttledLive & 0x0F);
+    if (appData.session.recordsDropped > 0) { statusByte |= 0x10; }
+    if (appData.mode == ModeEnroll) { statusByte |= 0x20; }
+
     guint8 data[CAN_DATA_SIZE] = {
-        (guint8)(appData.supply.throttledLive & 0xFF),
-        (guint8)(appData.supply.throttledSticky & 0xFF),
+        statusByte,
+        (guint8)(appData.supply.throttledSticky & 0x0F),
         // 0xFF rather than 0 when the comparator could not be read, so "no reading" is not
         // presented as "no alarm".
         (guint8)(alarm.has_value() ? *alarm : 0xFF),
@@ -142,7 +157,7 @@ void publishSupplyPacket() {
         (guint8)(socMillivolts & 0xFF),
         (guint8)((socCentiC >> 8) & 0xFF),
         (guint8)(socCentiC & 0xFF),
-        (guint8)(appData.session.recordsDropped > 0 ? 1 : 0),
+        heartbeat,
     };
 
     updateBlePacket(&appData.bluetooth.supply, data);

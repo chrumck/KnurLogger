@@ -60,6 +60,55 @@ yet, because binding needs a logger.
 All five SDP810s answer at the same fixed I2C address and cannot be strapped apart, which is why
 the mux is mandatory rather than a convenience.
 
+## RaceChrono channels — what to type into the phone
+
+RaceChrono channel definitions are entered by hand, so they live here. Add the device from inside
+RaceChrono (**Settings → other devices → add a DIY device**), **not** from the phone's Bluetooth
+pairing screen: this is a BLE GATT peripheral with no bonding, advertising `BR/EDR Not Supported`,
+so the OS pairing list will never show it.
+
+**Every payload field is big-endian. Only the 4-byte packet ID is little-endian**, per the DIY API.
+Packet IDs `0x600`–`0x603` are inherited from the ESP32 rig in
+`../ndLouvers/step0b-rig/racechrono_ble_test/` so channel definitions written against it carry over.
+
+### `0x602` — the four thermal channels
+
+| Bytes | Channel | Equation |
+|---|---|---|
+| 0–1 | `temp0` | `bytesToInt(raw, 0, 2) / 100` |
+| 2–3 | `temp1` | `bytesToInt(raw, 2, 2) / 100` |
+| 4–5 | `temp2` | `bytesToInt(raw, 4, 2) / 100` |
+| 6–7 | `temp3` | `bytesToInt(raw, 6, 2) / 100` |
+
+**Signed — use `bytesToInt`, not `bytesToUint`.** Sub-zero ambient is a real reading and would
+otherwise decode as ~655 °C. A channel with no trustworthy reading sends `-32768`, i.e. **−327.68 °C**,
+deliberately absurd rather than plausible because RaceChrono holds the last value it received
+indefinitely and an invalid marker has to be visible.
+
+**Until a probe is enrolled all four read −327.68 °C, and the packet is sent once and then not
+again** — nothing updates it, and a packet is only transmitted when its owner updates it. That is
+correct behaviour, not a stall.
+
+### `0x604` — supply health and logger liveness
+
+| Bytes | Content | Equation |
+|---|---|---|
+| 0 | low nibble = live throttle bits; bit 4 = records dropped; bit 5 = enrollment mode | `bytesToUint(raw, 0, 1)` |
+| 1 | sticky throttle bits, latched since **boot** not since session start | `bytesToUint(raw, 1, 1)` |
+| 2 | undervoltage comparator; **255 = could not be read**, not "no alarm" | `bytesToUint(raw, 2, 1)` |
+| 3–4 | SoC core millivolts — **NOT the supply rail** | `bytesToUint(raw, 3, 2)` |
+| 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
+| 7 | **heartbeat, +1 per second, wraps at 255** | `bytesToUint(raw, 7, 1)` |
+
+**Byte 7 is the channel to watch, and it is the only honest liveness indicator here.** Every other
+field is a physical quantity allowed to sit still — SoC core voltage reads a constant 840 mV on an
+idle box for hours — so a frozen value proves nothing about the link. A counter freezing means the
+link died; a counter skipping means a notification was dropped, which is exactly what commissioning
+item 5a asks to be logged.
+
+**`0x603` is defined but never sent.** It is the 1-Wire status frame and the worker that fills it
+does not exist yet. Do not go looking for it.
+
 ## Layout
 
 Single translation unit: every `.cxx` is `#include`-d into `main.cxx`, in the order below, and only
