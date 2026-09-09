@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sessionWriter.cxx"
+#include "blePackets.cxx"
 
 #define SUPPLY_MONITOR_IDLE_SLEEP_US 50000
 
@@ -118,6 +118,36 @@ void recordStickyTransitions(guint32 sticky) {
     }
 }
 
+// Every field big-endian, matching the ESP32 rig's 0x604 sibling layout conventions. Named fields
+// are documented in the README so the RaceChrono channel definitions can be written by hand.
+void publishSupplyPacket() {
+    auto socMillivolts = (guint16)0;
+    auto socCentiC = (gint16)0;
+
+    auto volts = readSocCoreVolts();
+    if (volts.has_value()) { socMillivolts = (guint16)(*volts * 1000.0); }
+
+    auto tempC = readSocTempC();
+    if (tempC.has_value()) { socCentiC = (gint16)(*tempC * 100.0); }
+
+    auto alarm = readUndervoltageAlarm();
+
+    guint8 data[CAN_DATA_SIZE] = {
+        (guint8)(appData.supply.throttledLive & 0xFF),
+        (guint8)(appData.supply.throttledSticky & 0xFF),
+        // 0xFF rather than 0 when the comparator could not be read, so "no reading" is not
+        // presented as "no alarm".
+        (guint8)(alarm.has_value() ? *alarm : 0xFF),
+        (guint8)((socMillivolts >> 8) & 0xFF),
+        (guint8)(socMillivolts & 0xFF),
+        (guint8)((socCentiC >> 8) & 0xFF),
+        (guint8)(socCentiC & 0xFF),
+        (guint8)(appData.session.recordsDropped > 0 ? 1 : 0),
+    };
+
+    updateBlePacket(&appData.bluetooth.supply, data);
+}
+
 void sampleSupply() {
     static guint64 nextSampleBootUs = 0;
 
@@ -155,6 +185,8 @@ void sampleSupply() {
         alarm.has_value() ? std::format("{}", *alarm) : "null",
         socCoreVolts.has_value() ? std::format("{:.4f}", *socCoreVolts) : "null",
         socTempC.has_value() ? std::format("{:.1f}", *socTempC) : "null"));
+
+    publishSupplyPacket();
 }
 
 gpointer supplyMonitorLoop(gpointer _) {

@@ -8,17 +8,23 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status: there is no logger binary yet.** The host setup under `SystemSetup/` **has been applied**
+**Status: the logger builds, runs and advertises to RaceChrono.** The session writer (append-only,
+~1 s `fsync`, both measured), the supply-telemetry worker and the RaceChrono BLE worker are done;
+DS18B20 enrollment is the remaining one of the four. Getting BLE working needed an
+`apt full-upgrade` on 2026-09-09 — `bluez 5.82-1.1+rpt1` on kernel `6.18.34` could not register an
+advertisement at all, which `CLAUDE.md` records in full because the symptom points at the logger
+and the cause is not in it. The host setup under `SystemSetup/` **has been applied**
 (2026-09-09): dependencies installed, the boot-time pass run, rebooted and re-audited. `/dev/i2c-1`
-and the 1-Wire bus exist, the build toolchain is installed, boot fell 19.468 s → 11.105 s, and the
+and the 1-Wire bus exist, the build toolchain is installed, and the
 Bluetooth soft block is cleared and survived a reboot, and the box is **key-only over SSH**
-(`ssh-harden.sh` ran too, so all four scripts have now been applied).
+(`ssh-harden.sh` ran too, so all four scripts have now been applied), and the box has since taken a
+full upgrade to kernel `6.18.39` / `bluez 5.82-1.1+rpt2`.
 **The perfboard's sensor zone is assembled**, minus the pressure-sensor part — the five SDP810s
 are still being delivered. So the buses are no longer silent, and an empty I2C scan is no longer
 the correct result. The BME280 answers at **`0x77`**, which is now its specified address; the mux
 is a **PCA9548A** and was silent because its `~RESET` had been soldered to header pin 9 instead of
-pin 11, now being corrected; and the 1-Wire phantoms have stopped, which is attributed to `R11`
-terminating the line. `CLAUDE.md` has the detail.
+pin 11 — resoldered and verified answering at `0x70`; and the 1-Wire phantoms have stopped, which
+is attributed to `R11` terminating the line. `CLAUDE.md` has the detail.
 
 ---
 
@@ -56,13 +62,30 @@ the mux is mandatory rather than a convenience.
 
 ## Layout
 
+Single translation unit: every `.cxx` is `#include`-d into `main.cxx`, in the order below, and only
+`main.cxx` is named in `CMakeLists.txt`.
+
 ```
+main.cxx              argument parsing, worker startup, thread joins
+dataContracts.hpp     includes, constants, the config and state structs
+appData.cxx           the two globals
+helpers.cxx           TAI and boot clocks, sysfs and subprocess readers
+config.cxx            the .ini, resolved from /proc/self/exe
+sessionWriter.cxx     append-only NDJSON, record queue, ~1 s fsync cadence
+blePackets.cxx        RaceChrono packet wire format — before every producer
+supplyMonitor.cxx     vcgencmd + rpi_volt hwmon at 1 Hz, sticky-bit transitions
+raceChronoBle.cxx     bluez_inc: adapter, advertisement, GATT, notify timers
+bluez_inc/            submodule, github.com/weliem/bluez_inc
+
+build/KnurLogger.ini  config template; the deployed copy sits beside the binary
+
 SystemSetup/          host configuration; nothing here is logger code
   pi-headless-setup.md    the runbook — start here
   audit-boot.sh           read-only survey of what the box runs at boot
   install-dependencies.sh packages the build needs
   harden-headless.sh      boot-time service reduction and bus configuration
   ssh-harden.sh           key-only SSH
+  KnurLogger.service      systemd unit — written, NOT yet installed
 ```
 
 ## Relationship to the other two loggers
@@ -124,9 +147,10 @@ ssh KnurLogger
 
 ## Next
 
-**The logger binary is the whole critical path.** Three owner decisions in the plan set routed
-commissioning items 5a and 5.7 and the thermal channel assignment through it, so four open items
-now wait on one artefact that does not exist.
+**DS18B20 enrollment is the remaining worker**, and after it the SDP810 and BME280 readers once
+the pressure sensors arrive. The binary now exists, so commissioning item 5a's installed BLE link
+check is unblocked and item 5.7's under-load supply telemetry can be collected on the first real
+run.
 
 `pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the five
 architecture requirements the plan imposes — BLE as the primary data path with the SD card as the

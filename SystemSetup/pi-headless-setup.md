@@ -415,6 +415,7 @@ exactly the condition the box shipped in.
 | 5. Apply boot-time reduction | **done** 2026-09-09 | `--execute` from a login shell, all eight phases, both optional flags left off (`--drop-mdns` costs `.local` resolution, `--no-hdmi` costs the emergency console). No `FAILED to mask`, no `modprobe i2c-dev` warning. **Boot 19.468 s → 11.105 s**, userspace 17.463 → 9.108 s, `multi-user.target` 11.305 → 9.108 s. 17 units newly masked, enabled timers 9 → 2, cloud-init disabled, no failed units. Backups at `/boot/firmware/{config,cmdline}.txt.bak-20260909-123716`. Rebooted; `before`/`after` audits diffed. `NetworkManager.service` at 5.236 s is now the whole critical chain and cutting it costs the way back in. |
 | 6. Confirm nothing broke | **done** 2026-09-09 | All five criteria pass. **`rfkill list bluetooth` → `Soft blocked: no`, and it survived the reboot**; `hciconfig` → `UP RUNNING`; BlueZ → `Powered: yes` / `PowerState: on`, which is better than the criterion asked for. Wi-Fi enabled and this SSH session never dropped. **`/dev/i2c-1` exists**, scanning empty as expected *at the time* — the sensor zone has since been assembled, so an empty scan is no longer the correct result; see correction 32. 1-Wire master registered — but the devices directory was **not** empty, see correction 25, itself now superseded by correction 32. `System clock synchronized: yes` after ~1 min, see correction 28. `throttled=0x0` at 56.0 °C. |
 | 7. SSH hardening | **done** 2026-09-09 | `--execute` from a login shell, no `--port`. `sshd -t` reported **configuration is valid** before the reload. Effective now: `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`, `pubkeyauthentication yes`, `usepam yes` (deliberately kept), `port 22` listening on both stacks. `~/.ssh` 700 and `authorized_keys` 600, one key (`chrum@WielkiRig`). **Verified two ways**: the owner logged in from a second terminal while the first was open, and a forced password-only attempt from the workstation is refused with `Permission denied (publickey)` — the positive check, not just "keys still work". `ssh.service` owns the listener, so the socket-activation path was not needed. No failed units. **See correction 31: re-enabling cloud-init would undo this.** Its blocker had been cleared first: step 5 phase 1 disabled cloud-init, so `50-cloud-init.conf` is no longer rewritten at every boot. |
+| 9. Full system upgrade | **done** 2026-09-09 | `apt-get full-upgrade` — **94 upgraded, 10 newly installed, 0 removed**, pre-flighted with `-s` first. Run to fix a BLE advertising failure that turned out to be a BlueZ/kernel structure mismatch (see `../CLAUDE.md`). `bluez 5.82-1.1+rpt1` → `+rpt2`, kernel `6.18.34` → `6.18.39`, `firmware-brcm80211` `1:20250410` → `1:20260519` — all three layers of the mismatch moved together, so **which one fixed it is unknown and deliberately not chased**. Verified after reboot: advertising works (`ActiveInstances: 1` with the logger running), `config.txt` untouched (`gpio=17=op,dh`, both bus lines intact), `pinctrl get 17` still `op -- pd | hi`, I2C shows `70` and `77`, w1 master present, `rfkill` still `Soft blocked: no`, **no failed units**, enabled timers still 2, masks survived. Audits at `boot-audit-preupgrade.txt` / `boot-audit-postupgrade.txt`. |
 | 8. Wi-Fi gating | **decision open** | Manual `nmcli`/`rfkill block wifi` for now. Still waiting on plan item 5a's installed link check to have been *run* — but 5a itself is **no longer blocked**, since clearing the Bluetooth soft block was its precondition and step 5 phase 7 did that. What 5a now waits on is a logger binary, not this file. |
 
 ### Corrections the first real audit forced
@@ -619,6 +620,24 @@ found, which is the point.
        Attributed to the line now being terminated — well-supported by the timing, not proven.
        **The `28-*` family filter remains mandatory** and is now **untestable on this box**, so
        its correctness rests on the parser rather than on an observation.
+
+### Corrections from the full upgrade (2026-09-09)
+
+33. **`/tmp` is cleared on reboot, so nothing staged there survives a step that reboots.** A
+    verification script written to `/tmp` before the upgrade was gone when the box came back, which
+    is obvious in hindsight and wasted a round trip. **Stage anything that must outlive a reboot in
+    `~`**, not `/tmp`.
+34. **`sshswitch.service` is enabled and now appears in the boot chain** (152 ms), where it was
+    below the reporting cutoff before. It ships with `raspberrypi-sys-mods`, which this upgrade
+    bumped, and it enables `ssh.service` when a file named `ssh` exists on the FAT boot partition.
+    **Not a fault and not worth retiring** — SSH is wanted on this box and anyone who can write to
+    that partition already has the card in their hand, which is a strictly worse position than this
+    service represents. Recorded because it is a service that appeared without anyone asking for it.
+35. **Boot time regressed 11.317 s → 14.029 s across the upgrade, and the figure is not yet
+    trustworthy.** Almost all of it is `NetworkManager.service`, 5.236 s → 7.348 s. This was the
+    **first boot after a 94-package upgrade**, which does first-run work no later boot repeats, so
+    **re-measure after a second reboot before treating 14.029 s as the new baseline.** The
+    boot-time reduction step's 11.105 s figure is now historical either way.
 
 **Measured outcomes, not defects.**
 

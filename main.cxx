@@ -5,7 +5,9 @@
 #include "helpers.cxx"
 #include "config.cxx"
 #include "sessionWriter.cxx"
+#include "blePackets.cxx"
 #include "supplyMonitor.cxx"
+#include "raceChronoBle.cxx"
 
 void printUsage(const gchar* program) {
     g_print(
@@ -64,10 +66,16 @@ int main(int argc, char* argv[])
     auto* sessionWriterThread = g_thread_new("sessionWriter", sessionWriterLoop, NULL);
     writeSessionHeader();
 
+    initialiseBlePackets();
+
     appData.producersRunning++;
     auto* supplyMonitorThread = g_thread_new("supplyMonitor", supplyMonitorLoop, NULL);
 
+    appData.producersRunning++;
+    auto* raceChronoBleThread = g_thread_new("raceChronoBle", raceChronoBleLoop, NULL);
+
     g_thread_join(supplyMonitorThread);
+    g_thread_join(raceChronoBleThread);
     // Joined last: it owns the session fd and its final act is to drain the queue and fsync, so
     // every other worker's last record has to be enqueued before it stops.
     g_thread_join(sessionWriterThread);

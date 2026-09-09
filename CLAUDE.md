@@ -128,6 +128,41 @@ alert the developer and record it in this file so the next agent does not hit it
   4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
      latency for anything that watches for a probe being connected.
 
+## BLE advertising: the platform bug that cost a day, and how it was found
+
+- **`bluez 5.82-1.1+rpt1` on kernel `6.18.34` CANNOT advertise on this box. Fixed by
+  `apt full-upgrade` on 2026-09-09** → `bluez 5.82-1.1+rpt2`, kernel `6.18.39`,
+  `firmware-brcm80211 1:20260519`. If a future image regresses to those versions, this is the
+  explanation for a logger that starts, registers its GATT application and is never seen by
+  RaceChrono.
+  **The symptom** is `binc` logging `failed to register advertisement (error 36:
+  GDBus.Error:org.bluez.Error.Failed)` and `bluetoothd` logging
+  `add_client_complete() Failed to add advertisement: Invalid Parameters (0x0d)`.
+  **The cause is a userspace/kernel structure mismatch**, visible only in an HCI trace: the
+  `Add Extended Advertising Data (0x0055)` MGMT command arrives with `plen 14` while the fields it
+  declares — instance, `adv_data_len: 3`, `scan_rsp_len: 0` — account for 6 parameter bytes. The
+  kernel validates that length and rejects the mismatch. `Available adv data len` was 31, so it was
+  never a capacity problem.
+- **The diagnostic sequence is the reusable part. Do this before suspecting the logger:**
+  1. **`bluetoothctl advertise on`.** If that fails too, the fault is not in this repository and no
+     amount of reading `raceChronoBle.cxx` will find it. This single command separates "our code"
+     from "the platform" and it should always be step one.
+  2. **`journalctl -u bluetooth`** for the `bluetoothd`-side reason, which is more specific than the
+     D-Bus error the client sees.
+  3. **`btmgmt add-adv -c -u 1ff8 1`** (root). This uses the *legacy* MGMT path. It succeeded
+     throughout, which proved the controller and kernel could advertise and narrowed the fault to
+     `bluetoothd`'s extended-advertising path.
+  4. **`btmon` while triggering an attempt** (root) — the only thing that showed the actual
+     malformed command. `btmon -w file` then `btmon -r file`.
+- **Three plausible-sounding explanations were tested and were all wrong.** Recorded so nobody
+  spends the time again: it was **not** advertising-data overflow (a 4-character device name failed
+  identically), **not** `max_adv_data_len` (31, ample), and **not** connectability, daemon config or
+  stale daemon state (`ControllerMode = le`, `Experimental = true` and a `bluetooth` restart each
+  changed nothing).
+- **`SupportedInstances` and `ActiveInstances` on `org.bluez.LEAdvertisingManager1`** are the quick
+  check that an advertisement actually registered. `ActiveInstances: 1` while the logger runs is
+  the acceptance; `0` means it silently did not.
+
 ## The box
 
 - **SSH alias `KnurLogger`** — `192.168.118.52`, user `chrum`, key-only.

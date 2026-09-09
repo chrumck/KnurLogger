@@ -27,6 +27,7 @@
 #include "adapter.h"
 #include "advertisement.h"
 #include "application.h"
+#include "characteristic.h"
 #include "device.h"
 #include "logger.h"
 
