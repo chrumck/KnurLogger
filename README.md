@@ -111,8 +111,12 @@ pairing screen: this is a BLE GATT peripheral with no bonding, advertising `BR/E
 so the OS pairing list will never show it.
 
 **Every payload field is big-endian. Only the 4-byte packet ID is little-endian**, per the DIY API.
-Packet IDs `0x600`–`0x603` are inherited from the ESP32 rig in
-`../ndLouvers/step0b-rig/racechrono_ble_test/` so channel definitions written against it carry over.
+
+**`0x602` and `0x603` are transcribed byte for byte from the ESP32 rig in
+`../ndLouvers/step0b-rig/racechrono_ble_test/`, so definitions written against that rig carry over
+unchanged. `0x600` and `0x601` do NOT** — they were the rig's synthetic test frames and were
+released for real use (owner decision, 2026-09-10), so a rig-era `0x600` definition decodes
+garbage here and must be re-entered.
 
 ### `0x600` — enclosure conditions
 
