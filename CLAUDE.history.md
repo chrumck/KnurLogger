@@ -235,13 +235,65 @@ udev rule was deliberately **not** written against the guess.
 
 **The next run confirmed it: `errno 13`, `EACCES`** (2026-09-10, second enrollment). Worth keeping
 because the discipline paid nothing and cost nothing — the guess was right, and waiting one run to
-check it turned a plausible fix into a known one for the price of a single log line. The rule that
+check it turned a plausible fix into a known one for the price of a single log line. **It was also
+not the whole fault: with the permission fixed the bulk read still does nothing — §1.14.** The rule that
 followed is in `SystemSetup/`, and `CLAUDE.md` carries the two non-obvious things about it: it has
 to match the slave's add event rather than the master's, and it is testable without a probe via
 `w1_master_add`.
 
 **The measured cost is real either way.** A per-probe read is 790 ms, so four probes is ~3.2 s per
 cycle: plan thermal item 2's "start around 1 Hz" is **0.31 Hz** until the bulk path works.
+
+### 1.14 The udev rule fixed the permission and the bulk read still did nothing
+
+**2026-09-10, at the car, four real probes, 331 cycles.** With `therm_bulk_read` now writable the
+trigger is accepted every cycle — and the cycle time did not move: **3190/3213/3309 ms** against
+3198/3213/3281 before the rule, with **every probe still reading in ~800 ms** (790/799/860). If the
+bulk path were working, at most the first probe would pay a conversion and the other three would
+return the scratchpad in single-digit milliseconds. None of them did.
+
+**The permission was necessary and not sufficient.** §1.13 diagnosed `EACCES` correctly and the
+fix was right; it simply was not the whole fault. Worth stating plainly because the udev rule
+passed its own test and the natural conclusion was that the job was done.
+
+**What the owner spotted, and why it was the tell.** `0x603` bytes 6–7 — last conversion, ms — read
+**0** on the phone. That is a field whose entire job is to show conversion cost, reading zero
+during the most expensive part of the cycle. The cause was in this repository:
+
+```
+lastConversionMs = bulkWaitMs.has_value() ? *bulkWaitMs : slowestReadMs;
+```
+
+`bulkWaitMs` had a value whenever the **write** succeeded, so the moment the udev rule landed, the
+0 ms bulk wait started masking the ~800 ms the probes were actually taking. **The fix that made the
+write succeed is what made the reporting lie**, and without that 0 on the phone the dead
+optimisation would have been recorded as working.
+
+**Why the wait is 0 ms.** `triggerBulkConversion()` polled until `therm_bulk_read` read anything
+other than `-1`, and broke on the first poll. The attribute reads `-1` while a conversion is
+running, `1` when results are ready, and `0` when no device on the bus supports bulk reading —
+so **breaking on "anything but `-1`" cannot distinguish "finished instantly" from "nothing was
+triggered"**, and the code had no way to tell which had happened. It does now: the readback is
+recorded as `bulkState` on every `temp` record.
+
+**Not yet diagnosed, and the first suspect.** A bulk conversion of parasite-powered probes needs a
+strong pullup that this bus does not provide, and `w1-gpio`'s `pullup` parameter is ignored on this
+firmware. So `ext_power` per probe is the first thing to read — it is now dumped once into a
+`probeCapabilities` record on the first cycle that sees any probe, alongside `resolution`,
+`conv_time` and the master's `features`. **Read that record before theorising further.**
+
+**Three fixes shipped, all of them reporting rather than behaviour:** `conversionMs` reports what
+the cycle actually paid; `bulkConversion` means a conversion the kernel confirmed rather than a
+write that succeeded; and a one-shot warning names the readback value when the trigger is accepted
+but converts nothing. **The logger has always been correct and slow — none of this ever produced a
+wrong temperature**, which is why it survived a day of being wrong about itself.
+
+**Verification is worth recording because the usual harness could not do it.** The fake-sysfs tree
+represents attributes as plain files, so `therm_bulk_read` reads back the `trigger` that was
+written to it and the state machine cannot be exercised at all. The `conversionMs` fallback was
+verified instead with a **FIFO** standing in for `w1_slave`, which makes a read block for a
+controlled time: cycle 1 reported `conversionMs 385` against a slowest read of 385 ms, where the
+old code reported 0.
 
 ## 2. Superseded decisions
 

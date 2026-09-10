@@ -546,6 +546,12 @@ channel → location, per plan thermal item 1.
 | `temp2` | `28-062542ac86b6` | 5 m | third | 21.88 °C |
 | `temp3` | `28-0625424e16c9` | 5 m | fourth | 21.75 °C |
 
+**The channel → role map is independently confirmed** (2026-09-10): with all four bound, each probe
+was warmed by hand in installed order and `temp0`, `temp1`, `temp2`, `temp3` rose in that order
+with clean separation, +3.8 to +5.4 K each. That is the check the plan's thermal item 1 provides
+for, and it rules out a swapped pair — which is the one error that would look like nothing in
+every record.
+
 **These four ROM IDs are the channel definitions.** They also live, as the live configuration, in
 `temp0RomId`..`temp3RomId` in `../build/KnurLogger.ini` — this table is the human record and that
 file is what the logger reads. If they ever disagree, the logger is right about what it is doing

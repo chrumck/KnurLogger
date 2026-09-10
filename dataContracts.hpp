@@ -240,6 +240,10 @@ typedef struct {
     // Rate limiter: the trigger is refused on every cycle once it is refused at all, and 863 lines
     // an hour of the same warning is not evidence, it is noise.
     gboolean isBulkTriggerRefusalReported;
+    // Separate from the refusal: the write can be ACCEPTED and still convert nothing, which is a
+    // different fault with a different fix and needs its own one-shot report.
+    gboolean isBulkNoOpReported;
+    gboolean isProbeInfoReported;
 
     // Rate limiters, so a permanent condition produces one record rather than one per second.
     std::vector<std::string> reportedUnknownRomIds;

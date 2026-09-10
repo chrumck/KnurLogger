@@ -135,13 +135,27 @@ gboolean writeSysfsValue(const std::string& path, const gchar* value, int* outEr
     return written == length;
 }
 
-// Returns the milliseconds spent waiting, or nothing if the bulk path was unavailable or refused.
+// `therm_bulk_read` reads back "-1" while a conversion is running, "1" when the results are ready,
+// and "0" when no device on the bus supports bulk reading. **"0" and "1" are not the same answer
+// and treating them alike is what hid a dead optimisation for a day** (measured 2026-09-10): with
+// the udev rule applied the write succeeds, the very first poll returns non-"-1", the wait is 0 ms
+// and every probe still pays its own ~800 ms conversion. So a successful WRITE does not mean a
+// conversion happened, and only `didConvert` may be reported as one.
+typedef struct {
+    gboolean isAvailable;
+    gboolean didConvert;
+    std::string state;
+    guint32 waitMs;
+} BulkReadResult;
+
 // A failure here is not an error: the per-probe reads that follow are correct either way, they
 // just each pay for their own conversion. That is exactly why this optimisation is safe to ship
 // on a box where it cannot be exercised - its worst case is the behaviour without it.
-std::optional<guint32> triggerBulkConversion() {
+BulkReadResult triggerBulkConversion() {
+    BulkReadResult result = {};
+
     auto path = getBulkReadPath();
-    if (!std::filesystem::exists(path)) { return std::nullopt; }
+    if (!std::filesystem::exists(path)) { return result; }
 
     int writeErrno = 0;
     if (!writeSysfsValue(path, "trigger", &writeErrno)) {
@@ -158,24 +172,79 @@ std::optional<guint32> triggerBulkConversion() {
                 "bulk read trigger refused on '{}': {} (errno {}), per-probe reads in use",
                 path, g_strerror(writeErrno), writeErrno));
         }
-        return std::nullopt;
+        return result;
     }
 
     appData.thermal.isBulkTriggerRefusalReported = FALSE;
+    result.isAvailable = TRUE;
 
     auto startUs = getBootTimeUs();
     while (getBootTimeUs() - startUs < ONE_WIRE_BULK_MAX_WAIT_US) {
         if (appData.shutdownRequested) { break; }
 
         auto state = readWholeFile(path);
-        // "-1" means a conversion is still running on at least one probe. Anything else means the
-        // results are ready to be read.
-        if (!state.has_value() || trim(*state) != "-1") { break; }
+        if (!state.has_value()) { break; }
 
+        result.state = trim(*state);
+        if (result.state != "-1") { break; }
+
+        // Seen at least once, so a conversion really was running and the wait below measures it.
+        result.didConvert = TRUE;
         g_usleep(ONE_WIRE_BULK_POLL_US);
     }
 
-    return (guint32)((getBootTimeUs() - startUs) / 1000);
+    result.waitMs = (guint32)((getBootTimeUs() - startUs) / 1000);
+
+    // The write was accepted and the kernel never reported a conversion in progress. Something is
+    // stopping the bulk path from doing anything, and the per-probe reads below will each pay a
+    // full conversion - so this is the whole optimisation silently not happening, and it says so
+    // once rather than leaving a zero in the record to be puzzled over.
+    if (!result.didConvert && !appData.thermal.isBulkNoOpReported) {
+        appData.thermal.isBulkNoOpReported = TRUE;
+        g_warning("OneWire: bulk read accepted the trigger but reported no conversion"
+            " (therm_bulk_read read back '%s'). '0' means no device on the bus supports bulk"
+            " reading; '1' means it claims the results are already ready, which after a fresh"
+            " trigger means nothing was marked. Per-probe reads are being used, ~800 ms each.",
+            result.state.c_str());
+        writeEventRecord("warning", std::format(
+            "bulk read trigger accepted but no conversion reported, therm_bulk_read='{}',"
+            " per-probe reads in use", result.state));
+    }
+
+    return result;
+}
+
+// w1_therm exposes per-probe attributes that say WHY a bulk conversion might do nothing, and they
+// only exist once a probe is attached - so they cannot be read at worker start on a bench box, and
+// are dumped once on the first cycle that sees any probe. `ext_power` is the first suspect: a
+// bulk conversion of parasite-powered probes needs a strong pullup this bus does not have, and
+// `w1-gpio`'s `pullup` parameter is ignored on this firmware.
+void reportProbeCapabilities(const OneWireScan& scan) {
+    if (appData.thermal.isProbeInfoReported || scan.romIds.empty()) { return; }
+    appData.thermal.isProbeInfoReported = TRUE;
+
+    static const gchar* attributeNames[] = { "ext_power", "resolution", "conv_time", "features" };
+
+    std::string probes;
+    for (const auto& romId : scan.romIds) {
+        std::string fields;
+        for (const auto* name : attributeNames) {
+            auto value = readWholeFile(std::format("{}/{}/{}", ONE_WIRE_DEVICES_DIR, romId, name));
+            fields += std::format("{}\"{}\":{}", fields.empty() ? "" : ",", name,
+                value.has_value() ? std::format("\"{}\"", escapeJson(trim(*value))) : "null");
+        }
+        probes += std::format("{}{{\"romId\":\"{}\",{}}}", probes.empty() ? "" : ",", romId, fields);
+    }
+
+    auto masterFeatures = readWholeFile(
+        std::format("{}/{}/features", ONE_WIRE_DEVICES_DIR, ONE_WIRE_MASTER_NAME));
+    auto bulkState = readWholeFile(getBulkReadPath());
+
+    writeSessionRecord("probeCapabilities", std::format(
+        "\"masterFeatures\":{},\"bulkReadState\":{},\"probes\":[{}]",
+        masterFeatures.has_value() ? std::format("\"{}\"", escapeJson(trim(*masterFeatures))) : "null",
+        bulkState.has_value() ? std::format("\"{}\"", escapeJson(trim(*bulkState))) : "null",
+        probes));
 }
 
 // w1_therm's `w1_slave` attribute in preference to its `temperature` attribute, because it carries
@@ -716,7 +785,7 @@ void sampleProbes() {
     nextSampleBootUs = cycleStartUs + (guint64)appConfig.tempIntervalMs * 1000;
 
     auto scan = scanOneWireBus();
-    auto bulkWaitMs = triggerBulkConversion();
+    auto bulkRead = triggerBulkConversion();
 
     std::vector<ProbeReading> readings;
     std::vector<std::string> unboundRomIds;
@@ -742,6 +811,7 @@ void sampleProbes() {
 
     appData.thermal.enumeratedCount = (guint32)scan.romIds.size();
     appData.thermal.nonProbeEntries = scan.nonProbeEntries;
+    reportProbeCapabilities(scan);
 
     if (appData.mode == ModeEnroll) { runEnrollmentStep(unboundRomIds, readings, scan.romIds); }
     else { reportUnknownRomIds(unboundRomIds); }
@@ -816,20 +886,27 @@ void sampleProbes() {
     }
 
     appData.thermal.sampleCycles++;
-    appData.thermal.lastConversionMs = bulkWaitMs.has_value() ? *bulkWaitMs : slowestReadMs;
+    // What the cycle ACTUALLY paid for its temperatures. Reporting the bulk wait whenever the
+    // write was accepted put a 0 on 0x603 bytes 6-7 while every probe was still converting for
+    // ~800 ms - a field whose whole job is to show conversion cost, reading zero during the most
+    // expensive part of the cycle. Only a conversion the kernel confirmed may be reported as one.
+    appData.thermal.lastConversionMs = bulkRead.didConvert ? bulkRead.waitMs : slowestReadMs;
     appData.thermal.lastCycleMs = (guint32)((getBootTimeUs() - cycleStartUs) / 1000);
 
     writeSessionRecord("temp", std::format(
         "\"cycle\":{},\"busPresent\":{},\"enumerated\":{},\"nonProbeEntries\":{},"
         "\"validMask\":{},\"validChannels\":{},\"conversionMs\":{},\"cycleMs\":{},"
-        "\"bulkConversion\":{},\"abandoned\":{},\"unboundRomIds\":[{}],\"channels\":[{}]",
+        "\"bulkConversion\":{},\"bulkAvailable\":{},\"bulkState\":{},"
+        "\"abandoned\":{},\"unboundRomIds\":[{}],\"channels\":[{}]",
         appData.thermal.sampleCycles,
         // An EMPTY devices directory is the real failure signal, because a working bus always
         // registers its master. Zero probes with the master present is a perfectly good result.
         scan.isBusPresent ? "true" : "false",
         appData.thermal.enumeratedCount, scan.nonProbeEntries,
         validMask, validChannelCount, appData.thermal.lastConversionMs, appData.thermal.lastCycleMs,
-        bulkWaitMs.has_value() ? "true" : "false",
+        bulkRead.didConvert ? "true" : "false",
+        bulkRead.isAvailable ? "true" : "false",
+        bulkRead.state.empty() ? "null" : std::format("\"{}\"", escapeJson(bulkRead.state)),
         isAbandoned ? "true" : "false",
         getRomIdListJson(unboundRomIds), channelFields));
 

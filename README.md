@@ -21,10 +21,17 @@ which closes the plan's thermal item 1 first requirement. `temp0` = `28-06254385
 `temp1` = `28-0625424044b7`, `temp2` = `28-062542ac86b6`, `temp3` = `28-0625424e16c9`, in installed
 order. An earlier attempt the same day bound three and was abandoned, having unplugged each probe
 as the next went in; three faults it exposed are fixed (`CLAUDE.history.md` §1.11–§1.13).
-**Sampling was 0.31 Hz, not 1 Hz**, because `therm_bulk_read` refused the write with `EACCES`;
-`SystemSetup/grant-w1-bulk-read.sh` is now **applied and verified against a fake probe**, so the
-next run with four real probes should show `bulkConversion: true` and `cycleMs` ~1000. **The rate
-itself is not yet measured**, and every session recorded before 2026-09-10 is at 0.31 Hz.
+**Sampling is 0.31 Hz, not 1 Hz, and the udev rule did not fix it.**
+`SystemSetup/grant-w1-bulk-read.sh` cleared the `EACCES` on `therm_bulk_read` and the write is now
+accepted — but with four real probes the cycle time did not move (3190–3309 ms over 331 cycles,
+every probe still ~800 ms). **A successful write is not a conversion.** The first suspect is
+parasite power; `CLAUDE.history.md` §1.14 has the diagnosis and the next step.
+
+**The map is independently confirmed** (2026-09-10): warming each probe in installed order moved
+`temp0`, `temp1`, `temp2`, `temp3` in that order with clean separation, +3.8 to +5.4 K each.
+**The cold-soak calibration is done and the answer is no offsets** — 12.9 undisturbed minutes,
+four-probe mean 21.958 °C, spread 0.193 K, which is ~3 % of a ~6 K ΔT_preheat signal and cannot be
+separated from a real spatial gradient across four locations. All four `temp<N>OffsetC` stay 0.0.
 **A 7.53 h unattended run holds up** (2026-09-10, bench, open air, no probes bound, no phone
 connected): 27,123 sample cycles with inter-cycle gaps of median 1002 ms and a **maximum of
 1004 ms**, zero gaps over 2 s, zero dropped records, zero error events, `throttled` live and
@@ -145,7 +152,7 @@ item 5a asks to be logged.
 | 1 | valid-this-cycle bitmask, bit *n* = `temp<n>` | `bytesToUint(raw, 1, 1)` | **15** |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0**, and staying there |
 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps at 65535 — i.e. every **18.2 h** |
-| 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | **~3200 with four probes** until `therm_bulk_read` works; ~800 once it does |
+| 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | **~3200 with four probes** — this is the whole cycle's cost while the bulk path does nothing; ~800 if it ever works |
 
 Transcribed byte for byte from the ESP32 rig's `0x603`, so channel definitions written against that
 rig carry over. **This is what makes the thermal channels checkable rather than merely present:**
@@ -166,9 +173,11 @@ unplugging probes during enrollment charged 186 read errors to a bus that had no
 (`CLAUDE.history.md` §1.12). The session file counts these separately as `notAnswering`, so a bus
 that really is dropping out is still visible; it is just not confused with one that read badly.
 
-**Byte 6–7 will read ~3200 rather than ~790 once four probes are bound**, because the bulk
-conversion path is refused on this box — see §[Next](#next). It is the per-probe read time, and
-without `therm_bulk_read` the reads are sequential.
+**Byte 6–7 reads ~3200 with four probes bound**, because the bulk conversion path does not work on
+this box and the reads are sequential — see §[Next](#next). **It read 0 for one session**, which is
+how the fault was found: the field reported the bulk wait whenever the *write* succeeded, so a
+0 ms wait masked ~800 ms of real conversion. It now reports what the cycle actually paid, and the
+`temp` records carry `bulkState` — the raw `therm_bulk_read` readback — beside it.
 
 **Bench-verified in the session file, not yet on the phone.** The packing is the same primitive as
 `0x604`'s, which is phone-proven, but nobody has yet added these five channel definitions in
@@ -450,22 +459,38 @@ over `/sys/bus/w1/devices` with **no root and no risk to the real box**. Populat
 store's own family and duplicate guards, bound-but-absent, CRC failure, the 85.00 °C power-on
 default, out-of-range rejection and the application of a hand-entered offset were all verified.
 
+**Its one limitation, found the hard way:** a plain file cannot represent a sysfs attribute whose
+read value differs from what was written, and `therm_bulk_read` is exactly that — you write
+`trigger` and read back `-1`, `0` or `1`. In the fake tree it reads back `trigger`, so that state
+machine is unexercised. Two things fill the gap and are worth reaching for before concluding
+something is untestable:
+
+1. **A FIFO in place of `w1_slave`** makes a read block for a controlled time, which is how the
+   `conversionMs` fallback was verified — a read forced to 385 ms produced `conversionMs 385`
+   where the old code produced 0.
+2. **`w1_master_add`** attaches a real family-0x28 slave with no hardware present, so `w1_therm`
+   binds and its master attributes appear. This is how the udev rule was verified. It needs root,
+   `w1_master_remove` undoes it, and the id is parsed as `%02x-%012llx` — the hyphen matters.
+
 ## Next
 
-**Confirm the bulk read actually buys 1 Hz.** The udev rule is applied and passes its own test,
-but that test used a fake probe. On the next run with all four connected, `bulkConversion` should
-read `true` and `cycleMs` should fall from ~3200 to ~1000. If it does not, the rule is fine and the
-problem is elsewhere — read `conversionMs` before assuming anything.
+**Find out why the bulk read converts nothing.** The permission is fixed and the write is
+accepted, and the cycle is still 3.2 s. Next time probes are attached, read the one-shot
+`probeCapabilities` record first — **`ext_power` per probe is the first suspect**, because a bulk
+conversion of parasite-powered probes needs a strong pullup this bus does not have. Then read
+`bulkState` in the `temp` records: `0` means no device on the bus supports bulk reading at all,
+`1` means the kernel claims the results are ready without ever having marked a conversion.
+`CLAUDE.history.md` §1.14 has the reasoning. **This costs sample rate and nothing else** — the
+readings have always been correct, just slow.
 
 Then, needing only a drive: **commissioning item 5a's installed BLE link check** and **item 5.7's
-under-load supply telemetry**, both of which want the enclosure as built and the car moving. And
-needing only a cold car and one stationary session: **the thermal cold-soak calibration**, plan
-open item 41 — decide whether any offset is worth entering at all. **The `temp<N>OffsetC` keys are
-all still 0.0**, which is a legitimate state and not an oversight.
+under-load supply telemetry**, both of which want the enclosure as built and the car moving.
+Neither has ever been exercised — the logger has never run on a moving car.
 
-Also still outstanding: **the warm-one-probe map check.** No phone was connected during enrollment,
-so nothing has independently confirmed that `temp2` is the probe you think it is. It costs one
-bench run with a phone and a warm hand.
+**The thermal side is otherwise finished.** The cold-soak calibration is done and the answer was
+no offsets, so **all four `temp<N>OffsetC` staying 0.0 is a result, not an oversight** — do not
+"fix" it. The channel → role map is confirmed by warming. Both are closed as plan open items 41
+and 42.
 
 Then **the SDP810 and BME280 readers**, once the pressure sensors arrive.
 
@@ -489,10 +514,10 @@ answer), a BLE advertiser against a phone, the **BME280 at `0x77`** since the se
 assembled, and — via the fake-sysfs harness above — **every branch of the 1-Wire worker except a
 real reading**. **What is not:** anything requiring a real SDP810 (not delivered) or a real DS18B20
 (the probes are on the car), and the mux, which does not answer at `0x70`.
-**Every one of those unknowns was answered at the car on 2026-09-10.** The loaded 4 × 5 m star
+**Those unknowns were answered at the car on 2026-09-10, and one answer was "still no".** The loaded 4 × 5 m star
 enumerates and reads CRC-clean with all four probes on it — 63 consecutive cycles, valid-mask 15,
 zero read errors. A per-probe read costs **799–832 ms**, so a four-probe cycle is **3198–3281 ms**.
-`therm_bulk_read` **does** appear the moment a `w1_therm` slave attaches, and the write to it is
-refused with **`EACCES`**, which is why that 3.2 s matters: without the bulk path the plan's ~1 Hz
-is ~0.31 Hz. **What the star result does NOT cover** is a session: 3.4 minutes, stationary, cold,
-in a garage. Read `0x603` bytes 2–3 on the first drive.
+`therm_bulk_read` **does** appear the moment a `w1_therm` slave attaches; the write to it was
+refused with `EACCES`, that is fixed, and **it still converts nothing** — 331 cycles at
+3190–3309 ms with the rule applied. **What the star result does NOT cover** is a session:
+3.4 minutes, stationary, cold, in a garage. Read `0x603` bytes 2–3 on the first drive.

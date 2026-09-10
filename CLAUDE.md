@@ -133,8 +133,8 @@ narrative in this file.
   4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
      latency for anything that watches for a probe being connected. It cannot be shortened without
      root — the master attributes are root-owned and the logger runs as `chrum`.
-  5. **`therm_bulk_read` appears the moment a probe attaches, and the write to it was REFUSED with
-     `EACCES`** (history §1.13 for the diagnosis)
+  5. **`therm_bulk_read` appears the moment a probe attaches, and the bulk path has never once
+     worked** (history §1.13 and §1.14)
      (measured at the car, 2026-09-10; before that the attribute had never existed here, because
      `w1_therm` registers it as a **master** attribute only once a slave of its family attaches).
      It is the documented way to convert every probe at once and the only way to sample four
@@ -142,14 +142,27 @@ narrative in this file.
      measured on the loaded four-probe star** — so a cycle is **3198–3281 ms** and plan thermal
      item 2's "start around 1 Hz" is really **0.31 Hz**. `oneWireProbes.cxx` falls through to the per-probe path, which is correct and
      slow, so **the bulk path has still never run.**
-     **The cause is measured: `errno 13`, `EACCES`.** `w1_therm` registers the attribute
-     `0644 root:root` and the logger runs as `chrum` — under `KnurLogger.service` too, whose
+     **The permission cause was `errno 13`, `EACCES`** — `w1_therm` registers the attribute
+     `0644 root:root` and the logger runs as `chrum`, under `KnurLogger.service` too, whose
      `User=chrum` and `SupplementaryGroups=video i2c gpio` *extend* rather than replace chrum's own
-     group memberships. **`SystemSetup/grant-w1-bulk-read.sh` installs a udev rule that fixes it, and it
-     is APPLIED and verified** (2026-09-10): the attribute comes up `root:gpio 664` and `chrum`
-     can write it. **Verified against a FAKE probe, so the rate itself is still unmeasured** —
-     `bulkConversion: true` and `cycleMs` ~1000 on the next run with four real probes is the
-     confirmation. Every session recorded before that day is at 0.31 Hz and stays that way.
+     group memberships. `SystemSetup/grant-w1-bulk-read.sh` fixes that and **is applied**: the
+     attribute comes up `root:gpio 664` and `chrum` writes it.
+     **AND THE BULK READ STILL DOES NOTHING** (measured with four real probes, 2026-09-10, history
+     §1.14). The write is now accepted, the very first poll of `therm_bulk_read` returns non-`-1`,
+     the wait is 0 ms, and **every probe still pays its own ~800 ms conversion** — 331 cycles at
+     3190–3309 ms, unchanged from before the rule. **So the permission was necessary and not
+     sufficient, and a successful write is not a conversion.** Three things follow:
+     1. **`0` and `1` are different answers and the code used to treat them alike.** The attribute
+        reads `-1` while converting, `1` when results are ready, `0` when no device on the bus
+        supports bulk reading. Breaking on "anything but `-1`" cannot tell "finished instantly"
+        from "nothing was triggered". The readback is now recorded as `bulkState` in every `temp`
+        record, which is what the next run should be read for.
+     2. **`bulkConversion` now means a conversion the kernel confirmed**, not a write that
+        succeeded. It was the latter, which is why a dead optimisation looked live.
+     3. **The first suspect is parasite power.** A bulk conversion of parasite-powered probes needs
+        a strong pullup this bus does not have, and `w1-gpio`'s `pullup` parameter is ignored on
+        this firmware. `ext_power` per probe now lands in a one-shot `probeCapabilities` record on
+        the first cycle that sees a probe — **read that first** next time probes are attached.
      1. **The rule matches the SLAVE add, not the master's.** The attribute is a *master* attribute
         that only exists once a slave of the family attaches, so the master's own add event fires
         long before it. The kernel creates the family's master attributes from the bus notifier
@@ -181,7 +194,15 @@ narrative in this file.
      3. **Unparseable content is now recorded** (`unparsed` in the `temp` record, truncated). The
         first version threw the bytes away, which is why the fault at the car could not be told
         apart from a marginal bus without going back.
-  7. **The whole 1-Wire path IS testable without probes, and this is how** (2026-09-10).
+  7. **The fake-sysfs harness CANNOT emulate an attribute whose read value differs from what was
+     written**, and `therm_bulk_read` is exactly that: you write `trigger` and read back `-1`/`0`/
+     `1`. In the fake tree it is a regular file, so it reads back `trigger` and the state machine
+     above is unexercised. Two workarounds, both used: a **FIFO** stands in for a slow read, which
+     is how the `conversionMs` fallback was verified; and **`w1_master_add`** attaches a real
+     family-0x28 slave with no hardware, which is how the udev rule was verified. **The README's
+     claim that the harness covers every branch but a real reading is therefore too strong** — it
+     covers every branch that a plain file can represent.
+  8. **The whole 1-Wire path IS testable without probes, and this is how** (2026-09-10).
      `unshare -Urm --map-root-user` gives an unprivileged user namespace with a private mount
      namespace, so a fake tree can be bind-mounted over `/sys/bus/w1/devices` — **no root, no sudo,
      no risk to the real box, and nothing to undo** since the namespace dies with the shell.
