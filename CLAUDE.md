@@ -31,7 +31,7 @@ alert the developer and record it in this file so the next agent does not hit it
 ## Naming
 
 - **Channel names are positional and mean nothing.** Pressure channels are `P0`–`P5`, fixed by mux
-  position. Thermal channels are `temp0`–`temp3`, fixed by DS18B20 ROM ID at build time. The
+  position. Thermal channels are `temp0`–`temp3`, fixed by DS18B20 ROM ID at enrollment. The
   mapping to measurement roles is a per-session record, logged at boot, and **a channel is never
   renamed after a role**.
   - **Pressure (`U`/`X`/`C`) is still deliberately undecided.** Do not invent one.
@@ -218,6 +218,13 @@ alert the developer and record it in this file so the next agent does not hit it
 - **`w1-gpio`'s `pullup` parameter is ignored** on this firmware — the overlays README says so
   outright. The overlay that drives an external strong pullup is a different one,
   `w1-gpio-pullup`, and this build must not use it: `R11` is a plain 2.2 kΩ resistor to 3V3.
+- **The tar-over-ssh build loop OVERWRITES the deployed `build/KnurLogger.ini`, and that file now
+  holds the thermal offsets** (found 2026-09-10 during the wrap-up pass, before it bit anyone).
+  `build/KnurLogger.ini` is tracked in git and there is no separate untracked deployed copy, so an
+  offset typed in on the box is destroyed by the next sync from the workstation — silently, with
+  the logger carrying on using the repo's values. Edit offsets in the repo and sync, or add
+  `--exclude=build/KnurLogger.ini` to the `tar` when editing on the box. The README's repository
+  section carries the loop and both workarounds.
 - **`sudo` requires a password.** Pre-flight runs pipe fine over `ssh host 'bash -s'`; anything
   that changes state must run from a login shell (`ssh -t`), and every mutating script checks this
   up front rather than failing halfway.

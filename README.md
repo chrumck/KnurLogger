@@ -55,12 +55,12 @@ Read, in this order, before changing anything here:
 | BME280 | I2C `0x77` on the main bus (amended from `0x76`, 2026-09-09) | enclosure pressure, humidity |
 
 **Channel names are positional and carry no meaning.** `P0`–`P5` are fixed by mux position;
-`temp0`–`temp3` are fixed by ROM ID at build time. The mapping from these to measurement roles
+`temp0`–`temp3` are fixed by ROM ID at enrollment. The mapping from these to measurement roles
 (`T_ambient`, `T_core_in`, `U`, `X`, `C` …) is a per-session record and is logged at boot. Do not
 rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided but
 not yet applied** — installing the probes on the car pinned it, and enrolled in installed order it
-is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. No channel is bound
-yet, because binding needs a logger.
+is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. **No channel is bound
+yet** — the enrollment mode exists and works, so what binding now needs is the trip to the car.
 
 All five SDP810s answer at the same fixed I2C address and cannot be strapped apart, which is why
 the mux is mandatory rather than a convenience.
@@ -213,7 +213,23 @@ card is pulled, any PAT or writable deploy key on it becomes an attacker's write
 repo. A public repo needs no credential to clone or pull, so read-only costs nothing.
 
 For a tight edit-build loop, round-tripping through GitHub is slow; copy the tree to the box
-instead (`scp -r` or `rsync -a --exclude build/`) and keep GitHub for durable commits.
+instead and keep GitHub for durable commits. The loop in use is:
+
+```bash
+tar czf - --exclude=.git --exclude=build/CMakeCache.txt --exclude=build/CMakeFiles . | ssh KnurLogger 'tar xzf - -C ~/KnurLogger && cd ~/KnurLogger && cmake --build build -j4'
+```
+
+> **⚠ That sync OVERWRITES `build/KnurLogger.ini` on the box, which is where the thermal offsets
+> live.** The file is tracked in git and has no separate untracked deployed copy, so a hand-edited
+> `temp0OffsetC` typed in at the car is destroyed by the next sync from the workstation — silently,
+> and the logger will keep running with the offsets reverted to whatever the repo says. Two ways
+> round it, and the choice depends on where you are:
+> 1. **Preferred: edit the offsets in the repo on the workstation**, commit, then sync. That is the
+>    workflow slot-keyed-offsets-in-the-config was chosen for — the calibration ends up
+>    version-controlled.
+> 2. **If you must edit on the box** (at the car, over the phone hotspot), add
+>    `--exclude=build/KnurLogger.ini` to the `tar` above, or copy the box's file back into the repo
+>    before the next sync. Otherwise the edit is lost.
 
 **The `../ndLouvers/...` links throughout this repository are broken on github.com and that is
 deliberate.** `ndLouvers` is a separate repository that happens to sit alongside this one on disk.
