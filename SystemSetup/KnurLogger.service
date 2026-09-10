@@ -25,14 +25,18 @@ User=chrum
 Group=chrum
 SupplementaryGroups=video i2c gpio
 
-ExecStart=/home/chrum/KnurLogger/build/KnurLogger
+# The PRODUCTION copy in ~/bin, not the build tree. KnurLogger.ini sits beside the binary and now
+# carries the DS18B20 bindings as well as the offsets, and the tar-over-ssh build loop overwrites
+# everything under ~/KnurLogger — pointing this at the build tree would mean one sync from the
+# workstation silently discards a trip to the car. SystemSetup/deploy-logger.sh installs it.
+ExecStart=/home/chrum/bin/KnurLogger
 
 # Logging mode only. Enrollment binds ROM IDs to channels and must never start unattended: a
 # dropout and reconnect, or a probe replaced after a failure, must not silently re-bind a channel.
 # Run `KnurLogger --enroll` by hand instead.
 
-# The box is fed from the car's accessory circuit and is power-cycled without warning, so a crash
-# must not end logging for the rest of the drive.
+# The box is fed from CONSTANT 12 V and is power-cycled without warning — the fuse is the off
+# switch — so a crash must not end logging for the rest of the day.
 Restart=always
 RestartSec=5
 

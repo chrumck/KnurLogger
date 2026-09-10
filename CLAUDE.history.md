@@ -166,6 +166,77 @@ bound the change.
 
 ---
 
+### 1.11 The first enrollment at the car unplugged each probe as the next went in
+
+**2026-09-10, at the car.** `--enroll` bound `temp0` = `28-06254385da1f`, `temp1` =
+`28-0625424044b7` and `temp2` = `28-0625424e16c9`, and was then abandoned; the bindings were
+deleted afterwards. They are in the `enrollment` records of
+`2026-09-10T09-29-23.594215Z-enroll.ndjson` and nowhere else.
+
+**Binding worked. Everything binding is *for* did not.** The procedure had said "plug them in one
+at a time" and meant plug-in-and-leave; it did not say so, and unplugging as you go binds each
+probe perfectly well, which is precisely why nothing complained. What it cost:
+
+1. **The four-probe star was never loaded.** Plan thermal item 1's open acceptance criterion is
+   all four enumerating together with CRC-clean reads on the 4 × 5 m bus, and the run has no
+   bearing on it — three probes read singly is what the ESP32 bench rig had already done in
+   2026-09-08. `temp2` alone was on the bus for the last 703 cycles.
+2. **The warm-one-probe map check was impossible**, needing four live channels.
+3. **It produced §1.12's 186 phantom read errors.**
+
+`temp0`'s bind reading came back `INVALID (readFailed)`, which the run also had no way to follow up
+on. The README now states plug-and-leave and gives all three reasons; `CLAUDE.md` requirement 3
+rule 7 carries the rule.
+
+### 1.12 A dropped lead was charged to the bus-quality counter for ~100 s per unplug
+
+**2026-09-10, found by reading the session file from §1.11.** The channels showed contiguous runs
+of `unparseable` — `temp0` cycles 360–434, `temp1` 387–462, `temp2` 410–444 — and each channel's
+`readErrors` matched its `unparseable` count exactly: 75, 76 and 35, 186 in total, on a bus that
+had not failed a single read.
+
+**The diagnostic that identified it was the read duration, not the reason string.** `temp0`'s last
+good read took 790 ms — a real conversion — and every read after it took 37–40 ms. Too long for a
+cached value and far too short for a conversion, i.e. the kernel attempting a transaction and
+getting nothing. That timing plus the run structure gives the mechanism: the kernel unregisters a
+1-Wire slave only after `w1_slave_ttl` (10) missed searches at `w1_master_timeout` (10 s), so for
+up to ~100 s after a lead comes out the sysfs directory is still there, `w1_slave` still reads, and
+the content carries neither `crc=` nor `t=`.
+
+`readProbe()` set `isPresent` the moment the file read succeeded, before looking at the content, so
+the counting site's `isBound && isPresent && !isValid` charged all of it to `readErrors` and to
+`0x603` byte 2–3 — the exact failure the code comment three lines above it forbids for `absent`,
+arriving through the one path that still had a directory to read.
+
+**Fixed** by splitting `notAnswering` out of `unparseable` on the presence of the two markers,
+counting it in its own field, and recording the raw content (`unparsed`) so the next occurrence can
+be told apart from a marginal bus without a trip to the car. `CLAUDE.md`'s family-filter list item
+6 is the live rule.
+
+### 1.13 `therm_bulk_read` existed for the first time, and refused the write 863 times
+
+**2026-09-10, at the car.** `enroll.log` carried 863 identical
+`OneWire: bulk read trigger refused` lines at 1 Hz and nothing else, burying the two `BOUND`
+messages the run existed to produce.
+
+**What the timing established.** The first warning is at 11:33:55 and the first bind is at
+11:33:55 — the same second — with none before. `w1_therm` registers `therm_bulk_read` as a master
+attribute only once a slave of its family attaches, so this was the attribute appearing for the
+first time on this box, and the code path having its first execution ever. `CLAUDE.md` had recorded
+it as untestable and shipped-unexercised on exactly that reasoning; the reasoning was right and the
+path failed the moment it ran.
+
+**The cause is not established and was not recoverable from the artefacts**, because
+`writeSysfsValue()` discarded `errno`. The expected reason is `EACCES` — every writable attribute
+in `/sys/bus/w1/devices/w1_bus_master1/` is `root:root` and the logger runs as `chrum`, which
+`CLAUDE.md` had already predicted in the sentence about `w1_master_timeout` not being shortenable
+without root — but that is inference. The fix reports `errno` once, into the session file as well
+as the console, so the next run answers it; a udev rule was deliberately **not** written against
+the guess.
+
+**The measured cost is real either way.** A per-probe read is 790 ms, so four probes is ~3.2 s per
+cycle: plan thermal item 2's "start around 1 Hz" is **0.31 Hz** until the bulk path works.
+
 ## 2. Superseded decisions
 
 ### 2.1 "SD primary, BLE secondary" → BLE is the primary data path
@@ -198,9 +269,10 @@ constraint.
 ### 2.4 ROM-ID-keyed offsets in the store → slot-keyed in `KnurLogger.ini`
 
 **Owner decision, 2026-09-10**, taken after the trade-off was put to them; they were briefly
-ROM-ID-keyed. Do not "restore" ROM-ID keying. `channels.ini` no longer has an `offsetC` key at
-all. The live consequence — an offset is a property of one particular DS18B20, so re-enrollment in
-a different order or a swapped probe strands the calibration — is in `CLAUDE.md`.
+ROM-ID-keyed. Do not "restore" ROM-ID keying. The binding store had no `offsetC` key after this,
+and §2.7 later that day removed the store itself. The live consequence — an offset is a property
+of one particular DS18B20, so re-enrollment in a different order or a swapped probe strands the
+calibration — is in `CLAUDE.md`.
 
 ### 2.5 A session-start clock offset against the phone's GPS time
 
@@ -222,6 +294,50 @@ acceptance criteria moved with the build. A missing `/dev/i2c-1` was never expla
 sensors are not built yet" either — that only ever explained an *empty scan*.
 
 ---
+
+### 2.7 A separate `channels.ini` binding store → the bindings live in `KnurLogger.ini`
+
+**Owner decision, 2026-09-10.** The store had been deliberately placed in the data directory,
+beside the session files, on the reasoning that it was field state that had to outlive a rebuild
+and `build/` is where a rebuild lands. The owner reversed it on a simpler ground: the logger's
+configuration should not be scattered across several files, and the bindings being in git is
+acceptable rather than a problem.
+
+`channels.ini` no longer exists in any form. The bindings are `temp<N>RomId`,
+`temp<N>BoundTaiUs` and `temp<N>BoundIso` in the `[thermal]` section of `KnurLogger.ini`,
+machine-written by `--enroll` alongside the hand-entered offsets. **Do not rebuild the separate
+store**, and do not restore the "field state must outlive a rebuild" argument from this file or
+from git history — §2.8 is what answers it.
+
+Two things the move gained that were not the reason for it. The slot-keyed offsets and the
+bindings that decide which probe each slot holds are now three lines apart, so §2.4's live
+consequence — a re-enrollment strands the calibration — is visible where it bites rather than
+filed in another file. And a ROM ID can be typed in by hand, which the machine-written store never
+invited; the `28-*` family filter and the one-probe-one-channel rule apply on load either way.
+
+The one thing it cost is that enrollment now rewrites a file a human maintains. It does so line by
+line rather than through `g_key_file_to_data()`, which destroys non-ASCII characters in comments —
+measured the same day, the em-dashes in that file's header came back as `?`. That is a live rule in
+`CLAUDE.md`, not history.
+
+### 2.8 One `KnurLogger.ini` on the box → a git-tracked template and a production copy in `~/bin`
+
+**Owner decision, 2026-09-10, taken as the consequence of §2.7.** With the bindings in
+`KnurLogger.ini`, a single copy on the box would have meant the `tar`-over-ssh build loop —
+which overwrites everything under `~/KnurLogger` — silently discarding a trip to the car, not just
+a hand-typed offset. That trap had been documented and worked around by discipline
+(`--exclude=build/KnurLogger.ini`, or copying the file back before the next sync); the stakes made
+discipline the wrong answer.
+
+The logger is now built in `~/KnurLogger/build/` and run from `~/bin/`, installed by
+`SystemSetup/deploy-logger.sh`, which always replaces the binary and only ever creates the `.ini`.
+`KnurLogger.service` was pointed at `/home/chrum/bin/KnurLogger`.
+
+**Do not reinstate the single-copy arrangement, and do not reinstate the `--exclude` workaround** —
+there is nothing left to exclude, because the file the sync overwrites is now a template nothing
+reads. The cost of the split is that the production `.ini` is outside git, so §2.4's "the
+calibration ends up version-controlled" now depends on copying it back into the repo deliberately
+rather than on the file being tracked where it sits.
 
 ## 3. Retired requirements — do not rebuild these
 

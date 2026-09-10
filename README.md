@@ -13,8 +13,12 @@ a phone** (verified 2026-09-09: `0x602` reads −327.68 °C on all four thermal 
 deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling
 end to end). The session writer (append-only, ~1 s `fsync`, both measured), the supply-telemetry
 worker, the RaceChrono BLE worker and **DS18B20 enrollment** are all done. **No probe is enrolled
-yet** — the four are installed on the car, so binding needs a trip to the car; the enrollment
-mechanism itself was exercised end to end against a fake 1-Wire tree (see
+yet.** A first enrollment attempt at the car on **2026-09-10 bound three of the four and was
+abandoned**: the probes were unplugged one at a time as the next went in, which binds correctly but
+never loads the four-probe star and makes the map check impossible, so it is being redone with
+every probe left connected. Three faults it found are fixed (`CLAUDE.history.md` §1.11–§1.13) and
+the procedure now says so explicitly. The enrollment mechanism itself was exercised end to end
+against a fake 1-Wire tree (see
 §[Testing the 1-Wire path without probes](#testing-the-1-wire-path-without-probes)).
 **A 7.53 h unattended run holds up** (2026-09-10, bench, open air, no probes bound, no phone
 connected): 27,123 sample cycles with inter-cycle gaps of median 1002 ms and a **maximum of
@@ -50,8 +54,9 @@ software and the host configuration that satisfy them, and owns no measurement d
 Read, in this order, before changing anything here:
 
 1. `../ndLouvers/CFD-Learning-Plan.md` — Step 0b, especially commissioning items 2, 4, 5a and 5b.
-2. `../ndLouvers/step0b-rig/logger-perfboard-wiring.md` — pinouts, I2C addresses, mux channel
-   numbering and bring-up order. Its §3a net list is the authority on every connection.
+2. `Hardware/logger-perfboard-wiring.md` — pinouts, I2C addresses, mux channel numbering and
+   bring-up order. Its §3a net list is the authority on every connection. It is subordinate to the
+   plan's Step 0b, which it lived alongside until 2026-09-10.
 3. `SystemSetup/pi-headless-setup.md` — the host runbook.
 
 ## Hardware it drives
@@ -133,7 +138,7 @@ item 5a asks to be logged.
 | 1 | valid-this-cycle bitmask, bit *n* = `temp<n>` | `bytesToUint(raw, 1, 1)` | **15** |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0**, and staying there |
 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps at 65535 — i.e. every **18.2 h** |
-| 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | ~750 at 12 bits |
+| 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | **~790 per probe, so ~3200 with four** until `therm_bulk_read` works |
 
 Transcribed byte for byte from the ESP32 rig's `0x603`, so channel definitions written against that
 rig carry over. **This is what makes the thermal channels checkable rather than merely present:**
@@ -145,6 +150,18 @@ it separates a dead worker from four steady temperatures.
 **Byte 2–3 counts only probes that answered and read badly.** A bound channel whose probe is *absent*
 does not increment it, because a dropped lead and a marginal bus send you to different parts of the
 car; absence shows up as byte 0 falling and byte 1 losing a bit.
+
+**A probe that has just been unplugged is `absent` for this purpose too, for ~100 s before it looks
+it.** The kernel keeps an unregistered slave's sysfs entry for `w1_slave_ttl` (10) missed searches
+at `w1_master_timeout` (10 s), and reads of it succeed and return nothing — so byte 0 stays up,
+byte 1 loses its bit, and byte 2–3 stays put. That last part was a bug until 2026-09-10, when
+unplugging probes during enrollment charged 186 read errors to a bus that had not failed once
+(`CLAUDE.history.md` §1.12). The session file counts these separately as `notAnswering`, so a bus
+that really is dropping out is still visible; it is just not confused with one that read badly.
+
+**Byte 6–7 will read ~3200 rather than ~790 once four probes are bound**, because the bulk
+conversion path is refused on this box — see §[Next](#next). It is the per-probe read time, and
+without `therm_bulk_read` the reads are sequential.
 
 **Bench-verified in the session file, not yet on the phone.** The packing is the same primitive as
 `0x604`'s, which is phone-proven, but nobody has yet added these five channel definitions in
@@ -164,11 +181,15 @@ config.cxx            the .ini, resolved from /proc/self/exe
 sessionWriter.cxx     append-only NDJSON, record queue, ~1 s fsync cadence
 blePackets.cxx        RaceChrono packet wire format — before every producer
 supplyMonitor.cxx     vcgencmd + rpi_volt hwmon at 1 Hz, sticky-bit transitions
-oneWireProbes.cxx     DS18B20 enrollment, the binding store, 0x602 and 0x603
+oneWireProbes.cxx     DS18B20 enrollment, the bindings in the .ini, 0x602 and 0x603
 raceChronoBle.cxx     bluez_inc: adapter, advertisement, GATT, notify timers
 bluez_inc/            submodule, github.com/weliem/bluez_inc
 
-build/KnurLogger.ini  config template; the deployed copy sits beside the binary
+build/KnurLogger.ini  config TEMPLATE; the deployed copy is ~/bin/KnurLogger.ini on the box
+
+Hardware/             box-2 hardware; nothing here is logger code
+  logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
+                              on every connection. Subordinate to the plan's Step 0b.
 
 SystemSetup/          host configuration; nothing here is logger code
   pi-headless-setup.md    the runbook — start here
@@ -176,6 +197,7 @@ SystemSetup/          host configuration; nothing here is logger code
   install-dependencies.sh packages the build needs
   harden-headless.sh      boot-time service reduction and bus configuration
   ssh-harden.sh           key-only SSH
+  deploy-logger.sh        installs the production binary into ~/bin, never its .ini
   KnurLogger.service      systemd unit — written, NOT yet installed
 ```
 
@@ -200,7 +222,7 @@ single-translation-unit CMake build, procedural GLib workers, an `.ini` beside t
 2. Its `setupNotes.txt` disables Wi-Fi. This box lives in a wheel-well cavity with no Ethernet,
    so Wi-Fi is the only way back in; it is gated per session instead.
 
-## Repository and where the code is built
+## Repository, deployment and where the code is built
 
 Upstream is **https://github.com/chrumck/KnurLogger** (`origin`), and it is **public** — see the
 note at the end of this section before adding anything host-specific.
@@ -213,7 +235,40 @@ ssh KnurLogger 'git clone https://github.com/chrumck/KnurLogger.git'
 ```
 
 Thereafter `git -C ~/KnurLogger pull` on the box. The `build/` directory is gitignored except for
-its tracked `KnurLogger.ini` template; the deployed `.ini` carries real values and is ignored.
+its tracked `KnurLogger.ini`, which is the **template**, not the deployed file.
+
+### The dev copy and the production copy are two different files
+
+The logger is **built** in `~/KnurLogger/build/` and **run** from `~/bin/`, and the two are kept
+apart deliberately (owner decision, 2026-09-10):
+
+| | Path | Owned by | Carries |
+|---|---|---|---|
+| dev | `~/KnurLogger/build/KnurLogger.ini` | git, overwritten by every sync | a template — empty bindings, zero offsets |
+| production | `~/bin/KnurLogger.ini` | the box and `--enroll` | the real ROM ID bindings and the real offsets |
+
+**The reason is that the configuration and the source now share a file.** `KnurLogger.ini` carries
+the DS18B20 bindings as well as the calibration offsets; the bindings can only be made at the car;
+and the `tar`-over-ssh loop below overwrites everything under `~/KnurLogger`. With one copy, one
+sync from the workstation silently discards a trip to the car — which is exactly the trap this
+README used to document and ask you to remember your way around.
+
+```bash
+ssh KnurLogger 'bash ~/KnurLogger/SystemSetup/deploy-logger.sh --execute'
+```
+
+`deploy-logger.sh` **always replaces the binary and only ever creates the `.ini`, never updates
+it.** Run it with no arguments first, like every script in `SystemSetup/`. `KnurLogger.service`
+points at `/home/chrum/bin/KnurLogger`, not at the build tree.
+
+> **⚠ The production `.ini` is not in git, so nothing else backs up a calibration or a binding.**
+> After enrolling or entering offsets at the car, copy `~/bin/KnurLogger.ini` into the repo as
+> `build/KnurLogger.ini` and commit it. That is a deliberate act rather than a side effect, which
+> is the point — but it is also the only thing standing between a wiped SD card and another trip:
+>
+> ```bash
+> scp KnurLogger:bin/KnurLogger.ini build/KnurLogger.ini
+> ```
 
 **The box is fed from constant 12 V, not the accessory circuit** (as built, 2026-09-10), so the
 logger runs the whole day and the fuse is the off switch. Two consequences worth having here:
@@ -234,17 +289,10 @@ instead and keep GitHub for durable commits. The loop in use is:
 tar czf - --exclude=.git --exclude=build/CMakeCache.txt --exclude=build/CMakeFiles . | ssh KnurLogger 'tar xzf - -C ~/KnurLogger && cd ~/KnurLogger && cmake --build build -j4'
 ```
 
-> **⚠ That sync OVERWRITES `build/KnurLogger.ini` on the box, which is where the thermal offsets
-> live.** The file is tracked in git and has no separate untracked deployed copy, so a hand-edited
-> `temp0OffsetC` typed in at the car is destroyed by the next sync from the workstation — silently,
-> and the logger will keep running with the offsets reverted to whatever the repo says. Two ways
-> round it, and the choice depends on where you are:
-> 1. **Preferred: edit the offsets in the repo on the workstation**, commit, then sync. That is the
->    workflow slot-keyed-offsets-in-the-config was chosen for — the calibration ends up
->    version-controlled.
-> 2. **If you must edit on the box** (at the car, over the phone hotspot), add
->    `--exclude=build/KnurLogger.ini` to the `tar` above, or copy the box's file back into the repo
->    before the next sync. Otherwise the edit is lost.
+**That sync overwrites `~/KnurLogger/build/KnurLogger.ini`, and that is now harmless** — it is the
+template, and the running logger does not read it. Nothing under `~/bin/` is touched until
+`deploy-logger.sh` is run, and even then only the binary. This is what the dev/production split
+above bought; before it, one sync destroyed a hand-entered offset silently.
 
 **The `../ndLouvers/...` links throughout this repository are broken on github.com and that is
 deliberate.** `ndLouvers` is a separate repository that happens to sit alongside this one on disk.
@@ -265,30 +313,65 @@ ssh KnurLogger
 never happens during a logging run, so a probe that drops out and comes back mid-session cannot
 re-label a channel.
 
+**Stop the service before enrolling.** Two instances both advertise and nothing warns — see
+`CLAUDE.md`.
+
 ```bash
-ssh KnurLogger 'cd ~/KnurLogger/build && ./KnurLogger --enroll'
+ssh KnurLogger '~/bin/KnurLogger --enroll'
 ```
 
 1. Start with **no probe connected**, then plug them in **one at a time, lowest channel first** —
    the installed order the plan fixes is `temp0` = `T_ambient`, `temp1` = `T_core_in`,
    `temp2` = `T_core_out`, `temp3` = `T_aft`.
-2. **Allow ~10 s per probe.** `w1_master_timeout` is 10 s, so that is the hot-plug latency; nothing
+2. **Every probe stays plugged in once it is in. Do not unplug one to make room for the next.**
+   Binding works either way, which is what makes this easy to get wrong — it was got wrong at the
+   car on 2026-09-10 — but unplugging as you go costs three things that binding does not:
+   1. **The four-probe star is never loaded**, so the run proves nothing the ESP32 bench rig had
+      not already proved with single probes. All four together on the 4 × 5 m bus, enumerating
+      with CRC-clean reads, is the open acceptance criterion in plan thermal item 1, and it is
+      only met with all four connected at once.
+   2. **Step 5's map check becomes impossible**, because warming one probe and watching one
+      channel move needs four live channels.
+   3. **Every unplug leaves a ~100 s tail** of a channel that is present in sysfs and answering
+      with nothing — see `CLAUDE.md` on `w1_slave_ttl`.
+3. **Allow ~10 s per probe.** `w1_master_timeout` is 10 s, so that is the hot-plug latency; nothing
    can shorten it without root.
-3. Each bind prints `OneWire: BOUND temp0 <- 28-…, reading 21.50 C` and writes an `enrollment`
-   record. Check the ROM ID against the lead you just connected.
-4. **Two unbound probes in one scan are refused, not guessed.** sysfs order is not arrival order,
+4. Each bind prints `OneWire: BOUND temp0 <- 28-…, reading 21.50 C` and writes an `enrollment`
+   record. Check the ROM ID against the lead you just connected. **A bind whose reading comes back
+   `INVALID` is a warning, not a failure** — the binding is still written, but the probe answered
+   badly on the very read that is meant to confirm it, so re-seat that lead and watch the channel
+   before trusting it.
+5. **Two unbound probes in one scan are refused, not guessed.** sysfs order is not arrival order,
    so there is no fact available that says which came first. Unplug one and re-seat it alone.
-5. **Enrollment keeps sampling after the fourth bind.** With all four bound, warm one probe by hand
+6. **Enrollment keeps sampling after the fourth bind.** With all four bound, warm one probe by hand
    and watch one channel move on the phone — four warmings confirm the whole map in situ and double
    as a liveness test. Stop it with `pkill -TERM -x KnurLogger`.
-6. `--enroll --reset` discards the whole store and starts from `temp0`. The bindings it throws away
+7. `--enroll --reset` discards every binding and starts from `temp0`. The bindings it throws away
    are written into the session file first, because they are otherwise unrecoverable.
 
-The store is `<filesDir>/channels.ini` — deliberately in the data directory rather than beside the
-binary, because it is field state that must outlive a rebuild. It carries the ROM ID, the channel
-and the bind timestamp, and nothing else; calibration offsets live in `KnurLogger.ini`.
+The bindings are written into the `[thermal]` section of the **`KnurLogger.ini` beside the
+binary**, alongside the calibration offsets, as `temp<N>RomId` / `temp<N>BoundTaiUs` /
+`temp<N>BoundIso` (owner decision, 2026-09-10 — this replaced a separate `channels.ini` in the data
+directory; see `CLAUDE.history.md` §2.7 and do not rebuild that file). An empty `temp<N>RomId` is
+an unbound channel and a perfectly good state. Three consequences:
 
-Record the resulting table in `../ndLouvers/step0b-rig/logger-perfboard-wiring.md` §5a, which is
+1. **Enrollment rewrites a file you hand-maintain**, so it does it line by line: only the twelve
+   binding lines are touched and every other byte, comments included, is copied through. It is not
+   written through GLib's key-file serialiser, which destroys non-ASCII characters in comments —
+   measured 2026-09-10, this file's em-dashes came back as `?`.
+2. **The offsets are now in front of you when you change a binding**, which is the point: an offset
+   is keyed to the slot, so re-enrolling in a different order strands it. See
+   §[Calibration offsets](#calibration-offsets).
+3. **This is the file `SystemSetup/deploy-logger.sh` refuses to overwrite.** The production copy is
+   `~/bin/KnurLogger.ini` and the git-tracked template is `build/KnurLogger.ini`; see
+   §[Repository, deployment and where the code is built](#repository-deployment-and-where-the-code-is-built).
+
+**Editing a ROM ID by hand is allowed and guarded.** Anything that is not a 15-character `28-…` is
+refused and logged as an event, and one ROM ID appearing on two channels is refused on the second
+— a duplicate would otherwise produce two channels tracking each other perfectly, which is a
+mislabelling that looks like agreement.
+
+Record the resulting table in `Hardware/logger-perfboard-wiring.md` §5a, which is
 still empty. **Channel → role is a per-session record, never a channel name.**
 
 ## Calibration offsets
@@ -316,8 +399,8 @@ Five things to know:
 1. **They are keyed to the channel slot, not to the probe.** An offset is really a property of one
    particular DS18B20, so if the probes are ever re-enrolled in a different order, or one is
    swapped, the offsets stay with the slots and no longer describe the parts in them — **re-check
-   them after any re-enrollment.** In exchange they live in the git-tracked config beside every
-   other setting rather than in the data directory, where a wipe would take them.
+   them after any re-enrollment.** In exchange they live in the config beside every other setting,
+   including the bindings that say which probe each slot holds.
 2. **The session file records all three values** — `centiC` (raw), `offsetC` (in force) and
    `sentCentiC` (what went on the air) — so a mistyped offset costs a reprocess, not the session.
 3. **All four keys must be present.** A missing one is a startup failure, not a silent zero: an
@@ -325,8 +408,11 @@ Five things to know:
 4. **Past ±5 °C it warns** about a likely decimal-point slip and applies the value anyway; **past
    ±50 °C it refuses to start.** The offsets in force are printed at startup and recorded in the
    `thermalBaseline` record.
-5. **The ROM ID → channel bindings are not here.** They are machine-written by `--enroll` into
-   `<filesDir>/channels.ini`, which holds bindings only and carries no offset.
+5. **The ROM ID → channel bindings are in this same section**, as `temp<N>RomId`, machine-written
+   by `--enroll` (2026-09-10). That is deliberate rather than incidental: item 1's consequence —
+   an offset keyed to a slot stops describing the part in it after a re-enrollment — is only
+   noticeable if the two are read together. A changed `temp2RomId` is the signal to re-check
+   `temp2OffsetC` three lines above it.
 
 **The logger takes no automatic session-start sample and makes no judgement about whether the car
 was settled** — see `CLAUDE.history.md` §3.1 for why that was tried, measured failing, and
@@ -351,9 +437,11 @@ default, out-of-range rejection and the application of a hand-entered offset wer
 
 ## Next
 
-**The SDP810 and BME280 readers**, once the pressure sensors arrive — and, needing no code, a trip
-to the car to enroll the four probes. Commissioning item 5a's installed BLE link check is
-unblocked, and item 5.7's under-load supply telemetry can be collected on the first real run.
+**A second trip to the car to enroll the four probes with every probe left connected**, which also
+settles plan thermal item 1's four-probe star and returns the `errno` behind the refused
+`therm_bulk_read`. Then **the SDP810 and BME280 readers**, once the pressure sensors arrive.
+Commissioning item 5a's installed BLE link check is unblocked, and item 5.7's under-load supply
+telemetry can be collected on the first real run.
 
 `pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the four
 architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
@@ -375,7 +463,11 @@ answer), a BLE advertiser against a phone, the **BME280 at `0x77`** since the se
 assembled, and — via the fake-sysfs harness above — **every branch of the 1-Wire worker except a
 real reading**. **What is not:** anything requiring a real SDP810 (not delivered) or a real DS18B20
 (the probes are on the car), and the mux, which does not answer at `0x70`.
-**What the harness does NOT establish:** that a real DS18B20 answers on a real 4 × 5 m star, what
-its conversion time is on that bus, or whether `therm_bulk_read` behaves as documented — the
-attribute does not exist until a `w1_therm` slave attaches, so the bulk path is unexercised and the
-per-probe fallback is the only one that has ever run.
+**Three of those unknowns were answered at the car on 2026-09-10 and one got worse.** Real DS18B20s
+do answer — three enumerated and read CRC-clean at 21.69/21.75 °C — and a per-probe read costs
+**790 ms** measured, so a four-probe cycle is ~3.2 s. `therm_bulk_read` **does** appear the moment
+a `w1_therm` slave attaches, and **the write to it is refused**, which is why that 3.2 s matters:
+without the bulk path the plan's ~1 Hz becomes ~0.31 Hz. The refusal now reports its `errno` once,
+into the session file as well as the console, so the next run at the car diagnoses it. **Still
+unestablished:** anything about the loaded 4 × 5 m star, because the probes were unplugged one at a
+time and never shared the bus.

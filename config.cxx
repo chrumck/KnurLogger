@@ -27,12 +27,12 @@ void loadConfig()
     // Beside the binary, resolved from /proc/self/exe rather than from the working directory, so
     // the systemd unit and a hand-run from any cwd read the same file.
     auto execPath = std::filesystem::canonical("/proc/self/exe");
-    auto configPath = std::format("{}/{}", execPath.parent_path().string(), CONFIG_FILE_NAME);
+    appConfig.configFilePath = std::format("{}/{}", execPath.parent_path().string(), CONFIG_FILE_NAME);
 
     GError* error = NULL;
-    if (!g_key_file_load_from_file(config, configPath.c_str(), G_KEY_FILE_NONE, &error)) {
+    if (!g_key_file_load_from_file(config, appConfig.configFilePath.c_str(), G_KEY_FILE_NONE, &error)) {
         logErrorAndKill("Error loading config file from path: '%s', error: %s, exiting...",
-            configPath.c_str(), error->message);
+            appConfig.configFilePath.c_str(), error->message);
     }
 
     getConfigString(filesDirPath, CONFIG_GROUP_SYSTEM, CONFIG_KEY_FILES_DIR);
@@ -43,9 +43,6 @@ void loadConfig()
     std::string filesDir = appConfig.filesDirPath;
     while (filesDir.size() > 1 && filesDir.back() == '/') { filesDir.pop_back(); }
     appConfig.sessionsDirPath = std::format("{}/sessions", filesDir);
-    // The binding store lives in the data directory, not beside the binary: it is field state that
-    // must outlive a rebuild, and build/ is where a rebuild lands.
-    appConfig.channelStorePath = std::format("{}/{}", filesDir, CHANNEL_STORE_FILE_NAME);
 
     // The plan fixes the cadence at ~1 s and gives the reasoning: flushing per sample at 10 Hz
     // shortens the loss window at the price of write amplification without changing the failure

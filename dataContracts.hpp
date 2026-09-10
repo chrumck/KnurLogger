@@ -37,7 +37,6 @@ namespace chr = std::chrono;
 #define APP_VERSION "0.1.0"
 
 #define CONFIG_FILE_NAME "KnurLogger.ini"
-#define CHANNEL_STORE_FILE_NAME "channels.ini"
 #define SESSION_FILE_EXTENSION ".ndjson"
 
 #define CONFIG_GROUP_SYSTEM "system"
@@ -50,6 +49,11 @@ namespace chr = std::chrono;
 // One per channel: temp0OffsetC .. temp3OffsetC. Keyed to the SLOT, not to the probe's ROM ID
 // (owner decision, 2026-09-10) — see the note on TEMP_OFFSET_IMPLAUSIBLE_C.
 #define CONFIG_KEY_TEMP_OFFSET_C_FORMAT "temp{}OffsetC"
+// Machine-written by --enroll, hand-readable afterwards. `BoundIso` is provenance for a human and
+// is never read back; `BoundTaiUs` is what the logger reads.
+#define CONFIG_KEY_TEMP_ROM_ID_FORMAT "temp{}RomId"
+#define CONFIG_KEY_TEMP_BOUND_TAI_US_FORMAT "temp{}BoundTaiUs"
+#define CONFIG_KEY_TEMP_BOUND_ISO_FORMAT "temp{}BoundIso"
 
 #define CONFIG_GROUP_BLUETOOTH "bluetooth"
 #define CONFIG_KEY_BLE_DEVICE_NAME "bleDeviceName"
@@ -143,7 +147,9 @@ typedef enum {
 typedef struct {
     gchar* filesDirPath;
     std::string sessionsDirPath;
-    std::string channelStorePath;
+    // Beside the binary, resolved from /proc/self/exe. It carries the bindings as well as the
+    // offsets, so --enroll writes back into it.
+    std::string configFilePath;
 
     gint fsyncIntervalMs;
     gint supplyIntervalMs;
@@ -187,6 +193,10 @@ typedef struct {
     guint64 sampleBootUs;
 
     guint32 readErrors;
+    // Counted apart from readErrors on purpose: a probe pulled off the bus keeps its sysfs entry
+    // for up to ~100 s and reads back with nothing in it, and folding that into the bus-quality
+    // counter would bury the signal 0x603 byte 2 exists to carry. See readProbe().
+    guint32 notAnswering;
     guint64 boundTaiUs;
 } TempChannel;
 
@@ -201,7 +211,13 @@ typedef struct {
     // The nine scratchpad bytes as the kernel printed them, kept because commissioning item 4 asks
     // for the raw reading beside the corrected one and this is the rawest form available.
     std::string scratchpadHex;
+    // Whatever the kernel returned when it could not be parsed, truncated. Without it a marginal
+    // bus and a lead pulled out of its socket leave identical evidence.
+    std::string unparsedContent;
     const gchar* invalidReason;
+    // Set only by the failures that say something about the BUS. A dropped lead is not one of
+    // them, whether it shows up as a missing sysfs entry or as an entry that answers with nothing.
+    gboolean isReadError;
     guint32 readMs;
 } ProbeReading;
 
@@ -221,6 +237,9 @@ typedef struct {
     // happening again, and it is the only way anyone will see that the filter did something.
     guint32 nonProbeEntries;
     gboolean isBulkReadAvailable;
+    // Rate limiter: the trigger is refused on every cycle once it is refused at all, and 863 lines
+    // an hour of the same warning is not evidence, it is noise.
+    gboolean isBulkTriggerRefusalReported;
 
     // Rate limiters, so a permanent condition produces one record rather than one per second.
     std::vector<std::string> reportedUnknownRomIds;

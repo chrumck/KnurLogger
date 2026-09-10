@@ -24,9 +24,12 @@
 //   3. One probe per enrollment step. If two unbound `28-*` IDs turn up in the same scan the
 //      arrival order between them is unknowable - sysfs order is not arrival order - so the step
 //      is refused out loud rather than guessed.
-//   4. The store carries provenance: the ROM ID, the channel and the bind timestamp. It no longer
-//      carries a calibration offset — those moved to KnurLogger.ini, one per channel slot (owner
-//      decision, 2026-09-10). Two offset fields, one of them dead, would be worse than one.
+//   4. The binding carries provenance: the ROM ID, the channel and the bind timestamp. It lives in
+//      KnurLogger.ini beside the binary, in the same [thermal] section as the calibration offsets
+//      (owner decision, 2026-09-10, replacing a separate channels.ini in the data directory). One
+//      file holds the whole logger configuration, and the slot-keyed offsets sit next to the
+//      bindings that decide which probe each slot holds - which is where the "re-check the offsets
+//      after any re-enrollment" consequence is visible rather than filed elsewhere.
 //   5. Enrollment reports which ROM ID it bound, so the binding can be checked against the lead
 //      being plugged in.
 //
@@ -45,11 +48,9 @@
 #define ONE_WIRE_BULK_POLL_US 20000
 #define ONE_WIRE_BULK_MAX_WAIT_US 1500000
 
-#define CHANNEL_STORE_GROUP_META "store"
-#define CHANNEL_STORE_VERSION 1
-#define CHANNEL_STORE_KEY_ROM_ID "romId"
-#define CHANNEL_STORE_KEY_BOUND_TAI_US "boundTaiUs"
-#define CHANNEL_STORE_KEY_BOUND_ISO "boundIso"
+// How much of an unparseable read is kept in the record. Enough to see what the kernel actually
+// returned, bounded so that a bus producing garbage cannot fill the card with it.
+#define ONE_WIRE_UNPARSED_SAMPLE_MAX 120
 
 typedef struct {
     gboolean isBusPresent;
@@ -115,12 +116,20 @@ std::string getBulkReadPath() {
     return std::format("{}/{}/{}", ONE_WIRE_DEVICES_DIR, ONE_WIRE_MASTER_NAME, ONE_WIRE_BULK_READ_FILE);
 }
 
-gboolean writeSysfsValue(const std::string& path, const gchar* value) {
+// `outErrno` is the whole point of this being a function rather than three inline calls: a refused
+// write to a sysfs attribute is uninformative without it, and this one is refused on a box where
+// nobody can watch it happen.
+gboolean writeSysfsValue(const std::string& path, const gchar* value, int* outErrno) {
+    *outErrno = 0;
+
     auto fd = open(path.c_str(), O_WRONLY | O_CLOEXEC);
-    if (fd < 0) { return FALSE; }
+    if (fd < 0) { *outErrno = errno; return FALSE; }
 
     auto length = (ssize_t)strlen(value);
     auto written = write(fd, value, length);
+    if (written != length) { *outErrno = errno; }
+
+    // After close(), errno no longer describes the write.
     close(fd);
 
     return written == length;
@@ -133,10 +142,26 @@ gboolean writeSysfsValue(const std::string& path, const gchar* value) {
 std::optional<guint32> triggerBulkConversion() {
     auto path = getBulkReadPath();
     if (!std::filesystem::exists(path)) { return std::nullopt; }
-    if (!writeSysfsValue(path, "trigger")) {
-        if (appConfig.verboseMode) { g_warning("OneWire: bulk read trigger refused"); }
+
+    int writeErrno = 0;
+    if (!writeSysfsValue(path, "trigger", &writeErrno)) {
+        // Reported once and into the session file, not once per cycle into the console: the
+        // refusal is a permanent property of the box, so the first occurrence is the evidence and
+        // the next 863 are noise. EACCES means the master attribute is root-owned and the logger
+        // is not root, which is the expected reason and the one a udev rule would answer.
+        if (!appData.thermal.isBulkTriggerRefusalReported) {
+            appData.thermal.isBulkTriggerRefusalReported = TRUE;
+            g_warning("OneWire: bulk read trigger refused on '%s': %s (errno %d)."
+                " Falling back to per-probe reads, which each pay their own ~750 ms conversion.",
+                path.c_str(), g_strerror(writeErrno), writeErrno);
+            writeEventRecord("warning", std::format(
+                "bulk read trigger refused on '{}': {} (errno {}), per-probe reads in use",
+                path, g_strerror(writeErrno), writeErrno));
+        }
         return std::nullopt;
     }
+
+    appData.thermal.isBulkTriggerRefusalReported = FALSE;
 
     auto startUs = getBootTimeUs();
     while (getBootTimeUs() - startUs < ONE_WIRE_BULK_MAX_WAIT_US) {
@@ -169,14 +194,38 @@ ProbeReading readProbe(const std::string& romId) {
     auto content = readWholeFile(path);
     reading.readMs = (guint32)((getBootTimeUs() - startUs) / 1000);
 
-    if (!content.has_value()) { reading.invalidReason = "readFailed"; return reading; }
+    if (!content.has_value()) {
+        reading.invalidReason = "readFailed";
+        reading.isReadError = TRUE;
+        return reading;
+    }
 
     reading.isPresent = TRUE;
 
     auto crcPos = content->find("crc=");
     auto valuePos = content->find("t=");
+
+    // w1_therm prints `crc=xx YES|NO` and `t=<millidegrees>` whenever the probe answered at all -
+    // a CRC failure still prints both. Content carrying neither means the kernel got nothing back,
+    // which on this rig is overwhelmingly a lead that has been pulled: a removed probe keeps its
+    // sysfs directory for up to ~100 s (w1_slave_ttl of 10 missed searches at w1_master_timeout =
+    // 10 s) and reads back empty for all of it. That is the same fault as `absent`, arriving
+    // through the one path that still had a directory to read, so it is held to the same rule -
+    // it must NOT reach the read-error counter, because a dropped lead and a marginal bus send you
+    // to different parts of the car. Measured 2026-09-10 at the car: enrolling by unplugging each
+    // probe as the next went in charged 186 read errors to a bus that had not failed once.
+    if (crcPos == std::string::npos && valuePos == std::string::npos) {
+        reading.invalidReason = "notAnswering";
+        reading.unparsedContent = content->substr(0, ONE_WIRE_UNPARSED_SAMPLE_MAX);
+        return reading;
+    }
+
+    // Half a reading is a different animal: the probe answered and the answer is malformed, which
+    // is a bus-quality fact and is counted as one.
     if (crcPos == std::string::npos || valuePos == std::string::npos) {
         reading.invalidReason = "unparseable";
+        reading.isReadError = TRUE;
+        reading.unparsedContent = content->substr(0, ONE_WIRE_UNPARSED_SAMPLE_MAX);
         return reading;
     }
 
@@ -190,9 +239,14 @@ ProbeReading readProbe(const std::string& romId) {
     if (separator != std::string::npos) { reading.scratchpadHex = trim(content->substr(0, separator)); }
 
     try { reading.milliC = (gint32)std::stol(content->substr(valuePos + 2)); }
-    catch (const std::exception&) { reading.invalidReason = "unparseable"; return reading; }
+    catch (const std::exception&) {
+        reading.invalidReason = "unparseable";
+        reading.isReadError = TRUE;
+        reading.unparsedContent = content->substr(0, ONE_WIRE_UNPARSED_SAMPLE_MAX);
+        return reading;
+    }
 
-    if (!reading.crcOk) { reading.invalidReason = "crc"; return reading; }
+    if (!reading.crcOk) { reading.invalidReason = "crc"; reading.isReadError = TRUE; return reading; }
 
     auto centiC = (reading.milliC >= 0 ? reading.milliC + 5 : reading.milliC - 5) / 10;
 
@@ -202,11 +256,13 @@ ProbeReading readProbe(const std::string& romId) {
     // reads the record to different parts of the board.
     if (centiC == TEMP_POWER_ON_DEFAULT_CENTI_C) {
         reading.invalidReason = "powerOnDefault";
+        reading.isReadError = TRUE;
         return reading;
     }
 
     if (centiC < TEMP_VALID_MIN_CENTI_C || centiC > TEMP_VALID_MAX_CENTI_C) {
         reading.invalidReason = "outOfRange";
+        reading.isReadError = TRUE;
         return reading;
     }
 
@@ -217,36 +273,47 @@ ProbeReading readProbe(const std::string& romId) {
     return reading;
 }
 
+// The bindings live in the [thermal] section of KnurLogger.ini beside the binary, alongside the
+// calibration offsets, so that one file holds the whole logger configuration (owner decision,
+// 2026-09-10, replacing a separate machine-written channels.ini in the data directory). A missing
+// or empty `temp<N>RomId` is an unbound channel and a legitimate state, unlike a missing offset,
+// which is a startup failure: a logger that has never been to the car has no bindings to have.
 void loadChannelStore() {
     auto* store = g_key_file_new();
 
     GError* error = NULL;
-    if (!g_key_file_load_from_file(store, appConfig.channelStorePath.c_str(), G_KEY_FILE_NONE, &error)) {
-        g_message("OneWire: no binding store at '%s' (%s), no channel is bound",
-            appConfig.channelStorePath.c_str(), error->message);
+    if (!g_key_file_load_from_file(store, appConfig.configFilePath.c_str(), G_KEY_FILE_NONE, &error)) {
+        // Unreachable in practice - loadConfig() has already read this file and exits if it cannot
+        // - so this is the "somebody deleted it between the two reads" case, not a normal path.
+        g_message("OneWire: could not re-read '%s' for bindings (%s), no channel is bound",
+            appConfig.configFilePath.c_str(), error->message);
         g_clear_error(&error);
         g_key_file_free(store);
         return;
     }
 
     for (auto i = 0; i < TEMP_CHANNEL_COUNT; i++) {
-        auto group = getChannelName(i);
-        auto* romId = g_key_file_get_string(store, group.c_str(), CHANNEL_STORE_KEY_ROM_ID, NULL);
+        auto name = getChannelName(i);
+        auto romIdKey = std::format(CONFIG_KEY_TEMP_ROM_ID_FORMAT, i);
+        auto* romId = g_key_file_get_string(store, CONFIG_GROUP_THERMAL, romIdKey.c_str(), NULL);
         if (romId == NULL) { continue; }
 
-        // The family filter applies to the STORE too, not only to the bus. A `00-*` phantom that
+        if (strlen(g_strstrip(romId)) == 0) { g_free(romId); continue; }
+
+        // The family filter applies to the CONFIG too, not only to the bus. A `00-*` phantom that
         // somehow reached the file would otherwise be honoured forever, which is the one failure
-        // the filter exists to prevent, arriving by the back door.
+        // the filter exists to prevent, arriving by the back door. The file is hand-editable now,
+        // so this guard also catches a typed ROM ID rather than only a machine-written one.
         if (!g_str_has_prefix(romId, ONE_WIRE_DS18B20_PREFIX) || strlen(romId) != ONE_WIRE_ROM_ID_LENGTH) {
-            g_warning("OneWire: store has a non-DS18B20 ROM ID '%s' on %s, ignoring it",
-                romId, group.c_str());
+            g_warning("OneWire: '%s' is not a DS18B20 ROM ID ('%s'), ignoring it",
+                romIdKey.c_str(), romId);
             writeEventRecord("error", std::format(
-                "binding store holds non-DS18B20 ROM ID '{}' on {}, ignored", romId, group));
+                "config holds non-DS18B20 ROM ID '{}' on {}, ignored", romId, name));
             g_free(romId);
             continue;
         }
 
-        // One probe cannot serve two channels, and a store that says otherwise would produce two
+        // One probe cannot serve two channels, and a config that says otherwise would produce two
         // channels tracking each other perfectly - a mislabelling that looks like agreement.
         gboolean isDuplicate = FALSE;
         for (auto j = 0; j < i; j++) {
@@ -255,10 +322,10 @@ void loadChannelStore() {
             }
         }
         if (isDuplicate) {
-            g_warning("OneWire: store binds ROM ID '%s' to more than one channel, ignoring %s",
-                romId, group.c_str());
+            g_warning("OneWire: ROM ID '%s' is bound to more than one channel, ignoring %s",
+                romId, name.c_str());
             writeEventRecord("error", std::format(
-                "binding store binds ROM ID '{}' to more than one channel, {} ignored", romId, group));
+                "config binds ROM ID '{}' to more than one channel, {} ignored", romId, name));
             g_free(romId);
             continue;
         }
@@ -266,63 +333,28 @@ void loadChannelStore() {
         auto& channel = appData.thermal.channels[i];
         channel.romId = romId;
         channel.isBound = TRUE;
-        channel.boundTaiUs = g_key_file_get_uint64(store, group.c_str(), CHANNEL_STORE_KEY_BOUND_TAI_US, NULL);
+        auto boundKey = std::format(CONFIG_KEY_TEMP_BOUND_TAI_US_FORMAT, i);
+        channel.boundTaiUs = g_key_file_get_uint64(store, CONFIG_GROUP_THERMAL, boundKey.c_str(), NULL);
         g_free(romId);
     }
 
     g_key_file_free(store);
 }
 
-// Written through a temporary and renamed, with the containing directory fsync'd. The store is the
-// one piece of state whose loss costs a trip to the car, and the power cut it has to survive is
-// ignition-off, which arrives without warning during exactly the write this function performs.
-gboolean saveChannelStore() {
-    auto* store = g_key_file_new();
-
-    g_key_file_set_integer(store, CHANNEL_STORE_GROUP_META, "version", CHANNEL_STORE_VERSION);
-    g_key_file_set_string(store, CHANNEL_STORE_GROUP_META, "writtenIso",
-        getIsoTimestamp(getCurrentTimeUs()).c_str());
-    g_key_file_set_comment(store, CHANNEL_STORE_GROUP_META, NULL,
-        " KnurLogger DS18B20 channel bindings. Written by --enroll; read by every run.\n"
-        " This file is machine-written and holds bindings only. CALIBRATION OFFSETS ARE NOT HERE -\n"
-        " they are 'temp0OffsetC'..'temp3OffsetC' in KnurLogger.ini, one per channel slot.\n"
-        " A logging run never rewrites this file; only --enroll does.\n"
-        " Channel names are positional and carry no meaning; channel -> role is a per-session\n"
-        " record in the session file, never a name.", NULL);
-
-    for (auto i = 0; i < TEMP_CHANNEL_COUNT; i++) {
-        auto& channel = appData.thermal.channels[i];
-        if (!channel.isBound) { continue; }
-
-        auto group = getChannelName(i);
-        g_key_file_set_string(store, group.c_str(), CHANNEL_STORE_KEY_ROM_ID, channel.romId.c_str());
-        g_key_file_set_uint64(store, group.c_str(), CHANNEL_STORE_KEY_BOUND_TAI_US, channel.boundTaiUs);
-        // A hand-created binding carries no bind time, and stamping the epoch on it would read
-        // as a broken clock in the one field whose job is provenance.
-        g_key_file_set_string(store, group.c_str(), CHANNEL_STORE_KEY_BOUND_ISO,
-            channel.boundTaiUs == 0 ? "unknown" : getIsoTimestamp(channel.boundTaiUs).c_str());
-    }
-
-    gsize length = 0;
-    auto* data = g_key_file_to_data(store, &length, NULL);
-    g_key_file_free(store);
-
-    if (data == NULL) {
-        g_critical("OneWire: could not serialise the binding store");
-        return FALSE;
-    }
-
-    auto tempPath = std::format("{}.tmp", appConfig.channelStorePath);
+// Written through a temporary and renamed, with the containing directory fsync'd. The bindings are
+// the one piece of state whose loss costs a trip to the car, and the power cut they have to
+// survive is the fuse being pulled, which arrives without warning during exactly this write.
+gboolean writeFileAtomically(const std::string& path, const std::string& content) {
+    auto tempPath = std::format("{}.tmp", path);
     auto fd = open(tempPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
     if (fd < 0) {
         g_critical("OneWire: could not open '%s': %s", tempPath.c_str(), strerror(errno));
-        g_free(data);
         return FALSE;
     }
 
     gboolean isWritten = TRUE;
-    auto remaining = (size_t)length;
-    auto* cursor = data;
+    auto remaining = content.size();
+    auto* cursor = content.data();
     while (remaining > 0) {
         auto written = write(fd, cursor, remaining);
         if (written < 0) {
@@ -340,30 +372,134 @@ gboolean saveChannelStore() {
         isWritten = FALSE;
     }
     close(fd);
-    g_free(data);
 
     if (!isWritten) { unlink(tempPath.c_str()); return FALSE; }
 
-    if (rename(tempPath.c_str(), appConfig.channelStorePath.c_str()) != 0) {
+    if (rename(tempPath.c_str(), path.c_str()) != 0) {
         g_critical("OneWire: could not rename '%s' into place: %s", tempPath.c_str(), strerror(errno));
         unlink(tempPath.c_str());
         return FALSE;
     }
 
-    // The rename itself is metadata on the containing directory, so without this the store can be
+    // The rename itself is metadata on the containing directory, so without this the file can be
     // durable and still not be reachable after a cut.
-    auto storeDir = std::filesystem::path(appConfig.channelStorePath).parent_path().string();
-    auto dirFd = open(storeDir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    auto parentDir = std::filesystem::path(path).parent_path().string();
+    auto dirFd = open(parentDir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (dirFd < 0) {
-        g_warning("OneWire: could not open '%s' to fsync it: %s", storeDir.c_str(), strerror(errno));
+        g_warning("OneWire: could not open '%s' to fsync it: %s", parentDir.c_str(), strerror(errno));
         return TRUE;
     }
     if (fsync(dirFd) != 0) {
-        g_warning("OneWire: could not fsync '%s': %s", storeDir.c_str(), strerror(errno));
+        g_warning("OneWire: could not fsync '%s': %s", parentDir.c_str(), strerror(errno));
     }
     close(dirFd);
 
     return TRUE;
+}
+
+// The key an ini line assigns to, or "" for a blank line, a comment or a section header.
+std::string getIniLineKey(const std::string& line) {
+    auto trimmed = trim(line);
+    if (trimmed.empty() || trimmed[0] == '#' || trimmed[0] == ';' || trimmed[0] == '[') { return ""; }
+
+    auto equals = trimmed.find('=');
+    if (equals == std::string::npos) { return ""; }
+
+    return trim(trimmed.substr(0, equals));
+}
+
+// KnurLogger.ini is hand-maintained and its comment block is the most useful documentation in this
+// repository, so --enroll rewrites it LINE BY LINE rather than through g_key_file_to_data(), which
+// re-encodes comments and destroys every non-ASCII character in them - measured 2026-09-10, the
+// em-dashes in this file's header came back as '?'. Every line the binding keys do not name is
+// copied through byte for byte, so a hand-written comment survives however it is spelled.
+gboolean saveChannelStore() {
+    auto original = readWholeFile(appConfig.configFilePath);
+    if (!original.has_value()) {
+        g_critical("OneWire: could not read '%s' to update the bindings: %s",
+            appConfig.configFilePath.c_str(), strerror(errno));
+        return FALSE;
+    }
+
+    std::vector<std::string> lines;
+    std::string current;
+    for (auto character : *original) {
+        if (character == '\n') { lines.push_back(current); current.clear(); continue; }
+        current += character;
+    }
+    auto endsWithNewline = current.empty() && !original->empty();
+    if (!current.empty()) { lines.push_back(current); }
+
+    auto sectionHeader = std::format("[{}]", CONFIG_GROUP_THERMAL);
+    size_t sectionStart = lines.size();
+    for (size_t i = 0; i < lines.size(); i++) {
+        if (trim(lines[i]) == sectionHeader) { sectionStart = i; break; }
+    }
+    if (sectionStart == lines.size()) {
+        // Not a recoverable condition: loadConfig() requires four offsets in this section, so a
+        // file without it could not have started the logger.
+        g_critical("OneWire: '%s' has no %s section to write the bindings into",
+            appConfig.configFilePath.c_str(), sectionHeader.c_str());
+        return FALSE;
+    }
+
+    size_t sectionEnd = lines.size();
+    for (size_t i = sectionStart + 1; i < lines.size(); i++) {
+        auto trimmed = trim(lines[i]);
+        if (!trimmed.empty() && trimmed[0] == '[') { sectionEnd = i; break; }
+    }
+
+    // An unbound channel's keys are written empty rather than deleted, so that all four slots are
+    // visible in the file whether or not anything is enrolled, and so that --reset leaves evidence
+    // of itself rather than a section that looks like it was never written.
+    std::vector<std::pair<std::string, std::string>> wanted;
+    for (auto i = 0; i < TEMP_CHANNEL_COUNT; i++) {
+        auto& channel = appData.thermal.channels[i];
+        wanted.emplace_back(std::format(CONFIG_KEY_TEMP_ROM_ID_FORMAT, i),
+            channel.isBound ? channel.romId : "");
+        wanted.emplace_back(std::format(CONFIG_KEY_TEMP_BOUND_TAI_US_FORMAT, i),
+            channel.isBound ? std::format("{}", channel.boundTaiUs) : "");
+        // A hand-created binding carries no bind time, and stamping the epoch on it would read as
+        // a broken clock in the one field whose job is provenance.
+        wanted.emplace_back(std::format(CONFIG_KEY_TEMP_BOUND_ISO_FORMAT, i),
+            !channel.isBound ? ""
+                : channel.boundTaiUs == 0 ? "unknown" : getIsoTimestamp(channel.boundTaiUs));
+    }
+
+    std::vector<gboolean> isPlaced(wanted.size(), FALSE);
+    for (auto i = sectionStart + 1; i < sectionEnd; i++) {
+        auto key = getIniLineKey(lines[i]);
+        if (key.empty()) { continue; }
+
+        for (size_t w = 0; w < wanted.size(); w++) {
+            if (key != wanted[w].first) { continue; }
+            lines[i] = std::format("{}={}", wanted[w].first, wanted[w].second);
+            isPlaced[w] = TRUE;
+            break;
+        }
+    }
+
+    // Appended after the section's last assignment rather than at its very end, so that a blank
+    // line or a trailing comment separating this section from the next stays where it was put.
+    auto insertAt = sectionStart + 1;
+    for (auto i = sectionStart + 1; i < sectionEnd; i++) {
+        if (!getIniLineKey(lines[i]).empty()) { insertAt = i + 1; }
+    }
+
+    std::vector<std::string> additions;
+    for (size_t w = 0; w < wanted.size(); w++) {
+        if (isPlaced[w]) { continue; }
+        additions.push_back(std::format("{}={}", wanted[w].first, wanted[w].second));
+    }
+    lines.insert(lines.begin() + insertAt, additions.begin(), additions.end());
+
+    std::string rewritten;
+    for (size_t i = 0; i < lines.size(); i++) {
+        rewritten += lines[i];
+        if (i + 1 < lines.size() || endsWithNewline) { rewritten += '\n'; }
+    }
+
+    return writeFileAtomically(appConfig.configFilePath, rewritten);
 }
 
 std::string getBindingsJson() {
@@ -639,9 +775,15 @@ void sampleProbes() {
         // Only a probe that answered and read badly is a read error. A bound channel whose probe
         // is absent is a different fault - a dropped lead, not a marginal bus - and inflating the
         // error counter with it would hide the bus-quality signal 0x603 byte 2 exists to carry.
-        if (channel.isBound && reading.isPresent && !reading.isValid) {
+        // `isReadError` rather than `isPresent && !isValid`, because a probe pulled off the bus
+        // stays present in sysfs for ~100 s while answering with nothing, and that is a dropped
+        // lead by any other name. See readProbe().
+        if (channel.isBound && reading.isReadError) {
             channel.readErrors++;
             appData.thermal.readErrors++;
+        }
+        if (channel.isBound && reading.isPresent && !reading.isValid && !reading.isReadError) {
+            channel.notAnswering++;
         }
 
         if (reading.isValid) { validMask |= (guint8)(1u << i); validChannelCount++; }
@@ -649,7 +791,8 @@ void sampleProbes() {
         channelFields += std::format(
             "{}{{\"ch\":{},\"name\":\"{}\",\"bound\":{},\"romId\":{},\"present\":{},\"valid\":{},"
             "\"milliC\":{},\"centiC\":{},\"sentCentiC\":{},\"crcOk\":{},\"reason\":{},"
-            "\"readMs\":{},\"readErrors\":{},\"offsetC\":{:.4f},\"scratchpadHex\":{}}}",
+            "\"readMs\":{},\"readErrors\":{},\"notAnswering\":{},\"offsetC\":{:.4f},"
+            "\"scratchpadHex\":{},\"unparsed\":{}}}",
             i == 0 ? "" : ",", i, getChannelName(i),
             channel.isBound ? "true" : "false",
             channel.isBound ? std::format("\"{}\"", channel.romId) : "null",
@@ -665,9 +808,11 @@ void sampleProbes() {
                 ? getCorrectedCentiC(i, reading.centiC) : (gint16)TEMP_CENTI_C_INVALID),
             reading.isPresent ? (reading.crcOk ? "true" : "false") : "null",
             reading.invalidReason == NULL ? "null" : std::format("\"{}\"", reading.invalidReason),
-            reading.readMs, channel.readErrors, appConfig.tempOffsetsC[i],
+            reading.readMs, channel.readErrors, channel.notAnswering, appConfig.tempOffsetsC[i],
             reading.scratchpadHex.empty()
-                ? "null" : std::format("\"{}\"", escapeJson(reading.scratchpadHex)));
+                ? "null" : std::format("\"{}\"", escapeJson(reading.scratchpadHex)),
+            reading.unparsedContent.empty()
+                ? "null" : std::format("\"{}\"", escapeJson(reading.unparsedContent)));
     }
 
     appData.thermal.sampleCycles++;
@@ -699,12 +844,12 @@ void writeThermalBaseline() {
     // Commissioning item 2: the channel mapping in force for this session, per probe ROM ID, is
     // logged at boot. It is a per-session RECORD and never a channel name.
     writeSessionRecord("thermalBaseline", std::format(
-        "\"mode\":\"{}\",\"storePath\":\"{}\",\"busPresent\":{},\"enumerated\":{},"
+        "\"mode\":\"{}\",\"configPath\":\"{}\",\"busPresent\":{},\"enumerated\":{},"
         "\"nonProbeEntries\":{},\"scannedRomIds\":[{}],\"bulkReadAvailable\":{},"
         "\"tempIntervalMs\":{},\"offsetsAppliedToBle\":true,"
         "\"bindings\":[{}],\"note\":\"{}\"",
         appData.mode == ModeEnroll ? "enroll" : "log",
-        escapeJson(appConfig.channelStorePath),
+        escapeJson(appConfig.configFilePath),
         scan.isBusPresent ? "true" : "false",
         (guint)scan.romIds.size(), scan.nonProbeEntries, getRomIdListJson(scan.romIds),
         appData.thermal.isBulkReadAvailable ? "true" : "false",
