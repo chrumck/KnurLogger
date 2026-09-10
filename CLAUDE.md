@@ -283,16 +283,22 @@ The platform has already been the culprit once and the logger looked guilty (his
   SD card, so `sudo poweroff` before pulling the fuse is free insurance.
 - **Two logger instances run happily side by side and BOTH advertise — nothing refuses, nothing
   warns** (measured 2026-09-10: `SupportedInstances` is 5, `ActiveInstances` went 1 → 2 with a
-  log-mode and an `--enroll` instance up together). **So stop the service before enrolling.** No
-  single-instance guard exists — the owner declined one as not worth the code for a one-shot job —
-  which means this is a discipline matter and the reason is worth knowing:
-  1. **Two advertisements share the name and the service UUID**, so RaceChrono connects to one and
-     you cannot tell which. If it picks the log-mode instance, `temp0`–`temp3` stay at −327.68 °C
-     however enrollment goes, and the warm-one-probe identification check silently cannot work.
-  2. **A log-mode instance never sees new bindings.** It reads the bindings out of
+  log-mode and an `--enroll` instance up together). **`KnurLogger.service` is now installed and
+  enabled, so the logger is ALREADY RUNNING whenever the box is powered** — which turns this from
+  a thing to remember before enrolling into a thing to remember before running the binary by hand
+  at all. **`sudo systemctl stop KnurLogger` first, every time.** No single-instance guard exists
+  — the owner declined one as not worth the code for a one-shot job — so this is discipline, and
+  the reasons are worth knowing:
+  1. **Both poll the 1-Wire bus, each read triggering its own conversion**, which roughly doubles
+     cycle time. That silently corrupts any timing measurement — open item 43 is a timing
+     measurement — and adds bus load that can manufacture read errors on a bus that is fine.
+  2. **Two advertisements share the name and the service UUID**, so RaceChrono connects to one and
+     you cannot tell which. Now that all four channels are bound both instances read the same
+     probes and show the same temperatures, so this is no longer the hazard it was while nothing
+     was bound — but it still means you do not know which process the phone is talking to.
+  3. **A log-mode instance never sees new bindings.** It reads the bindings out of
      `KnurLogger.ini` once at worker start and never re-reads it; only `--enroll` writes them. So
      it must be restarted after enrolling regardless.
-  3. **Both poll the bus**, each read triggering its own conversion, roughly doubling cycle time.
   Nothing corrupts: session files carry a mode tag so they never collide, and the store write is
   temp-file plus rename plus directory fsync.
 - **The logger is BUILT in `~/KnurLogger/build/` and RUN from `~/bin/`, and those are two

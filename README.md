@@ -216,7 +216,7 @@ SystemSetup/          host configuration; nothing here is logger code
   deploy-logger.sh        installs the production binary into ~/bin, never its .ini
   grant-w1-bulk-read.sh   udev rule for therm_bulk_read — the difference between 1 Hz and 0.31 Hz
   60-knurlogger-w1-bulk-read.rules  what that script installs
-  KnurLogger.service      systemd unit — written, NOT yet installed
+  KnurLogger.service      systemd unit — INSTALLED and enabled, survives a reboot
 ```
 
 ## Relationship to the other two loggers
@@ -336,8 +336,13 @@ ssh KnurLogger
 never happens during a logging run, so a probe that drops out and comes back mid-session cannot
 re-label a channel.
 
-**Stop the service before enrolling.** Two instances both advertise and nothing warns — see
-`CLAUDE.md`.
+**Stop the service first — it is installed and enabled, so the logger is always already running:**
+
+```bash
+ssh -t KnurLogger 'sudo systemctl stop KnurLogger'
+```
+
+Two instances both poll the bus and both advertise, and nothing warns. See `CLAUDE.md`.
 
 ```bash
 ssh KnurLogger '~/bin/KnurLogger --enroll'
