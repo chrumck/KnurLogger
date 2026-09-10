@@ -486,3 +486,29 @@ packet ID and each notified at 0.98–1.00 Hz across a 57 s session, with the fi
 and ignored. `0x604` took zero notifications because no channel is defined for it — correct
 behaviour under an honoured filter, and the reason the heartbeat channel needs defining before it
 can serve as the liveness indicator it exists to be.
+
+### 2026-09-11 — the same defect in KnurDash, and what it says about the two boxes
+
+The reject-on-unknown-packet-ID fault was fixed in `KnurDash` as well
+(`github.com/chrumck/KnurDash`, commit made on the box itself). It is recorded here because of
+what it revealed rather than because this repository owns it.
+
+**Box 1 was already suffering from it and the cause was a change to box 2.** RaceChrono keeps one
+channel set and asks every DIY device for all of it, so the moment `0x600` and `0x601` were defined
+for the logger, KnurDash started being asked for two IDs it does not publish — and refusing the
+first one cost it every subscription behind it. Applying the captured burst to KnurDash's frames
+predicts `0x7F0` and `0x420` live with `0x202`, `0x78` and `0x4FA` frozen, and the owner confirmed
+from the car that some readouts were live and some frozen. **Neither box's symptom was traceable
+to its own code changes**, which is the part worth remembering: the two repositories are
+independent, the phone's channel set is not.
+
+**One thing was deliberately not carried across.** KnurDash creates its D-Bus connection and
+adapter before pushing its worker's main context thread-default, exactly as this repository did
+before 2026-09-10 — but it is a GTK app whose `main.c` calls `gtk_main()`, so the global default
+context is iterated and its adapter callbacks fire. Copying this repository's fix there would
+change working behaviour for no reason. Its commit message says so, in case a future reader
+notices the asymmetry and tries to "align" them.
+
+**KnurDash's fix is compiled and committed but unproven.** Its CAN hardware stayed in the car, so
+the binary restarts continuously on the bench and cannot be exercised. Both boxes go to the car
+together for that.

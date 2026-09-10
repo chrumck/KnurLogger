@@ -291,10 +291,22 @@ CAN frames. This is the single most expensive fault this project has had: it cos
 5. **Do not tighten the command-length checks back to equality.** They were `== 1`/`== 3`/`== 7`
    and every observed command matched exactly, so that was never the fault — but the reference
    implementation uses minima and a future field would break equality for no benefit.
-6. **KnurDash has this same defect and has not hit it.** Its `onCharWrite` also returns
-   `BLUEZ_ERROR_REJECTED` for a frame ID it does not carry. It survives because the PIDs
-   RaceChrono asks for are mostly its own; it will break the same way the moment box 2's IDs are
-   requested ahead of its own. That is a finding for that project, not something to fix from here.
+6. **KnurDash had the same defect, it WAS hitting it, and it is now fixed there too**
+   (`github.com/chrumck/KnurDash`, 2026-09-11). Its `onCharWrite` also returned
+   `BLUEZ_ERROR_REJECTED` for a frame ID it does not carry, and **adding box 2's channels to
+   RaceChrono is what broke box 1** — before `0x600`/`0x601` existed every ID in the burst was one
+   KnurDash publishes, so nothing was ever refused. Applying the captured burst to its frames
+   (`0x7F0` ADC, `0x78`, `0x86`, `0x202`, `0x420`, `0x4FA`) predicts `0x7F0` and `0x420` live and
+   `0x202`, `0x78`, `0x4FA` frozen — **and the owner confirmed exactly that from the car, some
+   readouts live and some frozen.** Two things to carry from it:
+   1. **A fault in one box can be caused by a channel added for the other.** The two boxes share
+      one RaceChrono channel set, so they are not as independent as two repositories suggest.
+   2. **Its D-Bus/context ordering was deliberately left alone**, and its commit says so. That
+      ordering is broken in a headless program and box 2 had to fix it, but KnurDash's `main.c`
+      calls `gtk_main()`, which iterates the global default context, so its adapter callbacks
+      work. **Do not "fix" KnurDash by copying this repository.**
+   **Its fix is compiled and committed but NOT yet phone-tested** — the CAN hardware stayed in the
+   car, so the binary cannot run on the bench.
 
 ## The BLE worker needs its own main context BEFORE the D-Bus connection
 
