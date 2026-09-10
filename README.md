@@ -497,7 +497,20 @@ no offsets, so **all four `temp<N>OffsetC` staying 0.0 is a result, not an overs
 "fix" it. The channel → role map is confirmed by warming. Both are closed as plan open items 41
 and 42.
 
-Then **the SDP810 and BME280 readers**, once the pressure sensors arrive.
+**Then the BME280 reader, and it does NOT wait for the pressure sensors.** It sits on the main
+I2C bus at `0x77`, behind no mux, and the part is already fitted and answering — so it is
+independent of the five undelivered SDP810s and is the next piece of code to write. The reason is
+a commissioning item rather than a feature: plan item 1c makes the BME280 **the cavity
+thermometer**, with Pi SoC temperature explicitly a cross-check and not the primary proxy, and
+item 1d wants **cavity temperature recorded across a full session** before the installed envelope
+is trusted. A thermals drive answers that for free; without the reader it needs its own trip.
+`i2cBus` and `bme280Address` are already parsed and range-checked in `config.cxx` and **nothing
+reads them** — the config exists, the code does not, and there is no I2C code in this repository
+at all. Log the pressure channel as **enclosure pressure** and do not use it yet: its consumer is
+the density term for pitot work, and at Cp −1 the cavity offset is ~464 Pa against 45–90 Pa
+measurands, which is disqualifying as a reference.
+
+**Then the SDP810 readers and the mux**, once the pressure sensors arrive.
 
 `pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the four
 architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
