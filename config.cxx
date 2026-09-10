@@ -74,6 +74,10 @@ void loadConfig()
     // 0x77 as built, not the 0x76 the build sheet originally specified: the breakout's own SDO
     // pull-up wins and the owner amended the document rather than the board.
     getConfigInteger(bme280Address, CONFIG_GROUP_SENSORS, CONFIG_KEY_BME280_ADDRESS, 0x08, 0x77);
+    // Cavity conditions move slowly and the part is the cavity thermometer, so the cadence is
+    // set by what the record needs rather than by what the sensor can do. 1 Hz matches the other
+    // 1 Hz channels; a forced conversion costs ~9 ms, so this is nowhere near a limit.
+    getConfigInteger(bme280IntervalMs, CONFIG_GROUP_SENSORS, CONFIG_KEY_BME280_INTERVAL_MS, 200, 60000);
     getConfigInteger(muxAddress, CONFIG_GROUP_SENSORS, CONFIG_KEY_MUX_ADDRESS, 0x08, 0x77);
 
     appConfig.verboseMode = g_key_file_get_boolean(config, CONFIG_GROUP_DEBUG, CONFIG_KEY_VERBOSE_MODE, &error);

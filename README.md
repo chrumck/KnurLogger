@@ -8,11 +8,22 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status: all four workers are written, all four DS18B20s are enrolled, and the loaded 4 × 5 m
-1-Wire star reads CRC-clean.** What the logger has never done is run on a moving car.
+**Status: all five workers are written, all four DS18B20s are enrolled, the loaded 4 × 5 m
+1-Wire star reads CRC-clean, and the BME280 is read and logged.** What the logger has never done
+is run on a moving car.
+
+> **⚠ `bme280IntervalMs` is a NEW REQUIRED KEY in `[sensors]`, and the production `.ini` is not
+> in git.** A missing key is a startup failure, like every other key in this file, so **the
+> deployed logger will refuse to start until the line is added to `~/bin/KnurLogger.ini`** —
+> `deploy-logger.sh` replaces the binary and never updates the `.ini`. Add it before deploying:
+>
+> ```bash
+> ssh KnurLogger "grep -q bme280IntervalMs ~/bin/KnurLogger.ini || sed -i '/^bme280Address=/a bme280IntervalMs=1000' ~/bin/KnurLogger.ini; grep -A3 '^\[sensors\]' ~/bin/KnurLogger.ini"
+> ```
 
 The session writer (append-only, ~1 s `fsync`, both measured), the supply-telemetry worker, the
-RaceChrono BLE worker and **DS18B20 enrollment** are all done, and the channels decode correctly in
+RaceChrono BLE worker, **DS18B20 enrollment** and the **BME280 reader** are all done, and the
+thermal and supply channels decode correctly in
 RaceChrono on a phone (2026-09-09: `0x602` read −327.68 °C on all four thermal channels, the
 deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling
 end to end). **The enrollment** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
@@ -77,7 +88,7 @@ Read, in this order, before changing anything here:
 |---|---|---|
 | 5 × Sensirion SDP810 (4 × ±500 Pa, 1 × ±125 Pa) | I2C `0x25` behind a PCA9548A mux at `0x70` | `P0`–`P5` |
 | 4 × DS18B20 | 1-Wire on GPIO4, addressed by 64-bit ROM ID | `temp0`–`temp3` |
-| BME280 | I2C `0x77` on the main bus (amended from `0x76`, 2026-09-09) | enclosure pressure, humidity |
+| BME280 | I2C `0x77` on the main bus (amended from `0x76`, 2026-09-09) | enclosure pressure, cavity temperature, humidity |
 
 **Channel names are positional and carry no meaning.** `P0`–`P5` are fixed by mux position;
 `temp0`–`temp3` are fixed by ROM ID at enrollment. The mapping from these to measurement roles
@@ -85,9 +96,9 @@ Read, in this order, before changing anything here:
 rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided
 and applied** — installing the probes on the car pinned it, and enrolled in installed order it
 is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. **All four are bound**
-(2026-09-10); `Hardware/logger-perfboard-wiring.md` §5a has the ROM IDs. The role map rests on the
-leads having been identified at the logger end — nothing has independently cross-checked it, since
-the warm-one-probe test has not been run.
+(2026-09-10); `Hardware/logger-perfboard-wiring.md` §5a has the ROM IDs. **The role map is
+independently confirmed** — warming each probe in installed order moved `temp0`–`temp3` in that
+order, +3.8 to +5.4 K each.
 
 All five SDP810s answer at the same fixed I2C address and cannot be strapped apart, which is why
 the mux is mandatory rather than a convenience.
@@ -102,6 +113,52 @@ so the OS pairing list will never show it.
 **Every payload field is big-endian. Only the 4-byte packet ID is little-endian**, per the DIY API.
 Packet IDs `0x600`–`0x603` are inherited from the ESP32 rig in
 `../ndLouvers/step0b-rig/racechrono_ble_test/` so channel definitions written against it carry over.
+
+### `0x600` — enclosure conditions
+
+**These two IDs used to be the ESP32 rig's synthetic test frames and no longer are** (owner
+decision, 2026-09-10). That rig is spent, so the IDs were released for real use. **A channel
+definition written against the rig's `0x600` decodes garbage here and must be re-entered.**
+`0x602`–`0x604` are unchanged and still carry over.
+
+| Bytes | Channel | Equation | Invalid |
+|---|---|---|---|
+| 0–3 | enclosure pressure, Pa | `bytesToUint(raw, 0, 4)` | `4294967295` |
+| 4–5 | cavity temperature | `bytesToInt(raw, 4, 2) / 100` | `-32768` → −327.68 °C |
+| 6–7 | enclosure humidity, % | `bytesToUint(raw, 6, 2) / 100` | `65535` → 655.35 % |
+
+**Temperature is signed — use `bytesToInt`.** Pressure and humidity are unsigned and use
+`bytesToUint`; pressure needs the full four bytes because absolute pressure does not fit in two
+at 1 Pa resolution. Each invalid marker is absurd after the divide for the same reason `0x602`'s
+is: RaceChrono holds the last value it received indefinitely.
+
+**Name these three channels for their roles, not for the part**, because two of the three are
+easy to point at the wrong thing:
+
+1. **Pressure is ENCLOSURE pressure and never a static reference.** The cavity is
+   aerodynamically live: at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands, five to ten
+   times the signal, and it is speed-correlated so it does not average out of a speed sweep. It
+   is tolerable as a density term and disqualifying as a reference.
+2. **Temperature is the cavity thermometer** (plan item 1c), with Pi SoC temperature on `0x604`
+   as a cross-check rather than the primary proxy. **It is not the inlet density term** — that is
+   `T_ambient`'s DS18B20 on `0x602` byte 0–1.
+3. **Humidity is a seal and desiccant diagnostic** for the condensation risks in plan items 1a
+   and 1d. It has no measurement consumer.
+
+### `0x601` — BME280 health
+
+| Bytes | Content | Equation | Expected |
+|---|---|---|---|
+| 0 | bit 0 present, bit 1 calibration read, bit 2 pressure valid, bit 3 temperature valid, bit 4 humidity valid | `bytesToUint(raw, 0, 1)` | **31** |
+| 1 | chip ID as read | `bytesToUint(raw, 1, 1)` | **96** (`0x60`); `88` would be a BMP280 |
+| 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0** |
+| 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps every **18.2 h** |
+| 6–7 | last read, ms | `bytesToUint(raw, 6, 2)` | **~15** |
+
+**This is `0x603`'s argument applied to the BME280, and it matters more here.** A sealed cavity's
+temperature and pressure legitimately sit still for minutes, so a frozen `0x600` is not by itself
+evidence of anything. Byte 4–5 advances every cycle regardless of what the part reports, which is
+what separates a dead worker from a still cavity.
 
 ### `0x602` — the four thermal channels
 
@@ -198,6 +255,8 @@ sessionWriter.cxx     append-only NDJSON, record queue, ~1 s fsync cadence
 blePackets.cxx        RaceChrono packet wire format — before every producer
 supplyMonitor.cxx     vcgencmd + rpi_volt hwmon at 1 Hz, sticky-bit transitions
 oneWireProbes.cxx     DS18B20 enrollment, the bindings in the .ini, 0x602 and 0x603
+i2cBus.cxx            I2C_RDWR transport with the mandatory retry — the mux will share it
+bme280Sensor.cxx      BME280 forced-mode reads, compensation, 0x600 and 0x601
 raceChronoBle.cxx     bluez_inc: adapter, advertisement, GATT, notify timers
 bluez_inc/            submodule, github.com/weliem/bluez_inc
 
@@ -497,20 +556,31 @@ no offsets, so **all four `temp<N>OffsetC` staying 0.0 is a result, not an overs
 "fix" it. The channel → role map is confirmed by warming. Both are closed as plan open items 41
 and 42.
 
-**Then the BME280 reader, and it does NOT wait for the pressure sensors.** It sits on the main
-I2C bus at `0x77`, behind no mux, and the part is already fitted and answering — so it is
-independent of the five undelivered SDP810s and is the next piece of code to write. The reason is
-a commissioning item rather than a feature: plan item 1c makes the BME280 **the cavity
-thermometer**, with Pi SoC temperature explicitly a cross-check and not the primary proxy, and
-item 1d wants **cavity temperature recorded across a full session** before the installed envelope
-is trusted. A thermals drive answers that for free; without the reader it needs its own trip.
-`i2cBus` and `bme280Address` are already parsed and range-checked in `config.cxx` and **nothing
-reads them** — the config exists, the code does not, and there is no I2C code in this repository
-at all. Log the pressure channel as **enclosure pressure** and do not use it yet: its consumer is
-the density term for pitot work, and at Cp −1 the cavity offset is ~464 Pa against 45–90 Pa
-measurands, which is disqualifying as a reference.
+**The BME280 reader is DONE** (2026-09-10) and it did not wait for the pressure sensors. It sits
+on the main I2C bus at `0x77` behind no mux, so it was independent of the five undelivered
+SDP810s. `bme280Sensor.cxx` reads it in forced mode at ×1 oversampling with the IIR filter off —
+the datasheet's lowest-self-heating setting, chosen because self-heating in the cavity
+thermometer is an error in the quantity it exists to report. Bench-measured over 64 cycles: chip
+ID `0x60`, calibration read, ~100.4 kPa / 34.5 °C / 26 %RH, 15-16 ms per cycle. **A five-minute
+run gave 300 valid cycles out of 300, zero read errors and nothing exhausted.**
+The fixed-point compensation was checked against the datasheet's independent floating-point
+reference and agrees to **0.05 Pa, 0.002 °C and 0.005 %RH**.
 
-**Then the SDP810 readers and the mux**, once the pressure sensors arrive.
+**Its one hard-won finding is a bus characteristic, not a driver detail — read
+§[Getting on the box](#getting-on-the-box)'s neighbour in `CLAUDE.md` before writing any more I2C
+code.** The first transfer after an idle bus is refused every single time and a retry 500 µs
+later fixes it, which made the first version of this reader fail 100 % of the time while
+`i2cdetect` insisted the part was fine. `i2cBus.cxx` retries and **counts** the retries into
+every `enclosure` record. **The same bus carries the five SDP810s, so this will apply to them
+too, and the physical cause is not established** — `../ndLouvers/` open item 44.
+
+**`0x600` and `0x601` are still bench-verified in the session file and not yet on a phone**, the
+same caveat `0x603` carries. The packing was checked byte for byte against the packet buffer, and
+it is the primitive `0x604` has already proven on the phone.
+
+**Then the SDP810 readers and the mux**, once the pressure sensors arrive. Expect the retry in
+`i2cBus.cxx` to matter for them, and expect a mux channel switch plus a sensor read to be two
+transfers that must not be interleaved with anything else on the bus.
 
 `pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the four
 architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
@@ -520,7 +590,7 @@ enrollment, and supply-health telemetry — plus the hardware traps. Read it bef
 reversed decisions, and the retirement notes that exist to stop the next agent rebuilding what was
 deliberately removed.
 
-**Build order was BLE first** (owner, 2026-09-09), and that is now spent — all four workers exist.
+**Build order was BLE first** (owner, 2026-09-09), and that is now spent — all five workers exist.
 The reasoning still matters for the trip to the car: BLE is the primary data path *and* the only
 feedback channel there, because the probes are on a car parked in an underground garage with no
 network, so a phone watching `temp0`–`temp3` move is the only way to see what enrollment did
@@ -531,7 +601,8 @@ and its fsync cadence, the supply-telemetry worker (`vcgencmd` and the `rpi_volt
 answer), a BLE advertiser against a phone, the **BME280 at `0x77`** since the sensor zone was
 assembled, and — via the fake-sysfs harness above — **every branch of the 1-Wire worker except a
 real reading**. **What is not:** anything requiring a real SDP810 (not delivered) or a real DS18B20
-(the probes are on the car), and the mux, which does not answer at `0x70`.
+(the probes are on the car). **The mux answers at `0x70`** since the `~RESET` resolder, so it is
+no longer on this list.
 **Those unknowns were answered at the car on 2026-09-10, and one answer was "still no".** The loaded 4 × 5 m star
 enumerates and reads CRC-clean with all four probes on it — 63 consecutive cycles, valid-mask 15,
 zero read errors. A per-probe read costs **799–832 ms**, so a four-probe cycle is **3198–3281 ms**.

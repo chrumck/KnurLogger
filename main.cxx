@@ -8,6 +8,7 @@
 #include "blePackets.cxx"
 #include "supplyMonitor.cxx"
 #include "oneWireProbes.cxx"
+#include "bme280Sensor.cxx"
 #include "raceChronoBle.cxx"
 
 void printUsage(const gchar* program) {
@@ -81,10 +82,14 @@ int main(int argc, char* argv[])
     auto* oneWireProbesThread = g_thread_new("oneWireProbes", oneWireProbesLoop, NULL);
 
     appData.producersRunning++;
+    auto* bme280SensorThread = g_thread_new("bme280Sensor", bme280SensorLoop, NULL);
+
+    appData.producersRunning++;
     auto* raceChronoBleThread = g_thread_new("raceChronoBle", raceChronoBleLoop, NULL);
 
     g_thread_join(supplyMonitorThread);
     g_thread_join(oneWireProbesThread);
+    g_thread_join(bme280SensorThread);
     g_thread_join(raceChronoBleThread);
     // Joined last: it owns the session fd and its final act is to drain the queue and fsync, so
     // every other worker's last record has to be enqueued before it stops.

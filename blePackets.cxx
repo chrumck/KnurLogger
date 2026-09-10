@@ -50,9 +50,11 @@ GByteArray* buildPacketBytes(BlePacket* packet) {
 
 BlePacket* getAllPackets(guint index) {
     switch (index) {
-    case 0: return &appData.bluetooth.temp;
-    case 1: return &appData.bluetooth.thermalStatus;
-    case 2: return &appData.bluetooth.supply;
+    case 0: return &appData.bluetooth.enclosure;
+    case 1: return &appData.bluetooth.enclosureStatus;
+    case 2: return &appData.bluetooth.temp;
+    case 3: return &appData.bluetooth.thermalStatus;
+    case 4: return &appData.bluetooth.supply;
     default: return NULL;
     }
 }
@@ -62,6 +64,8 @@ BlePacket* getAllPackets(guint index) {
 
 
 void initialiseBlePackets() {
+    appData.bluetooth.enclosure.packetId = PACKET_ID_ENCLOSURE;
+    appData.bluetooth.enclosureStatus.packetId = PACKET_ID_ENCLOSURE_STATUS;
     appData.bluetooth.temp.packetId = PACKET_ID_TEMP;
     appData.bluetooth.thermalStatus.packetId = PACKET_ID_THERMAL_STATUS;
     appData.bluetooth.supply.packetId = PACKET_ID_SUPPLY;
@@ -80,4 +84,14 @@ void initialiseBlePackets() {
         tempData[i * 2 + 1] = (guint8)(TEMP_CENTI_C_INVALID & 0xFF);
     }
     updateBlePacket(&appData.bluetooth.temp, tempData);
+
+    // The same argument for the enclosure channels: a phone that connects before the BME280 has
+    // been read once must see the invalid sentinels rather than three zeroes, which would decode
+    // as 0 Pa, 0 C and 0 %RH - all three plausible enough to be believed for a moment.
+    guint8 enclosureData[CAN_DATA_SIZE] = {
+        0xFF, 0xFF, 0xFF, 0xFF,
+        (guint8)((TEMP_CENTI_C_INVALID >> 8) & 0xFF), (guint8)(TEMP_CENTI_C_INVALID & 0xFF),
+        0xFF, 0xFF,
+    };
+    updateBlePacket(&appData.bluetooth.enclosure, enclosureData);
 }

@@ -99,12 +99,62 @@ narrative in this file.
      `rfkill block wifi`, never `rfkill block all`.
   5. **The pressure sensors have no such problem** — they sit on the perfboard and bench-test
      directly, once they arrive.
+- **THE FIRST I2C TRANSFER AFTER AN IDLE BUS IS REFUSED, EVERY TIME, AND A RETRY FIXES IT**
+  (measured 2026-09-10 against the BME280 at `0x77`). This is the single most expensive thing to
+  not know on this board, because it presents as *the device is dead* and it is not.
+  1. **The measurement.** With an idle gap of **10 ms or more the first `I2C_RDWR` fails every
+     single time** — `EREMOTEIO`, a NAK. A second attempt **500 µs** later succeeded **60 of 60**
+     across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the first attempt mostly works
+     (13/15). So it is a property of the idle bus, not of the device and not of the code.
+  2. **A 1 Hz sampler hits it on every single cycle**, which is why the first BME280 reader
+     written without a retry failed 100 % of the time and looked exactly like an absent part.
+  3. **`i2cdetect` will tell you the device is fine while your program says it is not, and both
+     are right.** `i2cdetect` and a shell loop of `i2ctransfer` issue transfers milliseconds
+     apart, so they mostly stay inside the "bus is warm" window. **Do not conclude from a clean
+     `i2cdetect` that a failing program has a bug in it** — that cost most of an afternoon.
+     `i2ctransfer -y 1 w1@0x77 0xd0 r1` is the one-line check, and **run it several times**: a
+     single result of either kind means nothing.
+  4. **The retry lives in `i2cBus.cxx` and is COUNTED, not swallowed** — `firstAttemptFailures`,
+     `recoveredTransfers` and `exhaustedTransfers` land in every `enclosure` record. About **one
+     recovered transfer per sample cycle is the measured normal**; `i2cExhausted` moving off zero
+     is the signal that the bus has actually degraded. A retry that hid this would have turned a
+     hardware characteristic into folklore.
+  5. **Ten attempts, not four, and the difference was measured.** A chain long enough for one
+     isolated register read is not long enough for a cycle of eight transfers: at four attempts
+     **2 of 64 cycles still lost every channel**; at ten, **64 of 64 and then 300 of 300
+     over a five-minute run came back clean**, nothing exhausted. The attempts are free when
+     unused — cycle read time was 15-16 ms either way.
+  6. **This is unqualified hardware and it will apply to the five SDP810s too**, which sit on the
+     same `SDA_MAIN`/`SCL_MAIN` behind the mux. The cause is not established — the main bus has
+     no added pull-up (net list rows 10 and 11) and the BME280 breakout's own pull-ups are what
+     the bus relies on. **Do not treat the retry as the answer to the physical question**; it is
+     what makes the channel work while that question is open (`../ndLouvers/` open item 44).
 - **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The mux
   is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups downstream, so
   every populated channel has its own pair.
-- **The BME280's pressure channel is enclosure pressure, never a static reference.** The cavity is
-  aerodynamically live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands. It is
-  tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
+- **The BME280's three quantities have three different consumers, and two of them are easy to
+  point at the wrong thing.** `bme280Sensor.cxx` reads it and the field names carry the roles;
+  the plan's thermal-channels section owns the reasoning.
+  1. **Pressure is ENCLOSURE pressure, never a static reference.** The cavity is aerodynamically
+     live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands, and it is speed-correlated
+     so it will not average out of a speed sweep. Tolerable as a density term, disqualifying as a
+     reference. Logged as `enclosurePressurePa`.
+  2. **Temperature is the CAVITY THERMOMETER** (plan item 1c), with Pi SoC temperature a
+     cross-check rather than the primary proxy, and item 1d wants it recorded across a full
+     session. **It is NOT the inlet density term** — that is `T_ambient`'s DS18B20, a probe in the
+     air the car drives through. Logged as `cavityTemperatureC`.
+  3. **Humidity is a seal and desiccant diagnostic** for items 1a and 1d, discarded by the
+     dry-air approximation. No measurement consumer. Logged as `enclosureHumidityPct`.
+  **It is read in forced mode at oversampling ×1 with the IIR filter off, and that is a
+  measurement choice rather than a power one:** it is the datasheet's lowest-self-heating setting,
+  and self-heating in the part that serves as the cavity thermometer is an error in the very
+  quantity it exists to report. Higher oversampling would buy pressure noise this channel has no
+  use for.
+- **Packet IDs `0x600` and `0x601` are the BME280's, and they no longer mean what the ESP32 rig
+  meant by them** (owner decision, 2026-09-10). On the rig they carried synthetic ramp and
+  triangle test frames; that rig is spent and the owner released the IDs. **Any RaceChrono channel
+  definition written against the rig's `0x600` must be re-entered** — the bytes decode to
+  something else now. `0x602`–`0x604` are unchanged and still carry over.
 - **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
   once at enrollment. **All four are bound as of 2026-09-10** — `temp0` `28-06254385da1f`,
   `temp1` `28-0625424044b7`, `temp2` `28-062542ac86b6`, `temp3` `28-0625424e16c9` — in
@@ -112,11 +162,9 @@ narrative in this file.
   `Hardware/logger-perfboard-wiring.md` §5a as the human record. **An earlier attempt the same day
   bound three in a different order and was discarded** (history §1.11); do not reconcile anything
   against it.
-  **The channel → role map has NOT been independently cross-checked.** It rests on the owner
-  identifying each lead at the logger end, which is the method the plan specifies — but no phone
-  was connected to that run, so the warm-one-probe check that would confirm it was never
-  performed. Anyone about to trust `temp2` as `T_core_out` in an analysis should run that check
-  first: it costs one bench session with a phone and a warm hand.
+  **The channel → role map IS independently confirmed** (2026-09-10): warming each probe by hand
+  in installed order moved `temp0`, `temp1`, `temp2`, `temp3` in that order with clean separation,
+  +3.8 to +5.4 K each. Plan open item 42 is closed on it.
 - **The `28-*` family filter is mandatory, and it can no longer be exercised on this box.** The
   bare bus used to invent churning phantom `00-*` devices; with the sensor zone assembled and
   `R11` terminating `GPIO4` the scans come back clean (history §1.4). The filter is correct

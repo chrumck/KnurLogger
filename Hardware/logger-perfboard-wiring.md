@@ -59,13 +59,15 @@ build, because `A0`/`A1`/`A2` are grounded and the mux is at `0x70` alone — bu
 
 | Device | Address | Bus | Note |
 |---|---|---|---|
-| PCA9548A mux (see note 3) | `0x70` | Pi main I2C1 | Default, A0/A1/A2 all low — confirmed grounded on the built board. Leave them low. **Does not answer as built — note 2.** |
+| PCA9548A mux (see note 4) | `0x70` | Pi main I2C1 | Default, A0/A1/A2 all low — confirmed grounded on the built board. Leave them low. **Answers since the `~RESET` resolder — note 2.** |
 | BME280 | **`0x77`** | Pi main I2C1 | **Amended 2026-09-09 (owner): the specified `0x76` is superseded by the address the board answers on.** `SDO` is not held at `GND_SIG`; the breakout's own pull-up wins. See note 1. |
 | SDP810 ×5 | `0x25` each | One per mux channel | Identical by design; isolated by the mux *(verify)* |
 | DS18B20 ×4 | 64-bit ROM ID | 1-Wire, GPIO4 | Addressed by ROM ID, not I2C. ROM ID → `temp0`–`temp3` fixed at build (§5a); channel → role is a per-session record. |
 
-**Measured on the assembled board, 2026-09-09.** `i2cdetect -y 1` on bus 1 returned exactly one
-device, `0x77`. Three notes; note 2 is an open hardware fault.
+**Measured on the assembled board, 2026-09-09, and re-measured 2026-09-10.** The first scan
+returned exactly one device, `0x77`; with the mux's `~RESET` resoldered, `i2cdetect -y 1` now
+returns **both `0x70` and `0x77`**, which is note 2's stated acceptance. Four notes; note 3 is an
+open hardware question and note 2 is now closed.
 
 1. **The BME280 is at `0x77`, and `0x77` is now the specified address** (owner decision,
    2026-09-09). It is a genuine BME280 and not a mux at a strapped address — chip-ID register
@@ -101,7 +103,26 @@ device, `0x77`. Three notes; note 2 is an open hardware fault.
    through `R12` and **passes**, so that row alone would have cleared a faulty board. Also, GPIO17
    only goes high once the firmware has read `config.txt`, so any reading taken with the Pi off or
    mid-boot reads low legitimately and means nothing.
-3. **The part is a PCA9548A, not a TCA9548A** (owner, 2026-09-09 — the board is marked PCA9548A).
+3. **THE FIRST TRANSFER AFTER AN IDLE BUS IS REFUSED, AND THIS IS UNQUALIFIED HARDWARE**
+   (measured 2026-09-10 against the BME280 at `0x77`). With an idle gap of 10 ms or more the
+   first `I2C_RDWR` fails every time with `EREMOTEIO`; a second attempt 500 µs later succeeded
+   60 of 60 across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the first attempt mostly
+   works. **`i2cdetect` and a shell loop of `i2ctransfer` do not show it**, because they issue
+   transfers milliseconds apart and stay inside the warm window — so a clean `i2cdetect` beside a
+   program that fails 100 % of the time is not a contradiction, and it is not a software bug.
+   `i2ctransfer -y 1 w1@0x77 0xd0 r1`, run several times, is the check.
+   **The cause is not established.** `SDA_MAIN` and `SCL_MAIN` carry **no added pull-up**
+   (net list rows 10 and 11); the bus relies on the Pi's own and on whatever the BME280 breakout
+   fits, and that breakout's onboard pull-up is already known to have overridden the `SDO` tie
+   (note 1). A rise-time or level-shifter explanation is plausible and unmeasured — **measure it
+   before adding a resistor.** `../../ndLouvers/CFD-Learning-Plan.md` open item 44 owns the
+   question.
+   **The logger works around it in `i2cBus.cxx` with a counted ten-attempt retry**, which is what
+   makes a 1 Hz sampler work at all, since at 1 Hz every cycle starts with an idle bus. **The
+   retry is not the answer to the physical question.** Two consequences for this board:
+   the five SDP810s sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux and will meet the same
+   behaviour; and §10's bring-up steps must not read a single failed transfer as an absent part.
+4. **The part is a PCA9548A, not a TCA9548A** (owner, 2026-09-09 — the board is marked PCA9548A).
    **Harmless, and no line of this document changes because of it.** NXP's PCA9548A and TI's
    TCA9548A are functional equivalents for everything this build uses: same pinout, same
    `0x70`–`0x77` address range set by `A0`/`A1`/`A2`, same single-control-byte channel register,
@@ -189,7 +210,7 @@ liability.
 | `C12` | **100 µF output electrolytic — FITTED.** The owner's addition at `U1`'s output; the sole output bulk | Power |
 | `J1` | USB-C power pigtail to the Pi — **confirmed in use** (owner, 2026-09-07); the GPIO 5 V pins are not in the path (§3a.5 item 7, plan item 5.4) | Power |
 | `PI1` | Raspberry Pi 4B — the 40-pin header and the USB-C inlet | — |
-| `U2` | **PCA9548A** mux `0x70` — board marked PCA9548A, a functional equivalent of the TCA9548A the parts list names (§2 note 3) | Sensor |
+| `U2` | **PCA9548A** mux `0x70` — board marked PCA9548A, a functional equivalent of the TCA9548A the parts list names (§2 note 4) | Sensor |
 | `U3` | BME280 `0x77` | Sensor |
 | `U4`–`U7` | SDP810 ±500 Pa — the sensors that plug into `J7`–`J10`, channels **P0–P3** | Off-board |
 | `U8` | SDP810 **±125 Pa** — plugs into `J11`, channel **P4** | Off-board |
