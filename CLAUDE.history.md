@@ -431,3 +431,58 @@ put offsets and retrofitting the field later would be a format change. **Retired
 decision, 2026-09-10**: the key is gone from the store rather than left dead, because two fields
 that look like an offset, one of which does nothing, is worse than one. See §2.4 for where the
 offsets went.
+
+## 2026-09-10 — the first road test, and the frozen phone
+
+The first road test connected RaceChrono, received one set of frames — sometimes only a partial
+set — and then froze: the app held that frame set indefinitely and nothing further arrived.
+
+**Root cause: the logger answered RaceChrono's subscription burst with an ATT error and lost the
+whole burst.** Entering the logging regime, RaceChrono writes `deny all` and then one
+`allow single` per configured channel. Recorded verbatim on the bench, in order: `0x7F0`, `0x420`,
+`0x600`, `0x601`, `0x202`, `0x602`, `0x603`, `0x78`, `0x4FA`. Five of the nine are **box 1's CAN
+frames** — RaceChrono asks every DIY device for the union of every packet ID it has channels for,
+not for that device's own. The first command was `0x7F0`, which box 2 does not publish; the code
+returned `BLUEZ_ERROR_REJECTED`; RaceChrono abandoned the remaining eight; and `deny all` had
+already destroyed every notify timer. The phone then held its last frame forever, and the logger
+looked connected and perfectly healthy from every angle.
+
+**Why CAN-bus test mode worked and logging mode did not**, which is what the owner spotted and it
+was the key to the whole diagnosis: test mode writes `allow all`, which carries no packet IDs and
+therefore cannot be refused. The two regimes exercise different code, and only one of them had
+ever run.
+
+**Why nothing caught this earlier.** The ESP32 rig was the only prior proof of the protocol and its
+own source says the filter is *deliberately not enforced* — it always notified everything. The
+logger is the first implementation in this project that honours the subscription, so the path ran
+for the first time on a moving car.
+
+**The diagnosis was slower than it should have been, in a way worth recording.** A rejected filter
+command produced no journal line and no session record, so the road-test file showed `deny all`
+followed by nothing at all — indistinguishable from RaceChrono having gone quiet. Two hypotheses
+were entertained and both were wrong: that the command lengths were mismatched (every observed
+command matched the expected length exactly), and that the incoming packet ID was parsed with the
+wrong endianness (`00 00 07 F0` big-endian is correct and matches the rig). **The fix that made the
+diagnosis possible was recording every filter command raw before validating it**; the fault was
+then visible in one bench connection.
+
+**Comparing against KnurDash was decisive and also misleading for an hour.** KnurDash has the same
+strict length checks and the same reject-on-unknown-frame, and it works daily — which briefly
+argued the rejection could not be the cause. It works because the packet IDs RaceChrono asks for
+are mostly its own; **it carries the same latent defect** and will fail identically the moment
+box 2's IDs are requested ahead of its own.
+
+**A second, independent defect found in the same comparison.** The BLE worker created its D-Bus
+connection and adapter *before* pushing its main context thread-default, copying KnurDash's order.
+KnurDash gets away with it because `gtk_main()` iterates the global default context; a headless
+logger has no such loop, so `onPoweredStateChanged` and `onCentralStateChanged` never fired at all.
+Every session file before this date is missing its BLE connect and disconnect records for that
+reason — not because nothing connected. It also meant a link lost without an explicit unsubscribe
+left `isNotifying` set and advertising unstarted. Fixed by pushing the context first; the connect
+and disconnect records appeared for the first time on the next run.
+
+**Measured after the fix:** RaceChrono subscribed to `0x600`, `0x601`, `0x602` and `0x603` by
+packet ID and each notified at 0.98–1.00 Hz across a 57 s session, with the five unknown IDs logged
+and ignored. `0x604` took zero notifications because no channel is defined for it — correct
+behaviour under an honoured filter, and the reason the heartbeat channel needs defining before it
+can serve as the liveness indicator it exists to be.

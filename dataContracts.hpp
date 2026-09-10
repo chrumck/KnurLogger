@@ -457,11 +457,16 @@ typedef struct {
 
 typedef struct {
     guint32 packetId;
+    // For logs and records only. A notify count per packet is what separates "the logger is not
+    // sending" from "the logger is sending and the phone is not showing it", and a bare packet ID
+    // in a log line is one more thing to decode under time pressure at the car.
+    const gchar* name;
     guint8 data[CAN_DATA_SIZE];
     guint64 updatedBootUs;
     gboolean wasSent;
     GMutex lock;
     guint notifySourceId;
+    std::atomic<guint32> notifiesSent;
 } BlePacket;
 
 typedef struct {

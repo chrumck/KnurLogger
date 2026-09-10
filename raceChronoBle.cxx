@@ -85,6 +85,7 @@ gboolean sendPacketToBt(gpointer data) {
     g_byte_array_free(bytes, TRUE);
 
     appData.bluetooth.notifiesSent++;
+    packet->notifiesSent++;
 
     return G_SOURCE_CONTINUE;
 }
@@ -123,18 +124,41 @@ const char* onCharWrite(const Application* app, const char* address, const char*
         return BLUEZ_ERROR_NOT_PERMITTED;
     }
 
-    // Command lengths are part of the protocol: 1 = deny all, 3 = allow all + interval,
-    // 7 = allow one + interval + packet ID.
-    if (received->len != 1 && received->len != 3 && received->len != 7) { return BLUEZ_ERROR_REJECTED; }
-    if (received->len == 1 && received->data[0] != RACECHRONO_DENY_ALL) { return BLUEZ_ERROR_REJECTED; }
-    if (received->len == 3 && received->data[0] != RACECHRONO_ALLOW_ALL) { return BLUEZ_ERROR_REJECTED; }
-    if (received->len == 7 && received->data[0] != RACECHRONO_ALLOW_SINGLE) { return BLUEZ_ERROR_REJECTED; }
+    // EVERY command is recorded, raw, BEFORE it is validated. The first version refused
+    // unrecognised commands silently - no warning, no record - and a subscription that vanishes
+    // without evidence is indistinguishable from one the phone never sent. That cost a road test:
+    // the session file showed `deny all` followed by nothing at all, and there was no way to tell
+    // whether RaceChrono had gone quiet or this logger had refused what it sent.
+    auto commandHex = toHexString(received->data, received->len);
+    writeSessionRecord("bleFilter", std::format(
+        "\"len\":{},\"raw\":\"{}\"", received->len, commandHex));
+
+    if (received->len < 1) { return BLUEZ_ERROR_REJECTED; }
+
+    auto command = received->data[0];
+
+    // Lengths are MINIMA, not equalities, matching the reference DIY implementation. Refusing a
+    // command longer than expected buys nothing and would refuse a future protocol revision that
+    // appends a field - and a refusal here costs the whole primary data path.
+    auto isDenyAll = command == RACECHRONO_DENY_ALL;
+    auto isAllowAll = command == RACECHRONO_ALLOW_ALL && received->len >= 3;
+    auto isAllowSingle = command == RACECHRONO_ALLOW_SINGLE && received->len >= 7;
+
+    if (!isDenyAll && !isAllowAll && !isAllowSingle) {
+        g_warning("Bluetooth: unrecognised filter command [%s], ignoring", commandHex.c_str());
+        writeEventRecord("warning", std::format(
+            "BLE filter command not understood, ignored: [{}]", commandHex));
+        // Ignored rather than refused, deliberately. An ATT error is a protocol-level failure the
+        // central may take as "this device is broken" and abandon - taking with it the commands it
+        // had not sent yet, and RaceChrono sends its subscriptions as a burst.
+        return NULL;
+    }
 
     auto* context = g_main_loop_get_context(appData.bluetooth.mainLoop);
 
     logNegotiatedMtu(mtu);
 
-    if (received->len == 1) {
+    if (isDenyAll) {
         g_message("Bluetooth: RaceChrono requested deny all");
         writeEventRecord("info", "BLE filter: deny all");
         forEachBlePacket(packet) { removeNotifySource(context, packet); }
@@ -143,11 +167,17 @@ const char* onCharWrite(const Application* app, const char* address, const char*
 
     guint intervalMs = received->data[1] << 8 | received->data[2];
     if (intervalMs < BLE_NOTIFY_INTERVAL_MIN_MS || intervalMs > BLE_NOTIFY_INTERVAL_MAX_MS) {
-        g_warning("Bluetooth: rejecting invalid notify interval %u ms", intervalMs);
-        return BLUEZ_ERROR_REJECTED;
+        // Clamped rather than refused, for the reason above: notifying at a rate the phone did not
+        // ask for is better than losing the subscription, and the requested value is on record.
+        auto clamped = std::clamp<guint>(intervalMs,
+            BLE_NOTIFY_INTERVAL_MIN_MS, BLE_NOTIFY_INTERVAL_MAX_MS);
+        g_warning("Bluetooth: notify interval %u ms out of range, using %u ms", intervalMs, clamped);
+        writeEventRecord("warning", std::format(
+            "BLE filter: interval {} ms out of range, clamped to {} ms", intervalMs, clamped));
+        intervalMs = clamped;
     }
 
-    if (received->len == 3) {
+    if (isAllowAll) {
         g_message("Bluetooth: RaceChrono requested all frames at %u ms", intervalMs);
         // The requested interval is recorded because it IS the sample rate of the primary data
         // path — item 4's 10 Hz target is met or missed by what the phone asks for here and by
@@ -168,8 +198,15 @@ const char* onCharWrite(const Application* app, const char* address, const char*
     forEachBlePacket(packet) { if (packet->packetId == packetId) { requested = packet; } }
 
     if (requested == NULL) {
-        g_warning("Bluetooth: no packet 0x%X to notify, rejecting", packetId);
-        return BLUEZ_ERROR_REJECTED;
+        // Ignored, NOT refused. RaceChrono sends one allow-single per configured channel as a
+        // burst, so answering one of them with an ATT error can lose every subscription behind it
+        // - which presents as a few channels updating and the rest frozen. A channel definition
+        // for a packet this logger does not publish is the owner's business rather than an error,
+        // and the command is on record above either way.
+        g_warning("Bluetooth: packet 0x%X requested but not published here, ignoring", packetId);
+        writeEventRecord("warning", std::format(
+            "BLE filter: 0x{:X} requested but not published by this logger, ignored", packetId));
+        return NULL;
     }
 
     g_message("Bluetooth: RaceChrono requested packet 0x%X at %u ms", packetId, intervalMs);
@@ -248,10 +285,26 @@ gpointer raceChronoBleLoop(gpointer _) {
 
     log_set_level(LOG_WARN);
 
+    // Its own context and loop, pushed thread-default, so binc's D-Bus work and the notify timers
+    // all run on this thread. This is KnurDash's shape and it is why main() needs no main loop of
+    // its own - it stays iSitePiLogger's plain thread-join.
+    //
+    // THE PUSH MUST COME BEFORE THE D-BUS CONNECTION AND THE ADAPTER, and it did not until
+    // 2026-09-10. GDBus binds each signal subscription to whatever context is thread-default at
+    // the moment the subscription is made, so an adapter created first subscribes against the
+    // GLOBAL default context - which nothing in this process iterates, main() being a plain
+    // thread-join. The adapter callbacks then never fire, silently: no powered-state changes and
+    // NO CENTRAL CONNECT OR DISCONNECT. Every session file written before that date is missing its
+    // BLE connect and disconnect events for this reason, not because nothing ever connected.
+    auto* workerContext = g_main_context_new();
+    g_main_context_push_thread_default(workerContext);
+
     appData.bluetooth.dbusConn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (appData.bluetooth.dbusConn == NULL) {
         g_critical("Bluetooth: could not reach the system D-Bus, no BLE this session");
         writeEventRecord("error", "BLE unavailable: no system D-Bus");
+        g_main_context_pop_thread_default(workerContext);
+        g_main_context_unref(workerContext);
         appData.producersRunning--;
         return NULL;
     }
@@ -263,17 +316,14 @@ gpointer raceChronoBleLoop(gpointer _) {
         // the radio is missing would throw away the run as well as the link.
         g_critical("Bluetooth: no adapter found, no BLE this session");
         writeEventRecord("error", "BLE unavailable: no adapter");
+        g_main_context_pop_thread_default(workerContext);
+        g_main_context_unref(workerContext);
         appData.producersRunning--;
         return NULL;
     }
 
     g_message("Bluetooth: adapter '%s'", binc_adapter_get_path(appData.bluetooth.adapter));
 
-    // Its own context and loop, pushed thread-default, so binc's D-Bus work and the notify timers
-    // all run on this thread. This is KnurDash's shape and it is why main() needs no main loop of
-    // its own — it stays iSitePiLogger's plain thread-join.
-    auto* workerContext = g_main_context_new();
-    g_main_context_push_thread_default(workerContext);
     appData.bluetooth.mainLoop = g_main_loop_new(workerContext, FALSE);
 
     auto* stopSource = g_timeout_source_new(BLE_SHUTDOWN_POLL_MS);

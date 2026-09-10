@@ -65,6 +65,15 @@ std::string escapeJson(const std::string& input) {
     return result;
 }
 
+std::string toHexString(const guint8* data, guint length) {
+    std::string result;
+    result.reserve(length * 3);
+    for (guint i = 0; i < length; i++) {
+        result += std::format("{}{:02X}", i == 0 ? "" : " ", data[i]);
+    }
+    return result;
+}
+
 std::optional<std::string> readWholeFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) { return std::nullopt; }

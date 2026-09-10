@@ -193,13 +193,31 @@ void sampleSupply() {
             (sticky & THROTTLED_BIT_UNDERVOLTAGE) ? "true" : "false");
     }
 
+    // BLE link state rides along on this record because it is the one that already ticks at 1 Hz
+    // and because a closing count is useless for this fault: a notify count that only appears at
+    // shutdown is lost entirely when the fuse is pulled, which is how both road-test sessions
+    // ended. Per-packet counts answer the question that matters when the phone shows a frozen
+    // frame - is this logger still emitting notifications, and for which packets - without
+    // needing the phone or a second run.
+    std::string blePacketFields;
+    forEachBlePacket(packet) {
+        blePacketFields += std::format("{}\"{}\":{}", blePacketFields.empty() ? "" : ",",
+            packet->name, (guint32)packet->notifiesSent);
+    }
+
     writeSessionRecord("supply", std::format(
-        "{},\"lcritAlarm\":{},\"socCoreVolts\":{},\"socTempC\":{}",
+        "{},\"lcritAlarm\":{},\"socCoreVolts\":{},\"socTempC\":{},"
+        "\"bleConnected\":{},\"bleNotifying\":{},\"bleNotifiesSent\":{},"
+        "\"bleNotifiesByPacket\":{{{}}}",
         throttledFields,
         // Live only, no sticky history — that asymmetry with get_throttled is why both are logged.
         alarm.has_value() ? std::format("{}", *alarm) : "null",
         socCoreVolts.has_value() ? std::format("{:.4f}", *socCoreVolts) : "null",
-        socTempC.has_value() ? std::format("{:.1f}", *socTempC) : "null"));
+        socTempC.has_value() ? std::format("{:.1f}", *socTempC) : "null",
+        appData.bluetooth.isConnected ? "true" : "false",
+        appData.bluetooth.isNotifying ? "true" : "false",
+        (guint64)appData.bluetooth.notifiesSent,
+        blePacketFields));
 
     publishSupplyPacket();
 }

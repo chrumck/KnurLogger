@@ -9,8 +9,11 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 durable record and the only thing that can prove a sample was missing rather than held.
 
 **Status: all five workers are written, all four DS18B20s are enrolled, the loaded 4 × 5 m
-1-Wire star reads CRC-clean, and the BME280 is read and logged.** What the logger has never done
-is run on a moving car.
+1-Wire star reads CRC-clean, and the BME280 is read and logged. The first road test ran on
+2026-09-10 and found one fault, since fixed: the logger refused RaceChrono's per-frame
+subscription and froze the phone's data.** RaceChrono asks every device for every packet ID it
+knows, box 1's CAN frames included, and refusing one lost the whole subscription — `CLAUDE.md`
+§"Never return an ATT error from the filter callback" owns it.
 
 > **⚠ `bme280IntervalMs` is a NEW REQUIRED KEY in `[sensors]`, and the production `.ini` is not
 > in git.** A missing key is a startup failure, like every other key in this file, so **the
@@ -111,6 +114,14 @@ pairing screen: this is a BLE GATT peripheral with no bonding, advertising `BR/E
 so the OS pairing list will never show it.
 
 **Every payload field is big-endian. Only the 4-byte packet ID is little-endian**, per the DIY API.
+
+> **A packet with no channel definition is never sent.** The logger honours RaceChrono's
+> subscription, so entering the logging regime means only the packet IDs you have defined channels
+> for get notified. Measured 2026-09-10: `0x604` took **zero** notifications through a 57 s
+> session because no channel was defined for it, while the other four ran at ~1 Hz. **`0x604`
+> byte 7 is the heartbeat and the only honest liveness channel here**, so define at least that one.
+> In CAN-bus test mode RaceChrono asks for everything instead, which is why test mode shows
+> channels that logging mode does not.
 
 **`0x602` and `0x603` are transcribed byte for byte from the ESP32 rig in
 `../ndLouvers/step0b-rig/racechrono_ble_test/`, so definitions written against that rig carry over
@@ -578,9 +589,10 @@ later fixes it, which made the first version of this reader fail 100 % of the ti
 every `enclosure` record. **The same bus carries the five SDP810s, so this will apply to them
 too, and the physical cause is not established** — `../ndLouvers/` open item 44.
 
-**`0x600` and `0x601` are still bench-verified in the session file and not yet on a phone**, the
-same caveat `0x603` carries. The packing was checked byte for byte against the packet buffer, and
-it is the primitive `0x604` has already proven on the phone.
+**`0x600` and `0x601` are now confirmed on a phone** (2026-09-10): RaceChrono subscribed to both
+by packet ID and each notified at 0.98 Hz across a 57 s session, alongside `0x602` and `0x603` at
+1.00 Hz. What is still unconfirmed is the **equations** — nobody has read a plausible pressure or
+temperature off a RaceChrono gauge yet, only counted the notifications carrying them.
 
 **Then the SDP810 readers and the mux**, once the pressure sensors arrive. Expect the retry in
 `i2cBus.cxx` to matter for them, and expect a mux channel switch plus a sensor read to be two

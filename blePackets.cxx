@@ -65,10 +65,15 @@ BlePacket* getAllPackets(guint index) {
 
 void initialiseBlePackets() {
     appData.bluetooth.enclosure.packetId = PACKET_ID_ENCLOSURE;
+    appData.bluetooth.enclosure.name = "enclosure";
     appData.bluetooth.enclosureStatus.packetId = PACKET_ID_ENCLOSURE_STATUS;
+    appData.bluetooth.enclosureStatus.name = "enclosureStatus";
     appData.bluetooth.temp.packetId = PACKET_ID_TEMP;
+    appData.bluetooth.temp.name = "temp";
     appData.bluetooth.thermalStatus.packetId = PACKET_ID_THERMAL_STATUS;
+    appData.bluetooth.thermalStatus.name = "thermalStatus";
     appData.bluetooth.supply.packetId = PACKET_ID_SUPPLY;
+    appData.bluetooth.supply.name = "supply";
 
     forEachBlePacket(packet) {
         g_mutex_init(&packet->lock);

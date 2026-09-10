@@ -262,6 +262,60 @@ narrative in this file.
      concluding a sysfs-driven path is untestable.** What it does not establish: real bus timing,
      real conversion time, or `therm_bulk_read`.
 
+## NEVER return an ATT error from the filter callback
+
+**RaceChrono asks EVERY DIY device for the union of ALL packet IDs it has channel definitions
+for, not just the ones that device publishes** (measured 2026-09-10). Box 2 is asked for box 1's
+CAN frames. This is the single most expensive fault this project has had: it cost a road test.
+
+1. **What the subscription actually looks like.** Entering the logging regime, RaceChrono writes
+   `deny all` and then one `allow single` per configured channel, as a burst inside one second.
+   Measured verbatim, in this order: `0x7F0`, `0x420`, `0x600`, `0x601`, `0x202`, `0x602`,
+   `0x603`, `0x78`, `0x4FA`. **Five of those nine are box 1's, and `0x420` is the CAN ambient
+   frame the plan names.** In CAN-bus test mode it writes `allow all` instead, which involves no
+   packet IDs at all — which is exactly why test mode worked and logging mode did not.
+2. **Answering any one of them with `BLUEZ_ERROR_REJECTED` loses the whole burst.** The first
+   command was `0x7F0`, which this logger does not publish; the old code refused it, RaceChrono
+   abandoned the rest of the sequence, and `deny all` had already destroyed every notify timer.
+   Result: a permanently frozen frame set on the phone and a logger that looked connected and
+   healthy. **An unknown packet ID is normal traffic, not an error** — log it and ignore it.
+3. **The burst order varies, which is what made the symptom confusing.** Whatever was subscribed
+   before the first unknown ID kept updating, so the phone showed a full set, a partial set, or
+   nothing depending on ordering. "Most of the data points missing" and "one set then frozen" are
+   the same fault.
+4. **`0x604` is only notified if a channel is DEFINED for it.** With the filter honoured, a packet
+   nobody subscribes to is never sent — correct behaviour, and it means the `0x604` heartbeat,
+   which is the only honest liveness channel, reaches the phone only once its channels are
+   entered. Measured: `supply` took zero notifies through a 57 s subscription while the other four
+   ran at ~1 Hz.
+5. **Do not tighten the command-length checks back to equality.** They were `== 1`/`== 3`/`== 7`
+   and every observed command matched exactly, so that was never the fault — but the reference
+   implementation uses minima and a future field would break equality for no benefit.
+6. **KnurDash has this same defect and has not hit it.** Its `onCharWrite` also returns
+   `BLUEZ_ERROR_REJECTED` for a frame ID it does not carry. It survives because the PIDs
+   RaceChrono asks for are mostly its own; it will break the same way the moment box 2's IDs are
+   requested ahead of its own. That is a finding for that project, not something to fix from here.
+
+## The BLE worker needs its own main context BEFORE the D-Bus connection
+
+**`g_main_context_push_thread_default()` must come before `g_bus_get_sync()` and
+`binc_adapter_get_default()`, and it did not until 2026-09-10.** GDBus binds each signal
+subscription to whatever context is thread-default when the subscription is made, so an adapter
+created first subscribes against the global default context — and **nothing in this process
+iterates that context**, `main()` being a plain thread-join.
+
+1. **The symptom is silence, not an error.** `onPoweredStateChanged` and `onCentralStateChanged`
+   simply never fire. **Every session file written before 2026-09-10 is missing its BLE connect
+   and disconnect events for this reason, not because nothing connected** — do not read those
+   files as evidence that no central ever attached.
+2. **This is where KnurDash diverges and why copying its order was wrong.** KnurDash is a GTK app
+   whose `main.c` calls `gtk_main()`, which iterates the global default context on the main
+   thread, so its adapter callbacks fire despite the same ordering. A headless logger has no such
+   loop. **This is the one place where following KnurDash's shape was actively incorrect.**
+3. **What it broke, beyond the missing records:** on disconnect neither `isNotifying` was cleared
+   nor advertising restarted, so a link lost without an explicit unsubscribe left the logger
+   invisible until the process restarted.
+
 ## When BLE will not advertise, start here
 
 The platform has already been the culprit once and the logger looked guilty (history §1.2), so
