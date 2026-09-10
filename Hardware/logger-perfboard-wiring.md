@@ -745,8 +745,10 @@ the supply is qualified alone, first, and the expensive parts go on last.
    refutes the margin from step 2. If it flags, the fix is the pigtail and connectors, not the
    module.
 5. **Build the sensor zone, run the remaining §3a.7 rows, then add the mux and BME280.**
-   **PARTLY DONE, 2026-09-09** — the zone is assembled and the scan returned **`0x77` only**, not
-   the `0x70` and `0x76` this step expected. §2's measured note owns both discrepancies: the
+   **DONE.** Assembled 2026-09-09; both devices answer (`0x70` and `0x77`) since the `~RESET`
+   resolder, and as of 2026-09-10 the **BME280 is read end to end** — chip ID `0x60`, calibration
+   block read, 300 valid cycles out of 300 with zero read errors. The scan on 2026-09-09 returned
+   **`0x77` only**, not the `0x70` and `0x76` this step expected. §2's measured note owns both discrepancies: the
    BME280 is on `0x77`, and the mux was silent — **not** because it was unpopulated, but because
    `~RESET` had been soldered to header pin 9 instead of pin 11; resoldered the same day, it now
    answers at `0x70` with control register `0x00` (§2 note 2). **Host precondition — MET**: `/dev/i2c-1` needs *both* `dtparam=i2c_arm=on` in
@@ -756,6 +758,13 @@ the supply is qualified alone, first, and the expensive parts go on last.
    `i2cdetect` reports *no such device*, that is the host; anything else is this board.
    **Use bus 1 only** — `/dev/i2c-20` and `/dev/i2c-21` also exist and are the VC4 display DDC
    buses, nothing to do with this perfboard.
+   **A SINGLE FAILED TRANSFER IS NOT AN ABSENT PART ON THIS BOARD, AND THIS STEP IS WHERE THAT
+   MATTERS** (§2 note 3, `../../ndLouvers/CFD-Learning-Plan.md` open item 44). The first transfer
+   after an idle bus is refused every time, so **repeat every read here several times before
+   concluding anything** — `i2ctransfer -y 1 w1@0x77 0xd0 r1`, not once. This applies to the five
+   SDP810s when they arrive: they sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux, and a
+   mux channel switch followed by a sensor read is two transfers of which the first is the one
+   after idle.
 6. **Add the four DS18B20s** *(plan item 2 of the thermal section)*, **one probe at a time** —
    cable colours vary by vendor and a reversed supply destroys the probe (§3a.5 item 4). All four
    must then enumerate together.
