@@ -24,8 +24,8 @@ growth measured **1457 B/s**, so ~6 MB/h once four probes report — about 72 MB
 against 108 GB free. It exercised neither BLE notify load (`0 notifications sent`) nor the sealed
 enclosure in the wheel well, where the thermal picture will be different. Getting BLE working needed an
 `apt full-upgrade` on 2026-09-09 — `bluez 5.82-1.1+rpt1` on kernel `6.18.34` could not register an
-advertisement at all, which `CLAUDE.md` records in full because the symptom points at the logger
-and the cause is not in it. The host setup under `SystemSetup/` **has been applied**
+advertisement at all, which `CLAUDE.history.md` records in full because the symptom points at the
+logger and the cause is not in it; `CLAUDE.md` carries the diagnostic sequence to reuse. The host setup under `SystemSetup/` **has been applied**
 (2026-09-09): dependencies installed, the boot-time pass run, rebooted and re-audited. `/dev/i2c-1`
 and the 1-Wire bus exist, the build toolchain is installed, and the
 Bluetooth soft block is cleared and survived a reboot, and the box is **key-only over SSH**
@@ -36,7 +36,8 @@ are still being delivered. So the buses are no longer silent, and an empty I2C s
 the correct result. The BME280 answers at **`0x77`**, which is now its specified address; the mux
 is a **PCA9548A** and was silent because its `~RESET` had been soldered to header pin 9 instead of
 pin 11 — resoldered and verified answering at `0x70`; and the 1-Wire phantoms have stopped, which
-is attributed to `R11` terminating the line. `CLAUDE.md` has the detail.
+is attributed to `R11` terminating the line. `CLAUDE.md` has the facts to code against;
+`CLAUDE.history.md` has the diagnoses behind them.
 
 ---
 
@@ -328,7 +329,8 @@ Five things to know:
    `<filesDir>/channels.ini`, which holds bindings only and carries no offset.
 
 **The logger takes no automatic session-start sample and makes no judgement about whether the car
-was settled** — see `CLAUDE.md` for why that was tried, measured failing, and dropped.
+was settled** — see `CLAUDE.history.md` §3.1 for why that was tried, measured failing, and
+dropped.
 
 ## Testing the 1-Wire path without probes
 
@@ -353,12 +355,13 @@ default, out-of-range rejection and the application of a hand-entered offset wer
 to the car to enroll the four probes. Commissioning item 5a's installed BLE link check is
 unblocked, and item 5.7's under-load supply telemetry can be collected on the first real run.
 
-`pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the five
+`pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the four
 architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
 durable raw/diagnostic record, an append-only file with a ~1 s `fsync` cadence, DS18B20 channel
-enrollment, and supply-health telemetry — plus the hardware traps, and two retirement notes that
-exist to stop the next agent rebuilding what was deliberately removed. Read it before writing
-code.
+enrollment, and supply-health telemetry — plus the hardware traps. Read it before writing code.
+`CLAUDE.history.md` is its audit trail: resolved faults with the diagnostics that found them,
+reversed decisions, and the retirement notes that exist to stop the next agent rebuilding what was
+deliberately removed.
 
 **Build order was BLE first** (owner, 2026-09-09), and that is now spent — all four workers exist.
 The reasoning still matters for the trip to the car: BLE is the primary data path *and* the only

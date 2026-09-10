@@ -4,6 +4,15 @@ alert the developer and record it in this file so the next agent does not hit it
 
 # CLAUDE.md — KnurLogger
 
+**`CLAUDE.history.md` is the companion audit trail** — faults that were found and fixed, the
+diagnostics that found them, decisions that were reversed, and requirements that were built and
+then deliberately removed. Nothing in it is a live instruction. Read it when a statement here
+surprises you, when you are about to reinstate something that looks missing, or when a figure you
+remember from git history or an older transcript does not appear here. **The guards against
+reinstating retired work are here; the reasoning behind them is there.** When a conclusion
+changes, put the new one here and the superseded one there — do not leave "this used to say"
+narrative in this file.
+
 ## Where authority lives
 
 - **This repository owns software and host configuration. It owns no measurement decision.**
@@ -14,19 +23,16 @@ alert the developer and record it in this file so the next agent does not hit it
 - **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
   sit alongside this one. Relative links between them work on disk and break on a git host. Do not
   "fix" them by copying content across; a duplicated requirement is a requirement that will drift.
-  **This is now live rather than hypothetical:** this repository has a public upstream at
-  `github.com/chrumck/KnurLogger`, so every `../ndLouvers/...` link 404s there. That is accepted.
+  This repository has a public upstream at `github.com/chrumck/KnurLogger`, so every
+  `../ndLouvers/...` link 404s there. That is accepted.
 - **This repository is PUBLIC. Weigh that before writing host specifics into it.** It already
-  carries the box's LAN IP, its username and its Bluetooth MAC. **The password-authentication
-  exposure is closed** — `ssh-harden.sh --execute` ran on 2026-09-09 and the box is key-only
-  (`passwordauthentication no`, verified by a forced password-only attempt being refused) — but
-  **git history is not retractable**, so the published statement that it once accepted passwords is
-  permanent. Nothing here is reachable from the internet (RFC1918 address, and the BT MAC is
-  broadcast to anyone in range anyway), and no credential, key or Wi-Fi PSK is in the repo. The
-  test for anything new is "would I mind this being permanent and public", not "is it useful now".
+  carries the box's LAN IP, its username and its Bluetooth MAC. Nothing here is reachable from the
+  internet (RFC1918 address, and the BT MAC is broadcast to anyone in range anyway), and no
+  credential, key or Wi-Fi PSK is in the repo. **Git history is not retractable**, so the test for
+  anything new is "would I mind this being permanent and public", not "is it useful now".
   **Measured-state notes are the ones that age badly**: accurate and useful when written, then a
-  public status page for a host that may not have been hardened yet. This one took a day to close;
-  the next might not.
+  public status page for a host that may not have been hardened yet. History §1.6 is the worked
+  example — it took a day to close, and the next might not.
 
 ## Naming
 
@@ -45,31 +51,19 @@ alert the developer and record it in this file so the next agent does not hit it
 ## Hardware facts that surprise people
 
 - **The sensor zone is ASSEMBLED, minus the pressure-sensor part** (owner, 2026-09-09) — the five
-  SDP810s are still being delivered. Every document in both repositories previously said this zone
-  was unbuilt and that **an empty I2C scan and zero `28-*` devices were the correct results**.
-  That is no longer true and the acceptance criteria moved with it. The first scan of the assembled
-  board found three things worth knowing before writing any bus code:
-  1. **The BME280 is at `0x77`, and that is now the specified address** (owner decision,
-     2026-09-09). It is a genuine BME280, not a mux at a strapped address — chip-ID register
-     `0xD0` reads `0x60`. The build sheet used to say "**Do not use `0x77`**" and put `U3.SDO` on
-     `GND_SIG`; the owner amended the document rather than the board, so **`0x77` is the address
-     to code against** and `0x77` is no longer free for anything else. No collision results,
-     because the mux is strapped to `0x70` alone.
-  2. **The mux was silent because `~RESET` was soldered to header pin 9 instead of pin 11** —
-     resoldered and verified answering at `0x70`, control register `0x00` (owner, 2026-09-09). **Pin 9 is a ground pin and pin 11 is
-     GPIO17, and they are adjacent in the same row**, so this is a one-position off-by-one onto
-     the worst possible neighbour: a PCA9548A held in reset does not degrade or partly work, it
-     goes **completely silent**, which is indistinguishable from an absent or dead part.
-     **The diagnostic that localised it is worth keeping.** `gpio=17=op,dh` is live in
-     `/boot/firmware/config.txt` and `pinctrl get 17` reads `17: op -- pd | hi` — so the Pi was
-     provably driving `~RESET` high while the mux end measured low, which puts the fault on the
-     wire rather than on the host or the part. **Whenever a bus device is silent, check the Pi
-     side with `pinctrl get <n>` before suspecting the device**; it is one command and it splits
-     the search space in half.
-     **Do not try to fix a reset problem in software.** GPIO17 was already high, so no
-     `pinctrl`/libgpiod write could have helped — it would only have masked the diagnosis.
-     Build sheet §2 note 2 and the §3a.7 check table carry the meter checks, including the one
-     that **passes on a board with this fault** (`MUX_RST` ↔ `+3V3` still reads `R12`'s 10 kΩ).
+  SDP810s are still being delivered. **An empty I2C scan is therefore no longer the correct
+  result**, and neither is zero `28-*` devices (history §2.6 for what the acceptance criteria used
+  to say). Three facts from the assembled board matter before writing any bus code:
+  1. **The BME280 is at `0x77`, and that is the specified address** (owner decision, 2026-09-09,
+     amending the build sheet rather than the board). It is a genuine BME280 — chip-ID register
+     `0xD0` reads `0x60`. So **`0x77` is the address to code against** and it is no longer free for
+     anything else; **never strap a mux upward on this board.** No collision results, because the
+     mux is strapped to `0x70` alone. History §1.7 has the discrepancy this resolved.
+  2. **Whenever a bus device is silent, check the Pi side with `pinctrl get <n>` before suspecting
+     the device.** It is one command and it splits the search space in half. This is what localised
+     the mux's `~RESET` miswiring (history §1.1, since resoldered and answering at `0x70`).
+     **Do not try to fix a reset problem in software** — the GPIO was already high, so no
+     `pinctrl`/libgpiod write could have helped, and one would only have masked the diagnosis.
   3. **The mux is a PCA9548A, not a TCA9548A** — the board is marked PCA9548A (owner,
      2026-09-09). Functionally equivalent for everything here: same pinout, same `0x70`–`0x77`
      range, same single-control-byte channel register, same active-LOW `~RESET`. Recorded so that
@@ -96,9 +90,9 @@ alert the developer and record it in this file so the next agent does not hit it
      `rfkill block wifi`, never `rfkill block all`.
   5. **The pressure sensors have no such problem** — they sit on the perfboard and bench-test
      directly, once they arrive.
-- **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The
-  TCA9548A mux is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups
-  downstream, so every populated channel has its own pair.
+- **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The mux
+  is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups downstream, so
+  every populated channel has its own pair.
 - **The BME280's pressure channel is enclosure pressure, never a static reference.** The cavity is
   aerodynamically live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands. It is
   tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
@@ -106,20 +100,12 @@ alert the developer and record it in this file so the next agent does not hit it
   once at enrollment. As of 2026-09-10 **no ROM ID has been recorded, so no `temp` channel is yet
   defined** — `oneWireProbes.cxx` and its `channels.ini` store exist, and the store is empty on the
   box because the probes are on the car. Build sheet §5a's table is correspondingly still blank.
-- **The bare 1-Wire bus invented phantom devices, the set CHURNED, and it has now STOPPED —
-  because the line is terminated.** With the overlay loaded and **the sensor zone unbuilt**,
-  `/sys/bus/w1/devices/` held `w1_bus_master1` plus a varying number of `00-*` entries whose IDs
-  changed from scan to scan. Measured 2026-09-09 across 35 s: first `00-800000000000` alone, then
-  `00-dc0000000000` + `00-3c0000000000`, then `00-3c0000000000` + `00-bc0000000000`, with
-  `w1_master_slave_count` reading `1`, `2`, `2` and `w1_master_attempts` already past 250 with
-  nothing attached. **With the sensor zone assembled, three scans over 36 s returned the master
-  alone, `slave_count = 0`, and no `00-*` at all.** `R11`'s 2.2 kΩ to `+3V3` is in the sensor zone,
-  so `GPIO4` no longer floats on the SoC's internal pull-up and the bus search reads a terminated
-  line instead of noise. Well-supported but not proven — nobody re-floated the line to confirm.
-  Family code `00` is not a valid 1-Wire family; a DS18B20 is family **`28`**.
-  **The filter below is still mandatory** — it is correct regardless of cause, and a marginal
-  4 × 5 m star can produce garbage of its own — but it **can no longer be exercised on this box**,
-  so its correctness now rests on the parser rather than on an observation.
+- **The `28-*` family filter is mandatory, and it can no longer be exercised on this box.** The
+  bare bus used to invent churning phantom `00-*` devices; with the sensor zone assembled and
+  `R11` terminating `GPIO4` the scans come back clean (history §1.4). The filter is correct
+  regardless of cause — a marginal 4 × 5 m star can produce garbage of its own — but its
+  correctness now rests on the parser rather than on an observation. Family code `00` is not a
+  valid 1-Wire family; a DS18B20 is family **`28`**.
   1. **Match `28-*` and nothing else, everywhere** — enumeration, binding, and reads.
      `w1_master_slave_count` is not "off by one", it is **unstable**, and no code may branch on
      it.
@@ -148,57 +134,42 @@ alert the developer and record it in this file so the next agent does not hit it
      `crc=xx YES` / `t=<millidegrees>` format, and a `00-…` entry to prove the family filter drops
      it. Enrollment order, the ambiguous-step refusal, the store's family and duplicate guards,
      bound-but-absent, CRC failure, the 85.00 °C default, out-of-range rejection and the
-     application of a hand-entered offset were all verified this way. It is also what measured the
-     session-start sample's inference failing, which is what retired that requirement. **Reach for this before concluding a sysfs-driven path is
-     untestable.** What it does not establish: real bus timing, real conversion time, or
-     `therm_bulk_read`.
+     application of a hand-entered offset were all verified this way. **Reach for this before
+     concluding a sysfs-driven path is untestable.** What it does not establish: real bus timing,
+     real conversion time, or `therm_bulk_read`.
 
-## BLE advertising: the platform bug that cost a day, and how it was found
+## When BLE will not advertise, start here
 
-- **`bluez 5.82-1.1+rpt1` on kernel `6.18.34` CANNOT advertise on this box. Fixed by
-  `apt full-upgrade` on 2026-09-09** → `bluez 5.82-1.1+rpt2`, kernel `6.18.39`,
-  `firmware-brcm80211 1:20260519`. If a future image regresses to those versions, this is the
-  explanation for a logger that starts, registers its GATT application and is never seen by
-  RaceChrono.
-  **The symptom** is `binc` logging `failed to register advertisement (error 36:
-  GDBus.Error:org.bluez.Error.Failed)` and `bluetoothd` logging
-  `add_client_complete() Failed to add advertisement: Invalid Parameters (0x0d)`.
-  **The cause is a userspace/kernel structure mismatch**, visible only in an HCI trace: the
-  `Add Extended Advertising Data (0x0055)` MGMT command arrives with `plen 14` while the fields it
-  declares — instance, `adv_data_len: 3`, `scan_rsp_len: 0` — account for 6 parameter bytes. The
-  kernel validates that length and rejects the mismatch. `Available adv data len` was 31, so it was
-  never a capacity problem.
-- **The diagnostic sequence is the reusable part. Do this before suspecting the logger:**
-  1. **`bluetoothctl advertise on`.** If that fails too, the fault is not in this repository and no
-     amount of reading `raceChronoBle.cxx` will find it. This single command separates "our code"
-     from "the platform" and it should always be step one.
-  2. **`journalctl -u bluetooth`** for the `bluetoothd`-side reason, which is more specific than the
-     D-Bus error the client sees.
-  3. **`btmgmt add-adv -c -u 1ff8 1`** (root). This uses the *legacy* MGMT path. It succeeded
-     throughout, which proved the controller and kernel could advertise and narrowed the fault to
-     `bluetoothd`'s extended-advertising path.
-  4. **`btmon` while triggering an attempt** (root) — the only thing that showed the actual
-     malformed command. `btmon -w file` then `btmon -r file`.
-- **Three plausible-sounding explanations were tested and were all wrong.** Recorded so nobody
-  spends the time again: it was **not** advertising-data overflow (a 4-character device name failed
-  identically), **not** `max_adv_data_len` (31, ample), and **not** connectability, daemon config or
-  stale daemon state (`ControllerMode = le`, `Experimental = true` and a `bluetooth` restart each
-  changed nothing).
+The platform has already been the culprit once and the logger looked guilty (history §1.2), so
+**do this before reading `raceChronoBle.cxx`:**
+
+1. **`bluetoothctl advertise on`.** If that fails too, the fault is not in this repository and no
+   amount of reading `raceChronoBle.cxx` will find it. This single command separates "our code"
+   from "the platform" and it should always be step one.
+2. **`journalctl -u bluetooth`** for the `bluetoothd`-side reason, which is more specific than the
+   D-Bus error the client sees.
+3. **`btmgmt add-adv -c -u 1ff8 1`** (root). This uses the *legacy* MGMT path, so success here
+   proves the controller and kernel can advertise and narrows the fault to `bluetoothd`.
+4. **`btmon` while triggering an attempt** (root) — the only thing that shows an actual malformed
+   command. `btmon -w file` then `btmon -r file`.
+
 - **`SupportedInstances` and `ActiveInstances` on `org.bluez.LEAdvertisingManager1`** are the quick
   check that an advertisement actually registered. `ActiveInstances: 1` while the logger runs is
   the acceptance; `0` means it silently did not.
+- **Known-good versions: kernel `6.18.39`, `bluez 5.82-1.1+rpt2`, `firmware-brcm80211
+  1:20260519`.** A regression to `bluez 5.82-1.1+rpt1` on kernel `6.18.34` cannot advertise at all;
+  read history §1.2 before debugging anything else.
 
 ## The box
 
 - **SSH alias `KnurLogger`** — `192.168.118.52`, user `chrum`, key-only.
-- **Raspberry Pi OS Lite 64-bit, Trixie**, kernel `6.18.34+rpt-rpi-v8`, Pi 4B Rev 1.5, 4 GB.
+- **Raspberry Pi OS Lite 64-bit, Trixie**, kernel `6.18.39`, Pi 4B Rev 1.5, 4 GB.
   `/boot/firmware/config.txt` is the boot config path. NetworkManager is the network stack.
 - **There is no `hciuart.service` on this image.** The BCM43455 is attached by udev and
   `bluetooth.service` is the only unit involved. Recipes that name `hciuart` predate this.
 - **`wpa_supplicant.service` is enabled and running, and NetworkManager drives it over D-Bus.**
   Disabling it because "NetworkManager spawns its own" loses Wi-Fi, which is the only way onto a
-  box in a wheel-well cavity. An earlier draft of `harden-headless.sh` did exactly that; the first
-  real audit caught it.
+  box in a wheel-well cavity. An early `harden-headless.sh` draft did exactly that (history §1.8).
 - **Swap is zram (`/dev/zram0`), not a file.** It is RAM-backed and costs no SD wear, so there is
   nothing to gain by turning it off. `dphys-swapfile` does not exist here. The one thing worth
   retiring is `rpi-zram-writeback.timer`, whose job is to push zram pages onto the card.
@@ -207,23 +178,20 @@ alert the developer and record it in this file so the next agent does not hit it
   empty with no modalias path to pull it in. `raspi-config`'s `do_i2c` does both steps and any
   script replacing it must too; `harden-headless.sh` writes
   `/etc/modules-load.d/knurlogger.conf`. 1-Wire has no equivalent gap because `w1_therm` carries
-  the alias `w1-family-0x28`. A missing `/dev/i2c-1` after a reboot means one of the two halves
-  did not take — it is never "the sensors are not built yet", which only explains an *empty scan*.
-  **Both halves took on 2026-09-09** and `/dev/i2c-1` exists. It no longer scans empty, and an
-  empty scan is no longer the expected result — see the sensor-zone status below. **`/dev/i2c-20` and `/dev/i2c-21` exist too and are not yours** — they
-  are the VC4 display DDC buses, which `i2c-dev` exposes against adapters the KMS driver
-  registers. The perfboard is on **bus 1** and nothing else. Their appearance is how the two
-  halves were told apart mid-run: loading `i2c-dev` before the reboot produced 20 and 21 but no 1,
-  because the `i2c_arm` adapter does not exist until the firmware re-reads `config.txt`.
+  the alias `w1-family-0x28`. **A missing `/dev/i2c-1` after a reboot means one of the two halves
+  did not take** — it is never "the sensors are not built yet", which only ever explained an
+  *empty scan*. Both halves took on 2026-09-09 and `/dev/i2c-1` exists.
+  **`/dev/i2c-20` and `/dev/i2c-21` exist too and are not yours** — they are the VC4 display DDC
+  buses, which `i2c-dev` exposes against adapters the KMS driver registers. The perfboard is on
+  **bus 1** and nothing else. History §1.9 is how that distinction diagnosed a missing bus 1.
 - **`w1-gpio`'s `pullup` parameter is ignored** on this firmware — the overlays README says so
   outright. The overlay that drives an external strong pullup is a different one,
   `w1-gpio-pullup`, and this build must not use it: `R11` is a plain 2.2 kΩ resistor to 3V3.
 - **The box is fed from CONSTANT 12 V, not the accessory circuit** (owner, as built,
-  2026-09-10). Every document here previously assumed an accessory feed where **ignition-off is
-  the power cut**; that is superseded, and four things follow.
+  2026-09-10 — history §2.2 for the accessory-feed assumption this replaced). Four things follow.
   1. **The logger runs the whole day; the fuse is the off switch.** Fitted in the morning, pulled
      at the end. So it is powered through engine-off periods and one session file spans the day.
-  2. **`SystemSetup/KnurLogger.service` is now REQUIRED, not convenient.** There is no ignition
+  2. **`SystemSetup/KnurLogger.service` is REQUIRED, not convenient.** There is no ignition
      event to hand-start the logger around, and the paddock has no network but a phone hotspot, so
      without the unit the owner must SSH in every morning to start it by hand.
   3. **The box is powered during cranking**, which it never was before. The HW-384's 6 V floor is
@@ -233,11 +201,10 @@ alert the developer and record it in this file so the next agent does not hit it
   4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V — ~3.3 Ah over a 12 h day
      against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
      in, i.e. a flat battery.** Estimated, not measured; plan item 5.3 still owes the real figure.
-  **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is now the
-  fuse being pulled, or a cranking dip, rather than ignition-off. Repeated hard cuts are the
-  durability risk worth knowing: one costs at most the last second, but doing it daily for a
-  season is the classic route to a corrupt SD card, so `sudo poweroff` before pulling the fuse is
-  free insurance.
+  **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is the fuse
+  being pulled, or a cranking dip. Repeated hard cuts are the durability risk worth knowing: one
+  costs at most the last second, but doing it daily for a season is the classic route to a corrupt
+  SD card, so `sudo poweroff` before pulling the fuse is free insurance.
 - **Two logger instances run happily side by side and BOTH advertise — nothing refuses, nothing
   warns** (measured 2026-09-10: `SupportedInstances` is 5, `ActiveInstances` went 1 → 2 with a
   log-mode and an `--enroll` instance up together). **So stop the service before enrolling.** No
@@ -252,13 +219,12 @@ alert the developer and record it in this file so the next agent does not hit it
   3. **Both poll the bus**, each read triggering its own conversion, roughly doubling cycle time.
   Nothing corrupts: session files carry a mode tag so they never collide, and the store write is
   temp-file plus rename plus directory fsync.
-- **The tar-over-ssh build loop OVERWRITES the deployed `build/KnurLogger.ini`, and that file now
-  holds the thermal offsets** (found 2026-09-10 during the wrap-up pass, before it bit anyone).
-  `build/KnurLogger.ini` is tracked in git and there is no separate untracked deployed copy, so an
-  offset typed in on the box is destroyed by the next sync from the workstation — silently, with
-  the logger carrying on using the repo's values. Edit offsets in the repo and sync, or add
-  `--exclude=build/KnurLogger.ini` to the `tar` when editing on the box. The README's repository
-  section carries the loop and both workarounds.
+- **The tar-over-ssh build loop OVERWRITES the deployed `build/KnurLogger.ini`, and that file
+  holds the thermal offsets.** `build/KnurLogger.ini` is tracked in git and there is no separate
+  untracked deployed copy, so an offset typed in on the box is destroyed by the next sync from the
+  workstation — silently, with the logger carrying on using the repo's values. Edit offsets in the
+  repo and sync, or add `--exclude=build/KnurLogger.ini` to the `tar` when editing on the box. The
+  README's repository section carries the loop and both workarounds.
 - **`sudo` requires a password.** Pre-flight runs pipe fine over `ssh host 'bash -s'`; anything
   that changes state must run from a login shell (`ssh -t`), and every mutating script checks this
   up front rather than failing halfway.
@@ -269,46 +235,26 @@ alert the developer and record it in this file so the next agent does not hit it
   has not accounted for this.
 - **`i2c-tools`, `cmake`, `git` and `libglib2.0-dev` are installed** as of 2026-09-09, by
   `SystemSetup/install-dependencies.sh --execute`. `rfkill`, `build-essential`, `nmcli` and
-  `bluetoothctl` were already present. That run also dragged the whole util-linux family forward
-  from `2.41-5` to `2.41.5-0+deb13u1` as a dependency — **`rfkill` among them**, despite the
-  script correctly reporting it present and skipping it. Nothing broke, but a four-package
-  pre-flight list is not a statement of what apt will change.
-- **The Bluetooth radio shipped SOFT-BLOCKED, persistently — and the block is now CLEARED.**
-  `harden-headless.sh` phase 7 ran on 2026-09-09 and the unblock **survived the reboot**:
-  `rfkill list bluetooth` reads `Soft blocked: no`, `hciconfig` reads `UP RUNNING`, BlueZ reads
-  `Powered: yes` / `PowerState: on`. `systemd-rfkill` now restores *unblocked* from the same
-  state directory that used to restore the block. Everything below is why it mattered and how it
-  comes back if anyone re-blocks it — as it shipped, `rfkill list` reported `Soft blocked: yes`
-  and BlueZ `PowerState: off-blocked`. **In that state there is no BLE and therefore no
-  product.** Two traps worth stating plainly:
-  1. **`bluetoothctl power on` cannot clear it.** rfkill sits below BlueZ. The service runs, the
-     controller enumerates, and it still refuses to power.
-  2. **It survives reboots.** `systemd-rfkill` saves per-device state under
-     `/var/lib/systemd/rfkill/` and restores it at boot.
-  `sudo rfkill unblock bluetooth` clears it, and is persisted the same way.
-  `harden-headless.sh` phase 7 does this. For the same reason, **never run `rfkill block all`**
-  to gate Wi-Fi — it takes BLE down with it, persistently. Use `rfkill block wifi`.
-
+  `bluetoothctl` were already present. **A pre-flight package list does not bound what apt will
+  change** — history §1.10.
+- **The Bluetooth soft block is CLEARED and survived a reboot** — `Soft blocked: no`, `hciconfig`
+  `UP RUNNING`, BlueZ `Powered: yes` / `PowerState: on`. It *shipped* blocked, and history §1.3 is
+  why that state cannot be undone from `bluetoothctl`.
 - **Some channels the plan needs will never appear on box 2's SD card.** CAN ambient
   (`0x420` byte 7) and, if it is on the bus, **cooling-fan state** arrive through box 1's CAN
   broadcast into RaceChrono — not through this logger (`../ndLouvers/` §7 open item 35). So the
   record for a session is **split across two devices, and RaceChrono is what reassembles it** —
-  which is the whole reason BLE is the primary data path. It is *not* reassembled by a
-  session-start time offset; that was the earlier reading, and it is superseded. The consequence
-  that survives is sharper: **a box-2 channel that never reaches the phone cannot be aligned to
-  the fan state that explains it**, and the fan can change state mid-run with no driver input and
-  no speed change. So a BLE gap is not a cosmetic loss — it is the loss of the only link between
-  box 2's pressures and the fan behaviour that conditions them.
+  which is the whole reason BLE is the primary data path. The consequence: **a box-2 channel that
+  never reaches the phone cannot be aligned to the fan state that explains it**, and the fan can
+  change state mid-run with no driver input and no speed change. So a BLE gap is not a cosmetic
+  loss — it is the loss of the only link between box 2's pressures and the fan behaviour that
+  conditions them. (It is *not* reassembled by a session-start time offset; history §2.5.)
 - **`fake-hwclock` is not installed, and the clock in the car will be wrong.** A Pi 4B has no RTC.
   `systemd-timesyncd` saves the time to `/var/lib/systemd/timesync/clock` and restores it at boot,
   so a session file is never stamped 1970 — but with no NTP in the car the clock simply resumes
   from the last bench sync and is **wrong by however long ago that was**, while looking perfectly
-  plausible. **The car has no network at all** — it lives in an underground garage with no cell
-  coverage (owner, 2026-09-09) — so there is no NTP to reach even in principle.
-  **Do not build a GPS-time fetch to fix this.** The earlier requirement to record an offset
-  against the phone's GPS time over the RaceChrono link is superseded twice over: RaceChrono
-  stamps every source on arrival, so cross-device alignment does not need the Pi clock, and the
-  DIY BLE protocol carries no time transfer to fetch it with. What the logger does instead is
+  plausible. **The car has no network at all**, so there is no NTP to reach even in principle.
+  **Do not build a GPS-time fetch to fix this** (history §2.5). What the logger does instead is
   cheap and sufficient: **every local record carries elapsed-since-boot alongside the wall
   clock**, so intra-session timing is exact regardless of what the absolute epoch says.
 - **`network-online.target` can no longer be reached** once `harden-headless.sh` masks
@@ -324,9 +270,10 @@ alert the developer and record it in this file so the next agent does not hit it
   `setupNotes.txt` sets `dtoverlay=disable-bt` and is otherwise this project's model — that one
   line is not to be copied.
 - **Wi-Fi, permanently.** `dtoverlay=disable-wifi` needs an SD card and a text editor to undo.
-  Gate it per session with `rfkill block wifi` or `nmcli radio wifi off` instead — never
-  `rfkill block all`, which takes BLE down with it and persists. Whether it needs gating at all is
-  plan item 5a's installed link check to answer, and that check has not been run.
+  Gate it per session with `rfkill block wifi` or `nmcli radio wifi off` instead — **never
+  `rfkill block all`**, which takes BLE down with it and persists across reboots, and cannot then
+  be cleared from `bluetoothctl` (history §1.3). Whether Wi-Fi needs gating at all is plan item
+  5a's installed link check to answer, and that check has not been run.
 
 ## Scripts
 
@@ -349,25 +296,24 @@ Follow `iSitePiLogger`, which is the structural model:
 - **Single translation unit.** All `.cxx` files are `#include`-d into `main.cxx`. Do not add them
   to `CMakeLists.txt` as independent targets.
 - **`initialiseBlePackets()` is called exactly once, from `main`, before any worker starts.**
-  `raceChronoBleLoop` used to call it a second time and that was a latent bug, harmless only while
-  nothing produced a thermal reading: it re-runs `g_mutex_init` on live mutexes and resets `0x602`
-  to the all-invalid sentinel, so once `oneWireProbes` existed a real reading taken before the BLE
-  worker finished starting would have been silently clobbered back to −327.68 °C. Removed
-  2026-09-10. Initialise shared packet state in `main`, never in a worker.
+  Initialise shared packet state in `main`, never in a worker — history §1.5 is the latent bug that
+  made this a rule.
 - **Procedural workers, no OOP.** Plain `gpointer fn(gpointer)` passed to `g_thread_new()`.
 - **`CLOCK_TAI` throughout**, to avoid leap-second discontinuities in sample timestamps and file
   names.
 - **The `.ini` sits beside the binary** and its path is resolved from `/proc/self/exe`, not the
   working directory.
 
-Five requirements came from the plan rather than from iSitePiLogger. **Four stand; the session-start thermal sample was retired whole on 2026-09-10 and is the fifth entry below, kept as a retirement note rather than deleted** — git history and plan revisions up to rev 71 still describe it as live.
+Four requirements came from the plan rather than from iSitePiLogger. A fifth — an automatic
+session-start thermal sample — was implemented and then **retired whole**; do not rebuild it, and
+read history §3.1 before concluding it is missing by accident.
 
 - **BLE is the primary data path; the SD card is the durable raw and diagnostic record**
   (owner decision, 2026-09-09, item 5b — this **reverses** the earlier "SD primary, BLE
-  secondary", so do not reinstate it from memory or from git history). The analysis record is
-  RaceChrono's consolidated log, because RaceChrono is what collects box 1's CAN broadcast, box
-  2's channels and the phone's GPS and stamps them into one frame set on one timebase. Box 2's
-  channels have to reach the phone to be useful.
+  secondary", so do not reinstate that from memory or from git history; history §2.1). The analysis
+  record is RaceChrono's consolidated log, because RaceChrono is what collects box 1's CAN
+  broadcast, box 2's channels and the phone's GPS and stamps them into one frame set on one
+  timebase. Box 2's channels have to reach the phone to be useful.
   **The local file is still mandatory, on three narrower grounds** — and each one is a thing the
   BLE path physically cannot do:
   1. **Link-level loss cannot be signalled over BLE.** *Channel*-level invalidity can: send
@@ -379,26 +325,19 @@ Five requirements came from the plan rather than from iSitePiLogger. **Four stan
   2. **Item 4's diagnostics are not channel-shaped** — raw counts, the retained scale factor,
      sensor temperature, product/revision/serial, per-sample validity flags.
   3. **Supply telemetry is SD-only by nature**, because the event worth catching is a brownout at
-     a brownout — with the constant feed as built, a cranking dip or the fuse being pulled,
-     rather than ignition-off.
-- **Note, not a sixth requirement — this one RETIRES part of an earlier requirement.** The
-  session-start clock offset is no longer load-bearing, and its stated mechanism does not exist. Because RaceChrono stamps every source on arrival, box 1 and box 2 are never aligned
-  against each other's clocks. Keep recording elapsed-since-boot beside the wall clock in local
-  records, but **do not build a GPS-time fetch**: the RaceChrono DIY protocol is device→phone
-  notifications plus a filter-write channel and carries no time transfer.
+     a brownout — with the constant feed as built, a cranking dip or the fuse being pulled.
 - **Append-only session file, `fsync` on a fixed ~1 s cadence** — not per sample, not only at
-  close. The supply vanishes without warning — the fuse pulled at the end of the day on the
-  constant feed as built, or a cranking dip — so the last durable write bounds the loss. Flushing per sample at 10 Hz buys a shorter window at the price of write
-  amplification without changing the failure mode.
-
+  close. The supply vanishes without warning — the fuse pulled at the end of the day, or a
+  cranking dip — so the last durable write bounds the loss. Flushing per sample at 10 Hz buys a
+  shorter window at the price of write amplification without changing the failure mode.
 - **The logger binds `temp0`–`temp3` itself, by discovery order, and persists the binding**
   (owner decision, 2026-09-09). The owner plugs the four DS18B20s in one at a time, lowest channel
   first; the logger notices each new `28-*` ROM ID and writes the binding to a store that survives
   restarts. This replaces reading ROM IDs off a bench rig and typing them into a config by hand.
-  Five things make it correct rather than merely convenient, and skipping any of them produces
+  Seven things make it correct rather than merely convenient, and skipping any of them produces
   silently mislabelled temperature data — which is worse than no data, because ΔT_preheat rests on
   the *differences* between these four probes:
-  1. **`28-*` only.** The bare bus invents churning `00-*` phantoms every 10 s (see the trap
+  1. **`28-*` only.** The bare bus invents churning `00-*` phantoms (see the family-filter trap
      above). Binding "the next new device" without the family filter binds noise.
   2. **Binding happens only in an explicit enrollment mode, never during a logging run.** A
      dropout and reconnect mid-session, or a probe replaced after a failure, must not silently
@@ -407,12 +346,8 @@ Five requirements came from the plan rather than from iSitePiLogger. **Four stan
   3. **One probe per enrollment step.** If two unbound `28-*` IDs appear in the same 10 s scan the
      arrival order between them is unknowable — sysfs order is not arrival order — so the logger
      must refuse the ambiguous step and say so rather than guess.
-  4. **The store carries provenance: the ROM ID, the channel and the bind timestamp.** It also
-     carried a per-probe `offsetC` from its first version, on the reasoning that thermal item 1
-     needed somewhere to put offsets and retrofitting the field later would be a format change.
-     **That is retired** (owner decision, 2026-09-10): offsets are slot-keyed in
-     `KnurLogger.ini`, and the key is gone from the store rather than left dead — two fields that
-     look like an offset, one of which does nothing, is worse than one.
+  4. **The store carries provenance: the ROM ID, the channel and the bind timestamp.** It carries
+     no offset — that key was retired (history §3.2).
   5. **Enrollment must report which ROM ID it just bound**, so the binding can be checked against
      the lead being plugged in. **The probes are already installed on the car** (owner,
      2026-09-09) and the owner can identify each lead at the logger end, so enrollment binds
@@ -421,54 +356,27 @@ Five requirements came from the plan rather than from iSitePiLogger. **Four stan
      visible as one channel moving**, which confirms the map in situ and doubles as a liveness
      test.
   6. **A BOUND channel whose ROM ID goes absent must be logged as present-but-invalid, never
-     omitted** (owner, 2026-09-10 — this was NOT in the five above and it is not implied by them).
-     Iterating the four channels rather than the devices present on the bus is what produces it. If
-     the record simply loses the channel, a mid-session dropout becomes indistinguishable from the
-     logger not having run — which destroys the one property the SD file exists for, namely that a
-     gap in the local stream is the only evidence a sample was missing rather than held. The
-     sentinel goes out on `0x602` for it, and `reason` in the session record separates `unbound`,
-     `absent`, `crc`, `powerOnDefault`, `outOfRange` and `readFailed`.
+     omitted** (owner, 2026-09-10). Iterating the four channels rather than the devices present on
+     the bus is what produces it. If the record simply loses the channel, a mid-session dropout
+     becomes indistinguishable from the logger not having run — which destroys the one property the
+     SD file exists for, namely that a gap in the local stream is the only evidence a sample was
+     missing rather than held. The sentinel goes out on `0x602` for it, and `reason` in the session
+     record separates `unbound`, `absent`, `crc`, `powerOnDefault`, `outOfRange` and `readFailed`.
      **`absent` must not increment the read-error counter.** A dropped lead and a marginal bus send
      you to different parts of the car, and inflating `0x603` byte 2–3 with absences would bury the
      bus-quality signal it exists to carry.
-  7. **Enrollment must keep running after the fourth bind** (owner, 2026-09-10 — also not in the
-     five). Requirement 5's fallback check *is* "warm one probe and watch which channel moves", and
-     that needs a logger still sampling and still notifying. An enroller that exits on the fourth
-     bind silently removes the only in-situ verification of the map. It reports a fifth ROM ID once
-     and refuses it; `--enroll --reset` is the way to start over.
-- **RETIRED, and do not reinstate it: the logger takes NO session-start thermal sample**
-  (owner decision, 2026-09-10). It used to. A "cold-soak spread" / `sessionStartCommonTemperature`
-  requirement stood here from 2026-09-09, was implemented, and was then **dropped whole** — the
-  `commonTemperature` record, the `settling*` config keys and the drift fit are all gone. Git
-  history and plan revisions up to rev 71 still describe it, so this note exists to stop the next
-  agent rebuilding it from either.
-  **Why it went, because the reasoning is worth more than the feature.** The requirement was to
-  *flag* whether the car looked settled rather than assert it, and settledness was inferred from
-  each probe's drift rate across a 90 s window. That inference does not work, and it was measured
-  failing: a car parked ~5–6 h drifts about 11 mK/min, which over 90 s is ~18 mK against the
-  DS18B20's 62.5 mK code step — so **zero code transitions, a fitted drift of exactly 0.0 mK/min,
-  and `spreadUsable: true`** while the bay still held an 810 mK real gradient that would have gone
-  straight into ΔT_preheat. Note what that rules out: **no threshold fixes it**, because the
-  reported drift is exactly zero rather than merely small, and resolving 11 mK/min needs a
-  20–30 minute window, which is not a session start. Drift *rate* and level *gradient* are
-  independent quantities, and inferring "no gradient" from "no drift" was the error.
-  **Nothing is lost by dropping it.** Every session already logs all four probes' absolute
-  readings at 1 Hz, so a cold soak the owner *knows* was a cold soak is still fully derivable from
-  the ordinary `temp` records by hand. What went was the automatic 90 s summary and its unreliable
-  verdict, not the calibration.
+  7. **Enrollment must keep running after the fourth bind** (owner, 2026-09-10). Requirement 5's
+     fallback check *is* "warm one probe and watch which channel moves", and that needs a logger
+     still sampling and still notifying. An enroller that exits on the fourth bind silently
+     removes the only in-situ verification of the map. It reports a fifth ROM ID once and refuses
+     it; `--enroll --reset` is the way to start over.
 - **Per-channel offsets are hand-entered in `KnurLogger.ini` and ARE APPLIED to what goes to
-  RaceChrono** (owner decisions, 2026-09-10). Two things were reversed here on the same day and
-  both are recorded so nobody restores them from git history:
-  1. **"Never auto-apply an offset — an offset applied silently cannot be un-applied later" is
-     REVERSED.** The objection was put to the owner and answered on its own terms: it is neither
-     silent nor irreversible, because the session record carries the raw reading (`centiC`), the
-     offset in force (`offsetC`) and the value that actually went on the air (`sentCentiC`) side by
-     side. A mistyped offset costs a reprocess, not a session. **That record-both property is the
-     entire basis on which the reversal is safe — anything that later drops the raw value re-opens
-     the original objection.**
-  2. **The offsets are SLOT-keyed in the config, not ROM-ID-keyed in the store.** They were
-     briefly the latter; `channels.ini` no longer has an `offsetC` key at all. The owner chose the
-     simplification after the trade-off was put to them, so do not "restore" ROM-ID keying.
+  RaceChrono** (owner decisions, 2026-09-10). Two earlier positions were reversed to get here —
+  "never auto-apply an offset" and ROM-ID keying in the store — so do not restore either from git
+  history; history §2.3 and §2.4 carry both, and §2.3 in particular states the one condition the
+  reversal rests on: **the session record carries the raw reading (`centiC`), the offset in force
+  (`offsetC`) and the value sent (`sentCentiC`) side by side, and anything that drops the raw value
+  re-opens the original objection.**
   **The consequence of slot-keying, stated once because it is real:** an offset is a property of
   one particular DS18B20, so if the probes are re-enrolled in a different order, or one is swapped,
   the offsets stay with the slots and no longer describe the parts in them. **Re-check them after
