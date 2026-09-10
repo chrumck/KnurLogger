@@ -133,14 +133,14 @@ narrative in this file.
   4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
      latency for anything that watches for a probe being connected. It cannot be shortened without
      root — the master attributes are root-owned and the logger runs as `chrum`.
-  5. **`therm_bulk_read` appears the moment a probe attaches, and the write to it is REFUSED with
-     `EACCES`**
+  5. **`therm_bulk_read` appears the moment a probe attaches, and the write to it was REFUSED with
+     `EACCES`** (history §1.13 for the diagnosis)
      (measured at the car, 2026-09-10; before that the attribute had never existed here, because
      `w1_therm` registers it as a **master** attribute only once a slave of its family attaches).
      It is the documented way to convert every probe at once and the only way to sample four
-     probes at 1 Hz: without it each `w1_slave` read pays its own conversion — **790 ms measured**
-     — so a four-probe cycle is ~3.2 s and plan thermal item 2's "start around 1 Hz" is really
-     **0.31 Hz**. `oneWireProbes.cxx` falls through to the per-probe path, which is correct and
+     probes at 1 Hz: without it each `w1_slave` read pays its own conversion — **799–832 ms
+     measured on the loaded four-probe star** — so a cycle is **3198–3281 ms** and plan thermal
+     item 2's "start around 1 Hz" is really **0.31 Hz**. `oneWireProbes.cxx` falls through to the per-probe path, which is correct and
      slow, so **the bulk path has still never run.**
      **The cause is measured: `errno 13`, `EACCES`.** `w1_therm` registers the attribute
      `0644 root:root` and the logger runs as `chrum` — under `KnurLogger.service` too, whose

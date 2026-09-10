@@ -8,12 +8,14 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status: all four workers are written, and the logger's channels decode correctly in RaceChrono on
-a phone** (verified 2026-09-09: `0x602` reads −327.68 °C on all four thermal channels, the
+**Status: all four workers are written, all four DS18B20s are enrolled, and the loaded 4 × 5 m
+1-Wire star reads CRC-clean.** What the logger has never done is run on a moving car.
+
+The session writer (append-only, ~1 s `fsync`, both measured), the supply-telemetry worker, the
+RaceChrono BLE worker and **DS18B20 enrollment** are all done, and the channels decode correctly in
+RaceChrono on a phone (2026-09-09: `0x602` read −327.68 °C on all four thermal channels, the
 deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling
-end to end). The session writer (append-only, ~1 s `fsync`, both measured), the supply-telemetry
-worker, the RaceChrono BLE worker and **DS18B20 enrollment** are all done. **All four probes are enrolled, and the loaded 4 × 5 m
-star reads CRC-clean** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
+end to end). **The enrollment** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
 a valid-mask of 15 every cycle — zero read errors, zero CRC failures, zero non-probe entries —
 which closes the plan's thermal item 1 first requirement. `temp0` = `28-06254385da1f`,
 `temp1` = `28-0625424044b7`, `temp2` = `28-062542ac86b6`, `temp3` = `28-0625424e16c9`, in installed
