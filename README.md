@@ -12,14 +12,15 @@ durable record and the only thing that can prove a sample was missing rather tha
 a phone** (verified 2026-09-09: `0x602` reads −327.68 °C on all four thermal channels, the
 deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling
 end to end). The session writer (append-only, ~1 s `fsync`, both measured), the supply-telemetry
-worker, the RaceChrono BLE worker and **DS18B20 enrollment** are all done. **No probe is enrolled
-yet.** A first enrollment attempt at the car on **2026-09-10 bound three of the four and was
-abandoned**: the probes were unplugged one at a time as the next went in, which binds correctly but
-never loads the four-probe star and makes the map check impossible, so it is being redone with
-every probe left connected. Three faults it found are fixed (`CLAUDE.history.md` §1.11–§1.13) and
-the procedure now says so explicitly. The enrollment mechanism itself was exercised end to end
-against a fake 1-Wire tree (see
-§[Testing the 1-Wire path without probes](#testing-the-1-wire-path-without-probes)).
+worker, the RaceChrono BLE worker and **DS18B20 enrollment** are all done. **All four probes are enrolled, and the loaded 4 × 5 m
+star reads CRC-clean** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
+a valid-mask of 15 every cycle — zero read errors, zero CRC failures, zero non-probe entries —
+which closes the plan's thermal item 1 first requirement. `temp0` = `28-06254385da1f`,
+`temp1` = `28-0625424044b7`, `temp2` = `28-062542ac86b6`, `temp3` = `28-0625424e16c9`, in installed
+order. An earlier attempt the same day bound three and was abandoned, having unplugged each probe
+as the next went in; three faults it exposed are fixed (`CLAUDE.history.md` §1.11–§1.13).
+**Sampling is 0.31 Hz, not 1 Hz**, because `therm_bulk_read` refuses the write with `EACCES` —
+`SystemSetup/grant-w1-bulk-read.sh` fixes it and is **not yet applied**.
 **A 7.53 h unattended run holds up** (2026-09-10, bench, open air, no probes bound, no phone
 connected): 27,123 sample cycles with inter-cycle gaps of median 1002 ms and a **maximum of
 1004 ms**, zero gaps over 2 s, zero dropped records, zero error events, `throttled` live and
@@ -138,7 +139,7 @@ item 5a asks to be logged.
 | 1 | valid-this-cycle bitmask, bit *n* = `temp<n>` | `bytesToUint(raw, 1, 1)` | **15** |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0**, and staying there |
 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps at 65535 — i.e. every **18.2 h** |
-| 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | **~790 per probe, so ~3200 with four** until `therm_bulk_read` works |
+| 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | **~3200 with four probes** until `therm_bulk_read` works; ~800 once it does |
 
 Transcribed byte for byte from the ESP32 rig's `0x603`, so channel definitions written against that
 rig carry over. **This is what makes the thermal channels checkable rather than merely present:**
@@ -198,6 +199,8 @@ SystemSetup/          host configuration; nothing here is logger code
   harden-headless.sh      boot-time service reduction and bus configuration
   ssh-harden.sh           key-only SSH
   deploy-logger.sh        installs the production binary into ~/bin, never its .ini
+  grant-w1-bulk-read.sh   udev rule for therm_bulk_read — the difference between 1 Hz and 0.31 Hz
+  60-knurlogger-w1-bulk-read.rules  what that script installs
   KnurLogger.service      systemd unit — written, NOT yet installed
 ```
 
@@ -244,8 +247,13 @@ apart deliberately (owner decision, 2026-09-10):
 
 | | Path | Owned by | Carries |
 |---|---|---|---|
-| dev | `~/KnurLogger/build/KnurLogger.ini` | git, overwritten by every sync | a template — empty bindings, zero offsets |
-| production | `~/bin/KnurLogger.ini` | the box and `--enroll` | the real ROM ID bindings and the real offsets |
+| dev | `~/KnurLogger/build/KnurLogger.ini` | git, overwritten by every sync | the seed, and the **version-controlled backup** of whatever was last copied back |
+| production | `~/bin/KnurLogger.ini` | the box and `--enroll` | the live ROM ID bindings and offsets |
+
+The dev copy is not permanently empty: it carries the four ROM IDs enrolled on 2026-09-10, copied
+back after the trip. That is what makes it a backup rather than only a template — a fresh box
+seeded from it starts with the current bindings, which is right, since the probes it will read are
+the same four.
 
 **The reason is that the configuration and the source now share a file.** `KnurLogger.ini` carries
 the DS18B20 bindings as well as the calibration offsets; the bindings can only be made at the car;
@@ -371,8 +379,9 @@ refused and logged as an event, and one ROM ID appearing on two channels is refu
 — a duplicate would otherwise produce two channels tracking each other perfectly, which is a
 mislabelling that looks like agreement.
 
-Record the resulting table in `Hardware/logger-perfboard-wiring.md` §5a, which is
-still empty. **Channel → role is a per-session record, never a channel name.**
+`Hardware/logger-perfboard-wiring.md` §5a is the human record of the resulting table, and it is
+**filled** as of 2026-09-10. **Channel → role is a per-session record, never a channel name** — it
+is in every session file's `thermalBaseline`, which is where an analysis should take it from.
 
 ## Calibration offsets
 
@@ -437,11 +446,28 @@ default, out-of-range rejection and the application of a hand-entered offset wer
 
 ## Next
 
-**A second trip to the car to enroll the four probes with every probe left connected**, which also
-settles plan thermal item 1's four-probe star and returns the `errno` behind the refused
-`therm_bulk_read`. Then **the SDP810 and BME280 readers**, once the pressure sensors arrive.
-Commissioning item 5a's installed BLE link check is unblocked, and item 5.7's under-load supply
-telemetry can be collected on the first real run.
+**Apply the `therm_bulk_read` udev rule** — until it is on, every session records at 0.31 Hz:
+
+```bash
+ssh -t KnurLogger 'bash ~/KnurLogger/SystemSetup/grant-w1-bulk-read.sh --execute'
+ssh -t KnurLogger 'bash ~/KnurLogger/SystemSetup/grant-w1-bulk-read.sh --verify'
+```
+
+`--verify` registers a fake family-0x28 slave so the attribute appears without a probe, checks that
+the logger's account can write it, and removes the fake slave again. Both need a login shell,
+because `sudo` wants a password here.
+
+Then, needing only a drive: **commissioning item 5a's installed BLE link check** and **item 5.7's
+under-load supply telemetry**, both of which want the enclosure as built and the car moving. And
+needing only a cold car and one stationary session: **the thermal cold-soak calibration**, plan
+open item 41 — decide whether any offset is worth entering at all. **The `temp<N>OffsetC` keys are
+all still 0.0**, which is a legitimate state and not an oversight.
+
+Also still outstanding: **the warm-one-probe map check.** No phone was connected during enrollment,
+so nothing has independently confirmed that `temp2` is the probe you think it is. It costs one
+bench run with a phone and a warm hand.
+
+Then **the SDP810 and BME280 readers**, once the pressure sensors arrive.
 
 `pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the four
 architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
@@ -463,11 +489,10 @@ answer), a BLE advertiser against a phone, the **BME280 at `0x77`** since the se
 assembled, and — via the fake-sysfs harness above — **every branch of the 1-Wire worker except a
 real reading**. **What is not:** anything requiring a real SDP810 (not delivered) or a real DS18B20
 (the probes are on the car), and the mux, which does not answer at `0x70`.
-**Three of those unknowns were answered at the car on 2026-09-10 and one got worse.** Real DS18B20s
-do answer — three enumerated and read CRC-clean at 21.69/21.75 °C — and a per-probe read costs
-**790 ms** measured, so a four-probe cycle is ~3.2 s. `therm_bulk_read` **does** appear the moment
-a `w1_therm` slave attaches, and **the write to it is refused**, which is why that 3.2 s matters:
-without the bulk path the plan's ~1 Hz becomes ~0.31 Hz. The refusal now reports its `errno` once,
-into the session file as well as the console, so the next run at the car diagnoses it. **Still
-unestablished:** anything about the loaded 4 × 5 m star, because the probes were unplugged one at a
-time and never shared the bus.
+**Every one of those unknowns was answered at the car on 2026-09-10.** The loaded 4 × 5 m star
+enumerates and reads CRC-clean with all four probes on it — 63 consecutive cycles, valid-mask 15,
+zero read errors. A per-probe read costs **799–832 ms**, so a four-probe cycle is **3198–3281 ms**.
+`therm_bulk_read` **does** appear the moment a `w1_therm` slave attaches, and the write to it is
+refused with **`EACCES`**, which is why that 3.2 s matters: without the bulk path the plan's ~1 Hz
+is ~0.31 Hz. **What the star result does NOT cover** is a session: 3.4 minutes, stationary, cold,
+in a garage. Read `0x603` bytes 2–3 on the first drive.

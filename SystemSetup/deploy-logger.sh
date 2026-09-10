@@ -6,7 +6,7 @@
 # car, and the tar-over-ssh build loop overwrites everything under ~/KnurLogger. A single copy
 # would mean one sync from the workstation silently discards a trip to the car.
 #
-#   ~/KnurLogger/build/KnurLogger.ini   the DEV copy - git-tracked, a template, freely overwritten
+#   ~/KnurLogger/build/KnurLogger.ini   the DEV copy - git-tracked seed and backup, freely overwritten
 #   ~/bin/KnurLogger.ini                the PRODUCTION copy - real values, NEVER overwritten here
 #
 # So this script always replaces the binary and only ever creates the .ini, never updates it. To

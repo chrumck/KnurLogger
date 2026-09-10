@@ -1,0 +1,23 @@
+# Give the logger's group write access to the 1-Wire master's bulk-conversion trigger.
+#
+# `therm_bulk_read` converts every DS18B20 on the bus at once. Without it each probe's `w1_slave`
+# read pays its own ~800 ms conversion, so four probes take ~3.2 s per cycle and the plan's ~1 Hz
+# becomes 0.31 Hz - both figures measured on this box, 2026-09-10. The write was refused with
+# EACCES because w1_therm registers the attribute 0644 root:root and the logger runs as `chrum`,
+# both when started by hand and under KnurLogger.service (`User=chrum`, plus `gpio` in
+# `SupplementaryGroups=`).
+#
+# `gpio` is the group because chrum is already in it and the 1-Wire bus is bit-banged on GPIO4 by
+# w1-gpio. No new group, no new membership.
+#
+# WHY THIS MATCHES THE SLAVE AND NOT THE MASTER. `therm_bulk_read` is a *master* attribute, but
+# w1_therm only registers it when the first slave of its family attaches - so the master's own add
+# event fires long before the attribute exists, and a rule keyed to the master would run too early
+# and find nothing. The slave's add event is the moment it appears: the kernel creates the family's
+# master attributes from the bus notifier during `device_add()`, which runs before the KOBJ_ADD
+# uevent that triggers this rule.
+#
+# The glob and the `|| exit 0` are deliberate: with four probes this rule runs four times, and it
+# must be silent and successful when the attribute is already correct or not there at all.
+
+ACTION=="add", SUBSYSTEM=="w1", DRIVER=="w1_slave_driver", RUN+="/bin/sh -c 'chgrp gpio /sys/bus/w1/devices/w1_bus_master*/therm_bulk_read 2>/dev/null; chmod g+w /sys/bus/w1/devices/w1_bus_master*/therm_bulk_read 2>/dev/null; exit 0'"

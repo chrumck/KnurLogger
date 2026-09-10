@@ -534,18 +534,33 @@ name. The ROM ID → channel assignment is therefore the definition, made once a
    location binds channel → location directly. If a lead is ever ambiguous, warm one probe by hand
    and watch which channel moves.
 
-**Fill this table from the `enrollment` records in the session file after the trip.** It is still
-empty. A first enrollment on 2026-09-10 bound three probes and was abandoned — the star was never
-loaded, so the run does not qualify this bus — and those bindings were discarded. Do not fill the
-table from them; they are in that session's `enrollment` records if a re-enrollment ever needs
-checking against them, but a re-enrollment supersedes them.
+**Enrolled 2026-09-10 at the car, all four, from the session
+`2026-09-10T11-24-01.841462Z-enroll.ndjson`.** The plug-in order is the installed order the plan
+fixes, and the owner identified each lead at the logger end as it went in — which is what binds
+channel → location, per plan thermal item 1.
 
-| Channel | ROM ID | Cable | Plug-in order |
-|---|---|---|---|
-| `temp0` | record at enrollment | 5 m | first |
-| `temp1` | record at enrollment | 5 m | second |
-| `temp2` | record at enrollment | 5 m | third |
-| `temp3` | record at enrollment | 5 m | fourth |
+| Channel | ROM ID | Cable | Plug-in order | Reading at bind |
+|---|---|---|---|---|
+| `temp0` | `28-06254385da1f` | 5 m | first | 21.94 °C |
+| `temp1` | `28-0625424044b7` | 5 m | second | 21.75 °C |
+| `temp2` | `28-062542ac86b6` | 5 m | third | 21.88 °C |
+| `temp3` | `28-0625424e16c9` | 5 m | fourth | 21.75 °C |
+
+**These four ROM IDs are the channel definitions.** They also live, as the live configuration, in
+`temp0RomId`..`temp3RomId` in `../build/KnurLogger.ini` — this table is the human record and that
+file is what the logger reads. If they ever disagree, the logger is right about what it is doing
+and this table is wrong.
+
+**An earlier attempt the same day bound three and was discarded**, and its order differed from this
+one on the last two probes. Do not reconcile this table against it: the owner confirmed the order
+above, and the discarded set is superseded. See `../CLAUDE.history.md` §1.11.
+
+> **The bus qualified on the same run, and that was the point of it.** With all four connected,
+> 63 consecutive cycles enumerated four probes with a valid-mask of 15 every time — **zero read
+> errors, zero CRC failures, zero non-probe entries** — which is plan thermal item 1's first
+> requirement, open since the ESP32 star run was deliberately skipped. §3a.5 item 5's fallbacks
+> (series resistors, then splitting to GPIO27 as a second bus) are **not needed**: the 2.2 kΩ
+> pull-up at `R11` carries the loaded 4 × 5 m star as built.
 
 All four are electrically and mechanically identical, so any channel can serve any role — the
 constraint that applies to P4's ±125 Pa range has no thermal equivalent.

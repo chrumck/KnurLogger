@@ -226,13 +226,19 @@ first time on this box, and the code path having its first execution ever. `CLAU
 it as untestable and shipped-unexercised on exactly that reasoning; the reasoning was right and the
 path failed the moment it ran.
 
-**The cause is not established and was not recoverable from the artefacts**, because
-`writeSysfsValue()` discarded `errno`. The expected reason is `EACCES` — every writable attribute
-in `/sys/bus/w1/devices/w1_bus_master1/` is `root:root` and the logger runs as `chrum`, which
+**The cause was not recoverable from the artefacts**, because `writeSysfsValue()` discarded
+`errno`. The expected reason was `EACCES` — every writable attribute in
+`/sys/bus/w1/devices/w1_bus_master1/` is `root:root` and the logger runs as `chrum`, which
 `CLAUDE.md` had already predicted in the sentence about `w1_master_timeout` not being shortenable
-without root — but that is inference. The fix reports `errno` once, into the session file as well
-as the console, so the next run answers it; a udev rule was deliberately **not** written against
-the guess.
+without root. The fix reported `errno` once, into the session file as well as the console, and a
+udev rule was deliberately **not** written against the guess.
+
+**The next run confirmed it: `errno 13`, `EACCES`** (2026-09-10, second enrollment). Worth keeping
+because the discipline paid nothing and cost nothing — the guess was right, and waiting one run to
+check it turned a plausible fix into a known one for the price of a single log line. The rule that
+followed is in `SystemSetup/`, and `CLAUDE.md` carries the two non-obvious things about it: it has
+to match the slave's add event rather than the master's, and it is testable without a probe via
+`w1_master_add`.
 
 **The measured cost is real either way.** A per-probe read is 790 ms, so four probes is ~3.2 s per
 cycle: plan thermal item 2's "start around 1 Hz" is **0.31 Hz** until the bulk path works.

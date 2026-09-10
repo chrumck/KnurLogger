@@ -50,11 +50,11 @@ narrative in this file.
   mapping to measurement roles is a per-session record, logged at boot, and **a channel is never
   renamed after a role**.
   - **Pressure (`U`/`X`/`C`) is still deliberately undecided.** Do not invent one.
-  - **Thermal is decided but not yet applied.** Installing the probes on the car decided it (owner,
+  - **Thermal is decided AND applied.** Installing the probes on the car decided it (owner,
     2026-09-09): enrolled in installed order, lowest first, it is **temp0 = `T_ambient`,
-    temp1 = `T_core_in`, temp2 = `T_core_out`, temp3 = `T_aft`**. **No channel is bound yet** —
-    the enrollment mode exists and works, but the probes are on the car, so binding needs the trip.
-    The plan owns the positions and the reasoning; this is a pointer, not a second copy.
+    temp1 = `T_core_in`, temp2 = `T_core_out`, temp3 = `T_aft`**. **All four are bound**
+    (2026-09-10) — see the ROM IDs below. The plan owns the positions and the reasoning; this is a
+    pointer, not a second copy.
 - **`P` names a logger channel only.** The two pitot probes are `T1`/`T2`, never `P1`/`P2`.
 
 ## Hardware facts that surprise people
@@ -106,12 +106,17 @@ narrative in this file.
   aerodynamically live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands. It is
   tolerable as a density term and disqualifying as a reference. Name the logged field accordingly.
 - **A DS18B20 has no positional anchor.** Its 64-bit ROM ID *is* the channel definition, recorded
-  once at enrollment. As of 2026-09-10 **no ROM ID is bound, so no `temp` channel is yet defined**
-  — an enrollment at the car that day bound three and was abandoned (history §1.11), and the
-  bindings were then deleted. They are recoverable from the `enrollment` records in
-  `2026-09-10T09-29-23…-enroll.ndjson` if a re-enrollment ever needs to be checked against them,
-  but a re-enrollment supersedes them and they are not the current map. Build sheet §5a's table is
-  correspondingly still blank.
+  once at enrollment. **All four are bound as of 2026-09-10** — `temp0` `28-06254385da1f`,
+  `temp1` `28-0625424044b7`, `temp2` `28-062542ac86b6`, `temp3` `28-0625424e16c9` — in
+  `~/bin/KnurLogger.ini` on the box, in `build/KnurLogger.ini` in git, and in
+  `Hardware/logger-perfboard-wiring.md` §5a as the human record. **An earlier attempt the same day
+  bound three in a different order and was discarded** (history §1.11); do not reconcile anything
+  against it.
+  **The channel → role map has NOT been independently cross-checked.** It rests on the owner
+  identifying each lead at the logger end, which is the method the plan specifies — but no phone
+  was connected to that run, so the warm-one-probe check that would confirm it was never
+  performed. Anyone about to trust `temp2` as `T_core_out` in an analysis should run that check
+  first: it costs one bench session with a phone and a warm hand.
 - **The `28-*` family filter is mandatory, and it can no longer be exercised on this box.** The
   bare bus used to invent churning phantom `00-*` devices; with the sensor zone assembled and
   `R11` terminating `GPIO4` the scans come back clean (history §1.4). The filter is correct
@@ -128,7 +133,8 @@ narrative in this file.
   4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
      latency for anything that watches for a probe being connected. It cannot be shortened without
      root — the master attributes are root-owned and the logger runs as `chrum`.
-  5. **`therm_bulk_read` appears the moment a probe attaches, and the write to it is REFUSED**
+  5. **`therm_bulk_read` appears the moment a probe attaches, and the write to it is REFUSED with
+     `EACCES`**
      (measured at the car, 2026-09-10; before that the attribute had never existed here, because
      `w1_therm` registers it as a **master** attribute only once a slave of its family attaches).
      It is the documented way to convert every probe at once and the only way to sample four
@@ -136,12 +142,22 @@ narrative in this file.
      — so a four-probe cycle is ~3.2 s and plan thermal item 2's "start around 1 Hz" is really
      **0.31 Hz**. `oneWireProbes.cxx` falls through to the per-probe path, which is correct and
      slow, so **the bulk path has still never run.**
-     **The refusal is not diagnosed yet, and the expected reason is permissions**: every writable
-     attribute in `/sys/bus/w1/devices/w1_bus_master1/` is `root:root`, the logger runs as `chrum`,
-     and no group grants write. That is inference, not measurement — the errno was thrown away by
-     the first version of `writeSysfsValue()`. **It is now reported once, with `g_strerror`, into
-     the session file as well as the console**, so the next enrollment at the car answers it. Do
-     not write a udev rule against the guess; read the `errno` first.
+     **The cause is measured: `errno 13`, `EACCES`.** `w1_therm` registers the attribute
+     `0644 root:root` and the logger runs as `chrum` — under `KnurLogger.service` too, whose
+     `User=chrum` and `SupplementaryGroups=video i2c gpio` *extend* rather than replace chrum's own
+     group memberships. **`SystemSetup/grant-w1-bulk-read.sh` installs a udev rule that fixes it,
+     and it is NOT YET APPLIED**; until it is, every session records at 0.31 Hz.
+     1. **The rule matches the SLAVE add, not the master's.** The attribute is a *master* attribute
+        that only exists once a slave of the family attaches, so the master's own add event fires
+        long before it. The kernel creates the family's master attributes from the bus notifier
+        during `device_add()`, which runs before the slave's `KOBJ_ADD` uevent — so the slave event
+        is both the earliest point the attribute exists and a point at which it does.
+     2. **`gpio` is the group** because chrum is already in it and the bus is bit-banged on GPIO4.
+        No new group, no new membership, and it covers the service and a hand-run alike.
+     3. **It is testable without a probe.** `--verify` writes a fake family-0x28 ROM ID to
+        `w1_master_add`, which makes `w1_therm` bind and the attribute appear, checks that chrum
+        can write it, then removes the fake slave. Reach for `w1_master_add` before concluding a
+        w1_therm behaviour cannot be exercised on a probe-less box.
      **Do not restore the once-per-cycle warning.** It logged 863 identical lines in 14 minutes at
      the car and buried the two `BOUND` messages that were the point of the run.
   6. **A probe pulled off the bus keeps its sysfs entry for ~100 s and answers with NOTHING, and
@@ -257,7 +273,8 @@ The platform has already been the culprit once and the logger looked guilty (his
   temp-file plus rename plus directory fsync.
 - **The logger is BUILT in `~/KnurLogger/build/` and RUN from `~/bin/`, and those are two
   different `KnurLogger.ini` files** (owner decision, 2026-09-10 — history §2.8 for the single-copy
-  arrangement it replaced). `~/KnurLogger/build/KnurLogger.ini` is the git-tracked **template**;
+  arrangement it replaced). `~/KnurLogger/build/KnurLogger.ini` is the git-tracked **seed and backup** — it carries whatever
+  was last copied back, which since 2026-09-10 is the four enrolled ROM IDs;
   `~/bin/KnurLogger.ini` is the **production** file carrying the real offsets and the real ROM ID
   bindings. `SystemSetup/deploy-logger.sh` always replaces the binary and only ever *creates* the
   `.ini`, never updates it, and `KnurLogger.service` points at `/home/chrum/bin/KnurLogger`.
