@@ -211,13 +211,14 @@ achieved is in the Work Progress table and in the corrections list after it.
    is to push idle zram pages onto the SD card.
 6. **Write pressure, and evidence that survives a power cut** — `vm.dirty_background_ratio=5`,
    `vm.dirty_ratio=10` (iSitePiLogger's values and its reasoning; written as `99-` so it sorts
-   after the image's own `98-rpi.conf`). Plan item 5b: the accessory feed disappears without
-   warning at ignition-off, so the last durable write bounds what a hard cut costs.
+   after the image's own `98-rpi.conf`). Plan item 5b: the supply disappears without
+   warning — the fuse pulled at end of day on the constant 12 V feed as built, or a cranking dip
+   — so the last durable write bounds what a hard cut costs.
 
    **The journal setting in this phase cuts against the rest of it and is a deliberate trade.**
    The image ships `Storage=volatile` to spare the card (§0 item 8a); switching to a capped
    persistent journal *adds* a small continuous writer. It is still right here, because the
-   failure this box exists to survive — the feed vanishing at ignition-off — is exactly the event
+   failure this box exists to survive — the feed vanishing without warning — is exactly the event
    that destroys a volatile journal, and the journal is the only record of an undervoltage flag,
    thermal event or oops in the seconds before the cut. Deleting
    `/etc/systemd/journald.conf.d/90-knurlogger.conf` reverts to the vendor behaviour.
@@ -388,7 +389,7 @@ exactly the condition the box shipped in.
 ## 9. Not done, and deliberately
 
 1. **Read-only root / overlayfs.** The real answer to unannounced power cuts and the correct
-   long-term shape for a box whose supply vanishes at ignition-off. Not done now because it
+   long-term shape for a box whose supply vanishes without warning. Not done now because it
    complicates development on the same machine, and because plan item 5b's `fsync` cadence plus
    step 5 phase 6's dirty-page ratios already bound the loss to about a second. Revisit before the
    first event, not after.

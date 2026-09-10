@@ -218,6 +218,40 @@ alert the developer and record it in this file so the next agent does not hit it
 - **`w1-gpio`'s `pullup` parameter is ignored** on this firmware — the overlays README says so
   outright. The overlay that drives an external strong pullup is a different one,
   `w1-gpio-pullup`, and this build must not use it: `R11` is a plain 2.2 kΩ resistor to 3V3.
+- **The box is fed from CONSTANT 12 V, not the accessory circuit** (owner, as built,
+  2026-09-10). Every document here previously assumed an accessory feed where **ignition-off is
+  the power cut**; that is superseded, and four things follow.
+  1. **The logger runs the whole day; the fuse is the off switch.** Fitted in the morning, pulled
+     at the end. So it is powered through engine-off periods and one session file spans the day.
+  2. **`SystemSetup/KnurLogger.service` is now REQUIRED, not convenient.** There is no ignition
+     event to hand-start the logger around, and the paddock has no network but a phone hotspot, so
+     without the unit the owner must SSH in every morning to start it by hand.
+  3. **The box is powered during cranking**, which it never was before. The HW-384's 6 V floor is
+     well below a normal dip so this should be benign, but build sheet §10 step 3's crank watch was
+     bypassed rather than passed. A crank brownout shows up as a latched undervoltage bit, or as
+     the session file splitting with a fresh `session` record if the Pi rebooted.
+  4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V — ~3.3 Ah over a 12 h day
+     against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
+     in, i.e. a flat battery.** Estimated, not measured; plan item 5.3 still owes the real figure.
+  **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is now the
+  fuse being pulled, or a cranking dip, rather than ignition-off. Repeated hard cuts are the
+  durability risk worth knowing: one costs at most the last second, but doing it daily for a
+  season is the classic route to a corrupt SD card, so `sudo poweroff` before pulling the fuse is
+  free insurance.
+- **Two logger instances run happily side by side and BOTH advertise — nothing refuses, nothing
+  warns** (measured 2026-09-10: `SupportedInstances` is 5, `ActiveInstances` went 1 → 2 with a
+  log-mode and an `--enroll` instance up together). **So stop the service before enrolling.** No
+  single-instance guard exists — the owner declined one as not worth the code for a one-shot job —
+  which means this is a discipline matter and the reason is worth knowing:
+  1. **Two advertisements share the name and the service UUID**, so RaceChrono connects to one and
+     you cannot tell which. If it picks the log-mode instance, `temp0`–`temp3` stay at −327.68 °C
+     however enrollment goes, and the warm-one-probe identification check silently cannot work.
+  2. **A log-mode instance never sees new bindings.** It reads `channels.ini` once at worker start
+     and never re-reads it; only `--enroll` writes it. So it must be restarted after enrolling
+     regardless.
+  3. **Both poll the bus**, each read triggering its own conversion, roughly doubling cycle time.
+  Nothing corrupts: session files carry a mode tag so they never collide, and the store write is
+  temp-file plus rename plus directory fsync.
 - **The tar-over-ssh build loop OVERWRITES the deployed `build/KnurLogger.ini`, and that file now
   holds the thermal offsets** (found 2026-09-10 during the wrap-up pass, before it bit anyone).
   `build/KnurLogger.ini` is tracked in git and there is no separate untracked deployed copy, so an
@@ -345,15 +379,16 @@ Five requirements came from the plan rather than from iSitePiLogger. **Four stan
   2. **Item 4's diagnostics are not channel-shaped** — raw counts, the retained scale factor,
      sensor temperature, product/revision/serial, per-sample validity flags.
   3. **Supply telemetry is SD-only by nature**, because the event worth catching is a brownout at
-     ignition-off — the moment the link and the logger both stop.
+     a brownout — with the constant feed as built, a cranking dip or the fuse being pulled,
+     rather than ignition-off.
 - **Note, not a sixth requirement — this one RETIRES part of an earlier requirement.** The
   session-start clock offset is no longer load-bearing, and its stated mechanism does not exist. Because RaceChrono stamps every source on arrival, box 1 and box 2 are never aligned
   against each other's clocks. Keep recording elapsed-since-boot beside the wall clock in local
   records, but **do not build a GPS-time fetch**: the RaceChrono DIY protocol is device→phone
   notifications plus a filter-write channel and carries no time transfer.
 - **Append-only session file, `fsync` on a fixed ~1 s cadence** — not per sample, not only at
-  close. The accessory feed disappears without warning at ignition-off, so the last durable write
-  bounds the loss. Flushing per sample at 10 Hz buys a shorter window at the price of write
+  close. The supply vanishes without warning — the fuse pulled at the end of the day on the
+  constant feed as built, or a cranking dip — so the last durable write bounds the loss. Flushing per sample at 10 Hz buys a shorter window at the price of write
   amplification without changing the failure mode.
 
 - **The logger binds `temp0`–`temp3` itself, by discovery order, and persists the binding**
@@ -471,7 +506,8 @@ Five requirements came from the plan rather than from iSitePiLogger. **Four stan
      flags invites exactly that misreading; if it is logged, name the field so it cannot be
      mistaken for a rail measurement.
   4. **This telemetry must reach the fsync'd session file, not only the journal.** The event most
-     worth having is a brownout at ignition-off, which is the moment the box loses power.
+     worth having is a brownout, which on the constant feed as built means a cranking dip or the
+     fuse being pulled — the moment the box loses power.
 
 Preserve CRC failures, clipping, disconnects and stale samples as **invalid data**, never as
 carried-forward values presented as new.

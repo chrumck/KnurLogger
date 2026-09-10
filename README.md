@@ -15,7 +15,14 @@ end to end). The session writer (append-only, ~1 s `fsync`, both measured), the 
 worker, the RaceChrono BLE worker and **DS18B20 enrollment** are all done. **No probe is enrolled
 yet** — the four are installed on the car, so binding needs a trip to the car; the enrollment
 mechanism itself was exercised end to end against a fake 1-Wire tree (see
-§[Testing the 1-Wire path without probes](#testing-the-1-wire-path-without-probes)). Getting BLE working needed an
+§[Testing the 1-Wire path without probes](#testing-the-1-wire-path-without-probes)).
+**A 7.53 h unattended run holds up** (2026-09-10, bench, open air, no probes bound, no phone
+connected): 27,123 sample cycles with inter-cycle gaps of median 1002 ms and a **maximum of
+1004 ms**, zero gaps over 2 s, zero dropped records, zero error events, `throttled` live and
+sticky 0 throughout, SoC temperature 50.1–55.0 °C, and a clean closing record on SIGTERM. Session
+growth measured **1457 B/s**, so ~6 MB/h once four probes report — about 72 MB for a 12 h day
+against 108 GB free. It exercised neither BLE notify load (`0 notifications sent`) nor the sealed
+enclosure in the wheel well, where the thermal picture will be different. Getting BLE working needed an
 `apt full-upgrade` on 2026-09-09 — `bluez 5.82-1.1+rpt1` on kernel `6.18.34` could not register an
 advertisement at all, which `CLAUDE.md` records in full because the symptom points at the logger
 and the cause is not in it. The host setup under `SystemSetup/` **has been applied**
@@ -124,7 +131,7 @@ item 5a asks to be logged.
 | 0 | probes enumerated | `bytesToUint(raw, 0, 1)` | **4** |
 | 1 | valid-this-cycle bitmask, bit *n* = `temp<n>` | `bytesToUint(raw, 1, 1)` | **15** |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0**, and staying there |
-| 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps at 65535 |
+| 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps at 65535 — i.e. every **18.2 h** |
 | 6–7 | last conversion, ms | `bytesToUint(raw, 6, 2)` | ~750 at 12 bits |
 
 Transcribed byte for byte from the ESP32 rig's `0x603`, so channel definitions written against that
@@ -206,6 +213,13 @@ ssh KnurLogger 'git clone https://github.com/chrumck/KnurLogger.git'
 
 Thereafter `git -C ~/KnurLogger pull` on the box. The `build/` directory is gitignored except for
 its tracked `KnurLogger.ini` template; the deployed `.ini` carries real values and is ignored.
+
+**The box is fed from constant 12 V, not the accessory circuit** (as built, 2026-09-10), so the
+logger runs the whole day and the fuse is the off switch. Two consequences worth having here:
+`SystemSetup/KnurLogger.service` is **required** rather than convenient, because nothing
+hand-starts the logger when the fuse goes in; and the hard cut the ~1 s `fsync` protects against
+is now the fuse being pulled, or a cranking dip, rather than ignition-off. `CLAUDE.md` has the
+rest, including the battery-drain arithmetic.
 
 **Do not put push credentials on the box.** Commit and push from the workstation; the box pulls
 only. A logger in a wheel-well cavity is physically exposed — if the car is broken into or the SD
