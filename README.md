@@ -19,8 +19,10 @@ which closes the plan's thermal item 1 first requirement. `temp0` = `28-06254385
 `temp1` = `28-0625424044b7`, `temp2` = `28-062542ac86b6`, `temp3` = `28-0625424e16c9`, in installed
 order. An earlier attempt the same day bound three and was abandoned, having unplugged each probe
 as the next went in; three faults it exposed are fixed (`CLAUDE.history.md` §1.11–§1.13).
-**Sampling is 0.31 Hz, not 1 Hz**, because `therm_bulk_read` refuses the write with `EACCES` —
-`SystemSetup/grant-w1-bulk-read.sh` fixes it and is **not yet applied**.
+**Sampling was 0.31 Hz, not 1 Hz**, because `therm_bulk_read` refused the write with `EACCES`;
+`SystemSetup/grant-w1-bulk-read.sh` is now **applied and verified against a fake probe**, so the
+next run with four real probes should show `bulkConversion: true` and `cycleMs` ~1000. **The rate
+itself is not yet measured**, and every session recorded before 2026-09-10 is at 0.31 Hz.
 **A 7.53 h unattended run holds up** (2026-09-10, bench, open air, no probes bound, no phone
 connected): 27,123 sample cycles with inter-cycle gaps of median 1002 ms and a **maximum of
 1004 ms**, zero gaps over 2 s, zero dropped records, zero error events, `throttled` live and
@@ -71,10 +73,12 @@ Read, in this order, before changing anything here:
 **Channel names are positional and carry no meaning.** `P0`–`P5` are fixed by mux position;
 `temp0`–`temp3` are fixed by ROM ID at enrollment. The mapping from these to measurement roles
 (`T_ambient`, `T_core_in`, `U`, `X`, `C` …) is a per-session record and is logged at boot. Do not
-rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided but
-not yet applied** — installing the probes on the car pinned it, and enrolled in installed order it
-is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. **No channel is bound
-yet** — the enrollment mode exists and works, so what binding now needs is the trip to the car.
+rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided
+and applied** — installing the probes on the car pinned it, and enrolled in installed order it
+is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. **All four are bound**
+(2026-09-10); `Hardware/logger-perfboard-wiring.md` §5a has the ROM IDs. The role map rests on the
+leads having been identified at the logger end — nothing has independently cross-checked it, since
+the warm-one-probe test has not been run.
 
 All five SDP810s answer at the same fixed I2C address and cannot be strapped apart, which is why
 the mux is mandatory rather than a convenience.
@@ -446,16 +450,10 @@ default, out-of-range rejection and the application of a hand-entered offset wer
 
 ## Next
 
-**Apply the `therm_bulk_read` udev rule** — until it is on, every session records at 0.31 Hz:
-
-```bash
-ssh -t KnurLogger 'bash ~/KnurLogger/SystemSetup/grant-w1-bulk-read.sh --execute'
-ssh -t KnurLogger 'bash ~/KnurLogger/SystemSetup/grant-w1-bulk-read.sh --verify'
-```
-
-`--verify` registers a fake family-0x28 slave so the attribute appears without a probe, checks that
-the logger's account can write it, and removes the fake slave again. Both need a login shell,
-because `sudo` wants a password here.
+**Confirm the bulk read actually buys 1 Hz.** The udev rule is applied and passes its own test,
+but that test used a fake probe. On the next run with all four connected, `bulkConversion` should
+read `true` and `cycleMs` should fall from ~3200 to ~1000. If it does not, the rule is fine and the
+problem is elsewhere — read `conversionMs` before assuming anything.
 
 Then, needing only a drive: **commissioning item 5a's installed BLE link check** and **item 5.7's
 under-load supply telemetry**, both of which want the enclosure as built and the car moving. And

@@ -24,7 +24,9 @@ RULES_SOURCE="$(dirname "$(readlink -f "$0")")/$RULES_NAME"
 RULES_TARGET="/etc/udev/rules.d/$RULES_NAME"
 MASTER_DIR="/sys/bus/w1/devices/w1_bus_master1"
 BULK_READ="$MASTER_DIR/therm_bulk_read"
-FAKE_SLAVE_ID="28 0000000001ff"
+# The kernel parses this with `sscanf(buf, "%02x-%012llx", ...)`, so the hyphen is load-bearing:
+# a space is rejected with EINVAL. `w1_master_add` prints the format itself when read.
+FAKE_SLAVE_ID="28-0000000001ff"
 FAKE_SLAVE_DIR="/sys/bus/w1/devices/28-0000000001ff"
 LOGGER_GROUP="gpio"
 
@@ -106,7 +108,12 @@ if [ "$IS_VERIFY" -eq 1 ]; then
     fi
 
     echo "+ registering a fake family-0x28 slave so therm_bulk_read appears"
-    echo "$FAKE_SLAVE_ID" | sudo tee "$MASTER_DIR/w1_master_add" >/dev/null || exit 1
+    if ! echo "$FAKE_SLAVE_ID" | sudo tee "$MASTER_DIR/w1_master_add" >/dev/null; then
+        echo "  FAIL: the 1-Wire master would not accept '$FAKE_SLAVE_ID'."
+        echo "        It parses the id as %02x-%012llx, so the hyphen matters. Nothing was added,"
+        echo "        so there is nothing to clean up. The rule itself is unaffected."
+        exit 1
+    fi
     sleep 2
 
     RESULT=1

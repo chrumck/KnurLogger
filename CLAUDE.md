@@ -145,8 +145,11 @@ narrative in this file.
      **The cause is measured: `errno 13`, `EACCES`.** `w1_therm` registers the attribute
      `0644 root:root` and the logger runs as `chrum` — under `KnurLogger.service` too, whose
      `User=chrum` and `SupplementaryGroups=video i2c gpio` *extend* rather than replace chrum's own
-     group memberships. **`SystemSetup/grant-w1-bulk-read.sh` installs a udev rule that fixes it,
-     and it is NOT YET APPLIED**; until it is, every session records at 0.31 Hz.
+     group memberships. **`SystemSetup/grant-w1-bulk-read.sh` installs a udev rule that fixes it, and it
+     is APPLIED and verified** (2026-09-10): the attribute comes up `root:gpio 664` and `chrum`
+     can write it. **Verified against a FAKE probe, so the rate itself is still unmeasured** —
+     `bulkConversion: true` and `cycleMs` ~1000 on the next run with four real probes is the
+     confirmation. Every session recorded before that day is at 0.31 Hz and stays that way.
      1. **The rule matches the SLAVE add, not the master's.** The attribute is a *master* attribute
         that only exists once a slave of the family attaches, so the master's own add event fires
         long before it. The kernel creates the family's master attributes from the bus notifier
