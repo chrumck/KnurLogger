@@ -143,15 +143,64 @@ so the OS pairing list will never show it.
 
 > **A packet with no channel definition is never sent.** The logger honours RaceChrono's
 > subscription, so entering the logging regime means only the packet IDs you have defined channels
-> for get notified. Measured 2026-09-10 on the bench and again in the car on 2026-09-11: `0x604`
-> took **zero** notifications because no channel is defined for it, while the other four ran at
-> ~1 Hz. **It is still undefined — define it.**
+> for get notified. Measured 2026-09-10 on the bench and again in the car on 2026-09-11, when
+> `0x604` took **zero** notifications because no channel was defined for it while the other four
+> ran at ~1 Hz. All five packets are defined as of 2026-09-11.
 > In CAN-bus test mode RaceChrono asks for everything instead, which is why test mode shows
 > channels that logging mode does not.
 >
 > **Define at least one free-running counter, whichever it is.** `0x604` byte 7 is the heartbeat,
 > but `0x601` and `0x603` bytes 4–5 are per-cycle counters with the same property, and the second
 > road test's zero-drop measurement was made off those two with `0x604` absent.
+
+### The slot map — what to re-enter after a phone wipe
+
+**RaceChrono channels are hand-typed into the phone and exist nowhere else.** The tables below say
+which bytes carry what; this one says which predefined channel slot each field was put in, because
+a slot is what a gauge, a lap chart or an exported CSV is named after. **Losing it means re-picking
+23 slots, and re-picking slots is how one of them ended up decoding signed data as unsigned.**
+
+Slots as of **2026-09-11**. Packet IDs are decimal, which is what the CAN-ID field takes.
+
+| Packet | Bytes | RaceChrono slot | Carries |
+|---|---|---|---|
+| 1536 `0x600` | 0–3 | `Pressure Front 50` | enclosure pressure, kPa |
+| 1536 | 4–5 | `Temperature Front 50` | cavity temperature |
+| 1536 | 6–7 | `Percent Front 50` | enclosure humidity |
+| 1537 `0x601` | 0 | `Digital Front 51` | BME280 status bits, expect 31 |
+| 1537 | 1 | `Digital Front 52` | chip ID, expect 96 |
+| 1537 | 2–3 | `Digital Front 53` | read errors |
+| 1537 | 4–5 | `Digital Front 54` | sample cycles — free-running |
+| 1537 | 6–7 | `Digital Front 55` | last read, ms |
+| 1538 `0x602` | 0–1 | `Temperature Front 1` | `temp0` |
+| 1538 | 2–3 | `Temperature Front 2` | `temp1` |
+| 1538 | 4–5 | `Temperature Front 3` | `temp2` |
+| 1538 | 6–7 | `Temperature Front 4` | `temp3` |
+| 1539 `0x603` | 0 | `Digital Front 1` | probes enumerated |
+| 1539 | 1 | `Digital Front 2` | valid-this-cycle mask |
+| 1539 | 2–3 | `Digital Front 3` | read errors |
+| 1539 | 4–5 | `Digital Front 4` | sample cycles — free-running |
+| 1539 | 6–7 | `Digital Front 5` | last conversion, ms |
+| 1540 `0x604` | 0 | `Digital Front 11` | logger status bits |
+| 1540 | 1 | `Digital Front 12` | sticky throttle bits |
+| 1540 | 2 | `Digital Front 13` | undervoltage comparator |
+| 1540 | 3–4 | `Digital Front 14` | SoC core mV |
+| 1540 | 5–6 | **`Temperature Front 15`** | SoC temperature |
+| 1540 | 7 | `Digital Front 16` | **heartbeat** |
+
+Three things this table is carrying rather than repeating:
+
+1. **`Temperature Front 15` is a Temperature slot on purpose.** It was a Digital one until
+   2026-09-11. It is the only `0x604` field with decimals; the rest are integers, and **SoC core
+   millivolts stays Digital because RaceChrono has no voltage slot** — no precision is lost, the
+   gauge simply carries no unit.
+2. **Changing a slot's type changes its identity.** `Digital Front 15` and `Temperature Front 15`
+   are different channels with different ids, so a retyped field leaves the old slot behind unless
+   it is deleted — still subscribed, still decoding the same bytes under the old name.
+3. **`0x601` was renumbered from 50–53 to 51–55 on 2026-09-11**, when byte 6–7 was added. **Any
+   recording made before that carries the old slot numbers**, so a session and this table can
+   disagree without either being wrong. `Tools/rcz-channels.py` prints what a given recording
+   actually used.
 
 **`0x602` and `0x603` are transcribed byte for byte from the ESP32 rig in
 `../ndLouvers/step0b-rig/racechrono_ble_test/`, so definitions written against that rig carry over
@@ -224,12 +273,13 @@ otherwise decode as ~655 °C. A channel with no trustworthy reading sends `-3276
 deliberately absurd rather than plausible because RaceChrono holds the last value it received
 indefinitely and an invalid marker has to be visible.
 
-> **⚠ One of these four is currently defined `bytesToUint` on the phone** — found 2026-09-11, when
-> three of the four sentinels decoded as −327.68 and one as **+327.68**. By field order it is the
-> **second, `temp1`**; check all four. **This fault is invisible in normal data**, because a
-> positive temperature decodes identically either way, and **nothing on the logger can detect it**.
-> The only ways it shows are the sentinel and a sub-zero ambient — so the check below is the check,
-> and it only works with no probes attached.
+> **⚠ `Temperature Front 2` was defined `bytesToUint` and is now fixed — but not yet verified.**
+> Found 2026-09-11: three of the four sentinels decoded as −327.68 and that one as **+327.68**. It
+> is `0x602` bytes 2–3, i.e. **`temp1`, the `T_core_in` slot — the probe ΔT_preheat is measured
+> from**. **The fault is invisible in normal data**, because a positive temperature decodes
+> identically either way, and **nothing on the logger can detect it**. The only ways it shows are
+> the sentinel and a sub-zero ambient, so the check below is the check — and it only works with no
+> probes attached, which is the condition to confirm the fix in.
 
 **These values carry the per-channel calibration offset** from `KnurLogger.ini`, if one is set — see
 §[Calibration offsets](#calibration-offsets). The session file records the raw reading beside the
@@ -252,10 +302,11 @@ byte 1 is which channels read cleanly.
 | 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
 | 7 | **heartbeat, +1 per second, wraps at 255** | `bytesToUint(raw, 7, 1)` |
 
-> **⚠ NONE OF THIS FRAME IS DEFINED ON THE PHONE, so none of it is ever sent** — measured on the
-> bench 2026-09-10 and again in the car 2026-09-11, where RaceChrono's subscription burst never
-> asked for `0x604` at all. It is the one frame carrying the throttle bits, the undervoltage
-> comparator and SoC temperature. Enter the six rows above.
+> **⚠ This frame went unsent through two road tests** — no channel was defined for it, so
+> RaceChrono's subscription burst never asked for it and the logger recorded `"supply": 0`
+> notifications. **Defined 2026-09-11 and not yet seen working**; the slot map above has where the
+> six rows went. Confirm from either end: byte 7 ticking +1 per second on the phone, or
+> `bleNotifiesByPacket` in any `supply` record showing `supply` climbing instead of 0.
 
 **Byte 7 is the channel to watch within this frame.** Every other field here is a physical quantity
 allowed to sit still — SoC core voltage reads a constant 840 mV on an
@@ -329,6 +380,10 @@ build/KnurLogger.ini  config TEMPLATE; the deployed copy is ~/bin/KnurLogger.ini
 Hardware/             box-2 hardware; nothing here is logger code
   logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
                               on every connection. Subordinate to the plan's Step 0b.
+
+Tools/                offline diagnostics; nothing here runs on the box
+  rcz-channels.py       decode a RaceChrono .rcz's channel slots and flag a mistyped
+                        equation — the phone's channel list, audited without the phone
 
 SystemSetup/          host configuration; nothing here is logger code
   pi-headless-setup.md    the runbook — start here

@@ -324,6 +324,7 @@ CAN frames. This is the single most expensive fault this project has had: it cos
    zero notifies through a 57 s subscription while the other four ran at ~1 Hz; **measured again in
    the car on 2026-09-11**, where RaceChrono's burst never asked for `0x604` at all and the logger
    recorded `"supply": 0`. Still undefined on the phone; `../ndLouvers/` open item 45.
+   **Defined on the phone since 2026-09-11, and not yet seen working.**
    **`0x604` byte 7 is not the only liveness channel, and saying so cost nothing only by luck.**
    `0x601` and `0x603` bytes 4–5 are per-cycle counters with exactly the same property — they
    advance whatever the sensors report — and on the second road test the whole
@@ -375,8 +376,34 @@ argument is never an answer to "the phone is showing the wrong number".**
    right" was true on 2026-09-09 and false by 2026-09-11 with no code change — the channel list is
    hand-edited. **Re-run it after any edit**, and note it cannot be run at all with probes
    attached.
-3. **A missing definition costs the whole packet**, silently, because the filter is honoured:
-   `0x604` and `0x601` bytes 6–7 have no channel and are simply never sent.
+3. **A missing definition costs the whole packet**, silently, because the filter is honoured.
+   That is how `0x604` went unsent for two road tests.
+
+**All three were fixed on the phone on 2026-09-11 and NONE has been observed working** — the fixes
+are typed in, not verified. `../ndLouvers/` open item 45 owns the verification.
+
+### Audit the phone's channel list from an export, without the phone
+
+**A RaceChrono `.rcz` names every channel slot that was in force when it recorded**, because a
+channel's sample file is named after its numeric id and that id is
+`slot * 2**20 + channelType` — `Digital` 70537, `Temperature` 70539, `Pressure` 70541,
+`Percent` 70547 being the four types this logger uses. So the phone's list is recoverable from any
+session anyone exported, and the recorded values then say whether each equation was typed right.
+`Tools/rcz-channels.py` does it:
+
+```bash
+python3 Tools/rcz-channels.py session.rcz
+```
+
+1. **This is how the unsigned channel was found**, and it is the only way it could have been: the
+   tool flags a `Temperature` slot carrying **+327.68**, which is the `−32768` sentinel decoded
+   unsigned. It also flags a channel whose samples are all `NaN` — a defined channel that never
+   produced a value, which is what two of KnurDash's turned out to be.
+2. **The slot numbers in an old export are not the slot numbers in force now.** `0x601`'s five
+   were renumbered from 50–53 to 51–55 on 2026-09-11. A disagreement between a recording and
+   `README.md`'s slot map means the list changed, not that either is wrong.
+3. **Box 1's channels come back as bare type numbers**, because they sit on RaceChrono's standard
+   channel types rather than the four DIY ones. Enough to tell them apart and to spot a dead one.
 
 ## The BLE worker needs its own main context BEFORE the D-Bus connection
 

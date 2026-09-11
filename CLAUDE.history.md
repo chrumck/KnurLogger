@@ -564,3 +564,30 @@ point and withdrawn within the same session** — it was strongly speed-correlat
 plausible. Nothing this repository logs distinguishes the two cases, and nothing it could log
 would: `../ndLouvers/` Step 0b commissioning item 2 now requires the mounting state to be recorded
 by hand, per session.
+
+## 2026-09-11 — the phone's channel list, written down and made auditable
+
+The three faults found by the second road test were fixed on the phone the same day: `0x604`
+defined, `0x601` bytes 6–7 defined with that packet's slots renumbered 50–53 → 51–55, and the
+unsigned thermal channel corrected. **None has been seen working yet**; `../ndLouvers/` open item 45
+carries the verification.
+
+**How the channel ids decode, which is what made the audit possible.** RaceChrono names each
+channel's sample file after the channel's numeric id, and that id is `slot × 2²⁰ + channelType` —
+Digital 70537, Temperature 70539, Pressure 70541, Percent 70547 for the four types this logger
+uses. The owner supplied the slot names he had picked, and the decode matched field for field
+across all sixteen channels, which turned rev 86's inference ("the second of the four, by field
+order") into an identification: **`Temperature Front 2`**, i.e. `0x602` bytes 2–3, the `temp1` /
+`T_core_in` slot.
+
+**`Tools/rcz-channels.py` is that decode, and it flags two faults rather than one.** A `Temperature`
+slot reading +327.68 is the sentinel decoded unsigned. A channel whose samples are all `NaN` is a
+defined channel that never produced a value — which turned out to be true of **two of KnurDash's**,
+unnoticed until the tool printed them. Run it on the first recording after any edit to the phone's
+channel list.
+
+**Two things about slots that are easy to get wrong.** Changing a slot's *type* changes its id, so
+`Digital Front 15` and `Temperature Front 15` are different channels and the old one survives unless
+deleted — still subscribed, still decoding the same bytes under the old name. And **an old recording
+carries the slot numbers that were in force when it recorded**, so a disagreement with `README.md`'s
+slot map means the list has moved since, not that either is wrong.
