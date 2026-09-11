@@ -10,6 +10,13 @@
 # `gpio` is the group because chrum is already in it and the 1-Wire bus is bit-banged on GPIO4 by
 # w1-gpio. No new group, no new membership.
 #
+# THIS RULE IS NECESSARY AND NOT SUFFICIENT. The other condition is in the logger: the trigger must
+# be written as EIGHT bytes, `"trigger
+"`, because `therm_bulk_read_store` gates on
+# `size == sizeof("trigger")`. With the rule applied and a seven-byte write the attribute is
+# writable, the write succeeds, and nothing converts - measured for a day, 2026-09-10 to -11.
+# See KnurLogger's CLAUDE.md and CLAUDE.history.md 1.15.
+#
 # WHY THIS MATCHES THE SLAVE AND NOT THE MASTER. `therm_bulk_read` is a *master* attribute, but
 # w1_therm only registers it when the first slave of its family attaches - so the master's own add
 # event fires long before the attribute exists, and a rule keyed to the master would run too early

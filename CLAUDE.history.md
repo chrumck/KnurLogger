@@ -246,6 +246,9 @@ cycle: plan thermal item 2's "start around 1 Hz" is **0.31 Hz** until the bulk p
 
 ### 1.14 The udev rule fixed the permission and the bulk read still did nothing
 
+> **Its open question is answered in §1.15, and the answer is not the one this section expects.**
+> Parasite power was wrong; the trigger was one byte short. Everything measured below still stands.
+
 **2026-09-10, at the car, four real probes, 331 cycles.** With `therm_bulk_read` now writable the
 trigger is accepted every cycle — and the cycle time did not move: **3190/3213/3309 ms** against
 3198/3213/3281 before the rule, with **every probe still reading in ~800 ms** (790/799/860). If the
@@ -294,6 +297,71 @@ written to it and the state machine cannot be exercised at all. The `conversionM
 verified instead with a **FIFO** standing in for `w1_slave`, which makes a read block for a
 controlled time: cycle 1 reported `conversionMs 385` against a slowest read of 385 ms, where the
 old code reported 0.
+
+### 1.15 The bulk read converted nothing because the trigger was seven bytes
+
+**2026-09-11, diagnosed at the bench from the box's own journal, confirmed at the car.** §1.14 left
+parasite power as the first suspect. It was wrong, and the instrumentation §1.14 shipped is what
+disproved it: `probeCapabilities` reads `ext_power "1"` on all four probes, so a strong pullup was
+never needed. `conv_time "750"`, `resolution "12"`, `features "0"`.
+
+**The actual cause was one byte.** `therm_bulk_read_store` in `drivers/w1/slaves/w1_therm.c`:
+
+```c
+int ret = -EINVAL;
+if (size == sizeof(BULK_TRIGGER_CMD))          /* sizeof("trigger") == 8 */
+    if (!strncmp(buf, BULK_TRIGGER_CMD, sizeof(BULK_TRIGGER_CMD)-1))
+        ret = trigger_bulk_read(dev_master);
+if (ret) dev_info(device, "...unable to trigger a bulk read... err=%d
+", ret);
+return size;                                    /* ALWAYS size — never an error */
+```
+
+`writeSysfsValue` wrote `strlen("trigger")` = **7**, so the guard failed, `trigger_bulk_read()` was
+never called, no slave was ever marked, and the attribute read back `0`.
+
+**Why it was invisible for a day, which is the reusable part.** The store returns the write size
+unconditionally and reports the refusal only with `dev_info`, so `write()` could not fail and
+userspace had no signal at all. And **`echo trigger > therm_bulk_read` has always worked**, because
+`echo` appends the newline — so every hand test of the interface looked healthy while the logger's
+own write was being rejected.
+
+**The evidence was already on the box and nobody had looked.** The kernel logged
+`therm_bulk_read_store: unable to trigger a bulk read on the bus. err=-22` **once per cycle for the
+whole at-the-car session**, 1725 lines still in the persistent journal. `-22` is `EINVAL`, and
+`trigger_bulk_read()` cannot return it — it returns only `0`, `-ENODEV`, `-EAGAIN` or `-EINTR`. The
+errno alone identified the guard. **Read `journalctl -k | grep <the sysfs store function>` before
+theorising about a sysfs write that succeeds and does nothing.**
+
+**Two further faults were queued behind it and would have survived the size fix.**
+
+1. **`didConvert` was set only by observing `-1`.** `trigger_bulk_read()` does the whole
+   `msleep_interruptible(t_conv)` inside the write, so `write()` blocks ~750 ms and the readback is
+   already `1` when it returns. `-1` is only observable by a concurrent reader, and this worker is
+   the only one — so the loop could never have recognised a conversion it did trigger, and would
+   have kept printing "accepted the trigger but reported no conversion" with everything working.
+2. **`waitMs` was clocked after `write()` returned**, so `conversionMs` and `0x603` bytes 6–7 would
+   have read **0 ms** on a successful bulk conversion — the same fault §1.14 had just fixed for the
+   per-probe path, reappearing through the other branch. The clock now starts before the write.
+
+**Measured at the car, 2026-09-11, 123 cycles, all four probes** (session
+`2026-09-11T17-11-40.934639Z`): `bulkConversion` true and `bulkState "1"` on every cycle,
+`conversionMs` **762–790** for all four together against 799–863 *each* before, `cycleMs` mean 849,
+cycle interval mean **1023 ms = 0.977 Hz** against 0.305 Hz, `validMask` 15 throughout, and **zero
+CRC failures, zero `notAnswering`, zero unparsed content across 492 probe reads.** That last figure
+is the one that mattered beyond rate: bulk reading takes the `read_scratchpad` path rather than
+`convert_t`, a different bus transaction pattern, and the 4 × 5 m star took it cleanly. No
+`therm_bulk_read_store` line anywhere in that boot.
+
+**One reading that looks like a regression and is not.** `probeCapabilities.bulkReadState` still
+reads `"0"` on a healthy box, because the record is emitted after the per-probe reads and reading
+`w1_slave` consumes the ready flag. The authoritative field is `bulkState` in the `temp` records.
+
+**A residual that the record cannot show.** `trigger_bulk_read()` marks every slave ready even when
+its bus reset failed, so `bulkState "1"` proves the bulk path ran, not that the bus answered. What
+separates them is `conversionMs`: a real conversion costs ~780 ms, a failed reset ~0 ms, and the
+per-probe CRC verdicts catch the stale scratchpad either way.
+
 
 ## 2. Superseded decisions
 

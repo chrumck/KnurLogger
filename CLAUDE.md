@@ -186,36 +186,57 @@ narrative in this file.
   4. **Bus rescan is every 10 s** (`w1_master_timeout = 10`), which is the hot-plug detection
      latency for anything that watches for a probe being connected. It cannot be shortened without
      root — the master attributes are root-owned and the logger runs as `chrum`.
-  5. **`therm_bulk_read` appears the moment a probe attaches, and the bulk path has never once
-     worked** (history §1.13 and §1.14)
-     (measured at the car, 2026-09-10; before that the attribute had never existed here, because
-     `w1_therm` registers it as a **master** attribute only once a slave of its family attaches).
-     It is the documented way to convert every probe at once and the only way to sample four
-     probes at 1 Hz: without it each `w1_slave` read pays its own conversion — **799–832 ms
-     measured on the loaded four-probe star** — so a cycle is **3198–3281 ms** and plan thermal
-     item 2's "start around 1 Hz" is really **0.31 Hz**. `oneWireProbes.cxx` falls through to the per-probe path, which is correct and
-     slow, so **the bulk path has still never run.**
-     **The permission cause was `errno 13`, `EACCES`** — `w1_therm` registers the attribute
-     `0644 root:root` and the logger runs as `chrum`, under `KnurLogger.service` too, whose
-     `User=chrum` and `SupplementaryGroups=video i2c gpio` *extend* rather than replace chrum's own
-     group memberships. `SystemSetup/grant-w1-bulk-read.sh` fixes that and **is applied**: the
-     attribute comes up `root:gpio 664` and `chrum` writes it.
-     **AND THE BULK READ STILL DOES NOTHING** (measured with four real probes, 2026-09-10, history
-     §1.14). The write is now accepted, the very first poll of `therm_bulk_read` returns non-`-1`,
-     the wait is 0 ms, and **every probe still pays its own ~800 ms conversion** — 331 cycles at
-     3190–3309 ms, unchanged from before the rule. **So the permission was necessary and not
-     sufficient, and a successful write is not a conversion.** Three things follow:
+  5. **`therm_bulk_read` appears the moment a probe attaches, and it WORKS — since 2026-09-11**
+     (history §1.15; before that the attribute had never existed here, because `w1_therm` registers
+     it as a **master** attribute only once a slave of its family attaches).
+     It is the documented way to convert every probe at once and the only way to sample four probes
+     at 1 Hz: without it each `w1_slave` read pays its own conversion — **799–832 ms measured on
+     the loaded four-probe star** — so a cycle was **3198–3281 ms**, i.e. **0.31 Hz** against plan
+     thermal item 2's ~1 Hz. **With it, measured at the car over 123 cycles: one 762–790 ms
+     conversion for all four probes, a 1023 ms mean cycle interval — 0.977 Hz — and zero CRC
+     failures across 492 reads.**
+     **TWO conditions are necessary and NEITHER alone is sufficient. Both are in place; do not undo
+     either.**
+     1. **The permission.** The cause was `errno 13`, `EACCES` — `w1_therm` registers the attribute
+        `0644 root:root` and the logger runs as `chrum`, under `KnurLogger.service` too, whose
+        `User=chrum` and `SupplementaryGroups=video i2c gpio` *extend* rather than replace chrum's
+        own group memberships. `SystemSetup/grant-w1-bulk-read.sh` fixes that and **is applied**:
+        the attribute comes up `root:gpio 664` and `chrum` writes it.
+     2. **The trigger is EIGHT bytes, newline included.** `therm_bulk_read_store` gates on
+        `size == sizeof("trigger")`, which is 8. `oneWireProbes.cxx` wrote `strlen("trigger")` = 7,
+        so the command was never parsed and `trigger_bulk_read()` was never called — for a day
+        that looked like a permission fix that had not worked. `ONE_WIRE_BULK_TRIGGER_CMD` now
+        carries the `
+`; **do not "tidy" it away.**
+     **A successful write is not a conversion, and cannot be**: `therm_bulk_read_store` returns the
+     write size unconditionally and reports its refusal only with `dev_info`. The evidence is
+     therefore the readback and the kernel log, never `write()`'s return value —
+     `journalctl -k | grep therm_bulk_read_store` prints the errno userspace never sees, and it is
+     empty on a healthy boot. `err=-22` is `EINVAL`, which only the size guard produces; `err=-19`
+     is `ENODEV`, which means the command was parsed and the bus had nothing on it.
+     Four further properties, each of which cost something to learn:
      1. **`0` and `1` are different answers and the code used to treat them alike.** The attribute
-        reads `-1` while converting, `1` when results are ready, `0` when no device on the bus
-        supports bulk reading. Breaking on "anything but `-1`" cannot tell "finished instantly"
-        from "nothing was triggered". The readback is now recorded as `bulkState` in every `temp`
-        record, which is what the next run should be read for.
-     2. **`bulkConversion` now means a conversion the kernel confirmed**, not a write that
-        succeeded. It was the latter, which is why a dead optimisation looked live.
-     3. **The first suspect is parasite power.** A bulk conversion of parasite-powered probes needs
-        a strong pullup this bus does not have, and `w1-gpio`'s `pullup` parameter is ignored on
-        this firmware. `ext_power` per probe now lands in a one-shot `probeCapabilities` record on
-        the first cycle that sees a probe — **read that first** next time probes are attached.
+        reads `-1` while converting, `1` when results are ready and unread, `0` when no bulk
+        conversion is pending — which after a fresh trigger means the trigger did nothing. The
+        readback is recorded as `bulkState` in every `temp` record and **`"1"` is the healthy
+        value.**
+     2. **The steady-state readback is `1`, NOT `-1`.** `trigger_bulk_read()` sleeps the whole
+        conversion inside the write, so by the time `write()` returns the results are already
+        there. `-1` is only observable by a concurrent reader, and this worker is the only one — so
+        a poll loop that recognised a conversion solely by seeing `-1` could never recognise one,
+        which is what the first version did.
+     3. **Time the conversion from BEFORE the write**, for the same reason: a clock started after
+        `write()` returns measures nothing and puts a 0 on `0x603` bytes 6–7 for the most expensive
+        part of the cycle. It also separates a real conversion (~780 ms) from a bulk path that ran
+        and failed its bus reset (~0 ms — which still marks every slave ready, so `bulkState` alone
+        cannot tell them apart).
+     4. **`bulkConversion` means a conversion the kernel confirmed**, not a write that succeeded.
+     **Parasite power was the standing first suspect and it was WRONG** — do not return to it.
+     `ext_power` reads `1` on all four probes in the one-shot `probeCapabilities` record, measured
+     twice (2026-09-10 and 2026-09-11), so the strong pullup this bus lacks was never needed.
+     **`probeCapabilities.bulkReadState` reads `"0"` on a HEALTHY box and that is not a fault.**
+     The record is emitted after the per-probe reads, and reading `w1_slave` is what consumes the
+     ready flag. The authoritative field is `bulkState` in the `temp` records.
      1. **The rule matches the SLAVE add, not the master's.** The attribute is a *master* attribute
         that only exists once a slave of the family attaches, so the master's own add event fires
         long before it. The kernel creates the family's master attributes from the bus notifier
