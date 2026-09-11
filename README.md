@@ -110,6 +110,9 @@ Read, in this order, before changing anything here:
    bring-up order. Its §3a net list is the authority on every connection. It is subordinate to the
    plan's Step 0b, which it lived alongside until 2026-09-10.
 3. `SystemSetup/pi-headless-setup.md` — the host runbook.
+4. `RaceChrono/README.md` — the phone's channel definitions as exported, for **both** boxes, and
+   the traps in editing one by hand. Read it before touching any channel equation; the byte-level
+   specification below is the requirement, that file is what is actually entered.
 
 ## Hardware it drives
 
