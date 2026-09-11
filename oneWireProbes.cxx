@@ -45,6 +45,8 @@
 #define ONE_WIRE_IDLE_SLEEP_US 50000
 #define ONE_WIRE_SLAVE_FILE "w1_slave"
 #define ONE_WIRE_BULK_READ_FILE "therm_bulk_read"
+// w1_therm accepts this command only at its exact `sizeof()`, newline included. See the write below.
+#define ONE_WIRE_BULK_TRIGGER_CMD "trigger\n"
 #define ONE_WIRE_BULK_POLL_US 20000
 #define ONE_WIRE_BULK_MAX_WAIT_US 1500000
 
@@ -135,12 +137,20 @@ gboolean writeSysfsValue(const std::string& path, const gchar* value, int* outEr
     return written == length;
 }
 
-// `therm_bulk_read` reads back "-1" while a conversion is running, "1" when the results are ready,
-// and "0" when no device on the bus supports bulk reading. **"0" and "1" are not the same answer
-// and treating them alike is what hid a dead optimisation for a day** (measured 2026-09-10): with
-// the udev rule applied the write succeeds, the very first poll returns non-"-1", the wait is 0 ms
-// and every probe still pays its own ~800 ms conversion. So a successful WRITE does not mean a
-// conversion happened, and only `didConvert` may be reported as one.
+// `therm_bulk_read` reads back "-1" while a conversion is running, "1" when the results are ready
+// and unread, and "0" when no bulk conversion is pending - which after a fresh trigger means the
+// trigger did nothing. **"0" and "1" are not the same answer and treating them alike is what hid a
+// dead optimisation for a day** (measured 2026-09-10).
+//
+// A successful WRITE proves nothing at all: `therm_bulk_read_store` returns the write size
+// unconditionally and reports its refusal only to the kernel log, so the only trustworthy evidence
+// is the readback. That is why `didConvert` and not the write result decides what gets reported.
+//
+// **The steady-state answer is "1", not "-1".** The kernel sleeps for the whole conversion inside
+// the write - `trigger_bulk_read()` issues SKIP ROM + CONVERT T, then `msleep_interruptible(t_conv)`
+// before marking every slave ready - so by the time `write()` returns the results are already there.
+// "-1" is only observable by a concurrent reader, and this worker is the only one, so a poll loop
+// that recognised a conversion solely by seeing "-1" could never recognise one.
 typedef struct {
     gboolean isAvailable;
     gboolean didConvert;
@@ -157,8 +167,20 @@ BulkReadResult triggerBulkConversion() {
     auto path = getBulkReadPath();
     if (!std::filesystem::exists(path)) { return result; }
 
+    // Timed from BEFORE the write, because the kernel does the waiting inside it: the poll loop
+    // below normally finds the results already there, so a clock started after `write()` returns
+    // measures nothing and would put a 0 on 0x603 bytes 6-7 for the most expensive part of the
+    // cycle. It also separates a real conversion from a bulk path that ran and failed - a failed
+    // bus reset still marks every slave ready, but it never sleeps, so it costs ~0 ms.
+    auto startUs = getBootTimeUs();
+
+    // The trailing newline is load-bearing and cost a day. `therm_bulk_read_store` gates on
+    // `size == sizeof("trigger")`, which is 8 - a 7-byte write misses by one, never reaches
+    // `trigger_bulk_read()`, and is answered with the write size anyway, so the failure is visible
+    // only as `err=-22` in the kernel log and as a readback of "0" here. Measured at the car
+    // 2026-09-10: every cycle of the session logged it, and no probe was ever bulk-converted.
     int writeErrno = 0;
-    if (!writeSysfsValue(path, "trigger", &writeErrno)) {
+    if (!writeSysfsValue(path, ONE_WIRE_BULK_TRIGGER_CMD, &writeErrno)) {
         // Reported once and into the session file, not once per cycle into the console: the
         // refusal is a permanent property of the box, so the first occurrence is the evidence and
         // the next 863 are noise. EACCES means the master attribute is root-owned and the logger
@@ -178,7 +200,6 @@ BulkReadResult triggerBulkConversion() {
     appData.thermal.isBulkTriggerRefusalReported = FALSE;
     result.isAvailable = TRUE;
 
-    auto startUs = getBootTimeUs();
     while (getBootTimeUs() - startUs < ONE_WIRE_BULK_MAX_WAIT_US) {
         if (appData.shutdownRequested) { break; }
 
@@ -186,25 +207,33 @@ BulkReadResult triggerBulkConversion() {
         if (!state.has_value()) { break; }
 
         result.state = trim(*state);
-        if (result.state != "-1") { break; }
 
-        // Seen at least once, so a conversion really was running and the wait below measures it.
+        // "1" is the normal answer and means the kernel converted every supporting probe and is
+        // holding the results - the per-probe reads below then fetch the scratchpad instead of
+        // starting a conversion each. "-1" is a conversion still running, which only happens if
+        // the write was interrupted, and is worth waiting out.
+        if (result.state != "-1") {
+            result.didConvert = result.state == "1";
+            break;
+        }
+
         result.didConvert = TRUE;
         g_usleep(ONE_WIRE_BULK_POLL_US);
     }
 
     result.waitMs = (guint32)((getBootTimeUs() - startUs) / 1000);
 
-    // The write was accepted and the kernel never reported a conversion in progress. Something is
-    // stopping the bulk path from doing anything, and the per-probe reads below will each pay a
-    // full conversion - so this is the whole optimisation silently not happening, and it says so
-    // once rather than leaving a zero in the record to be puzzled over.
+    // The write was accepted and the kernel still reports nothing pending. Something is stopping
+    // the bulk path from doing anything, and the per-probe reads below will each pay a full
+    // conversion - so this is the whole optimisation silently not happening, and it says so once
+    // rather than leaving a zero in the record to be puzzled over. Check the kernel log for
+    // `therm_bulk_read_store`: it prints the errno this interface refuses to return.
     if (!result.didConvert && !appData.thermal.isBulkNoOpReported) {
         appData.thermal.isBulkNoOpReported = TRUE;
         g_warning("OneWire: bulk read accepted the trigger but reported no conversion"
-            " (therm_bulk_read read back '%s'). '0' means no device on the bus supports bulk"
-            " reading; '1' means it claims the results are already ready, which after a fresh"
-            " trigger means nothing was marked. Per-probe reads are being used, ~800 ms each.",
+            " (therm_bulk_read read back '%s'). '0' means nothing is pending, so the trigger was"
+            " rejected or no device on the bus supports bulk reading - `journalctl -k | grep"
+            " therm_bulk_read_store` has the errno. Per-probe reads are being used, ~800 ms each.",
             result.state.c_str());
         writeEventRecord("warning", std::format(
             "bulk read trigger accepted but no conversion reported, therm_bulk_read='{}',"
