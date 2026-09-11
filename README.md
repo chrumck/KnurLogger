@@ -15,6 +15,22 @@ subscription and froze the phone's data.** RaceChrono asks every device for ever
 knows, box 1's CAN frames included, and refusing one lost the whole subscription — `CLAUDE.md`
 §"Never return an ATT error from the filter callback" owns it.
 
+**The second road test (2026-09-11) confirms that fix in the field on both boxes, and found the
+next three faults on the phone rather than in this repository.** Box 2 accepted the whole
+nine-command burst, ignored the five IDs it does not publish, and sent 141/141/139/139
+notifications on `0x602`/`0x603`/`0x600`/`0x601` over 140 s with **zero drops** — both per-cycle
+counters advanced by exactly +1 across every sample RaceChrono recorded. Box 1 (KnurDash), which
+had the same defect, kept all twelve of its channels alive to the last sample. **`0x600`, `0x601`
+and `0x603`'s channel equations are now confirmed end to end**, which this file previously listed
+as outstanding. **Three RaceChrono channel definitions are wrong or missing** and no code here can
+detect them — see `CLAUDE.md` §"The phone's channel list is part of the instrument" and
+§[`0x604`](#0x604--supply-health-and-logger-liveness) below.
+
+> **⚠ That drive's box was on the PASSENGER SEAT with no probes attached.** Everything above is a
+> code or protocol result and stands; **every READING from that session is void**, including the
+> BME280's, which described the cabin. The link result is a best case — ~0.5 m of cabin air to the
+> phone — and says nothing about a wheel-well cavity. `../ndLouvers/thermals-testing.md` §3.7.
+
 > **⚠ `bme280IntervalMs` is a NEW REQUIRED KEY in `[sensors]`, and the production `.ini` is not
 > in git.** A missing key is a startup failure, like every other key in this file, so **the
 > deployed logger will refuse to start until the line is added to `~/bin/KnurLogger.ini`** —
@@ -29,7 +45,9 @@ RaceChrono BLE worker, **DS18B20 enrollment** and the **BME280 reader** are all 
 thermal and supply channels decode correctly in
 RaceChrono on a phone (2026-09-09: `0x602` read −327.68 °C on all four thermal channels, the
 deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling
-end to end). **The enrollment** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
+end to end — **for the channel definitions in force that day; one of the four had become
+`bytesToUint` by 2026-09-11**, so re-run this check after any edit to the phone's channel list).
+**The enrollment** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
 a valid-mask of 15 every cycle — zero read errors, zero CRC failures, zero non-probe entries —
 which closes the plan's thermal item 1 first requirement. `temp0` = `28-06254385da1f`,
 `temp1` = `28-0625424044b7`, `temp2` = `28-062542ac86b6`, `temp3` = `28-0625424e16c9`, in installed
@@ -125,11 +143,15 @@ so the OS pairing list will never show it.
 
 > **A packet with no channel definition is never sent.** The logger honours RaceChrono's
 > subscription, so entering the logging regime means only the packet IDs you have defined channels
-> for get notified. Measured 2026-09-10: `0x604` took **zero** notifications through a 57 s
-> session because no channel was defined for it, while the other four ran at ~1 Hz. **`0x604`
-> byte 7 is the heartbeat and the only honest liveness channel here**, so define at least that one.
+> for get notified. Measured 2026-09-10 on the bench and again in the car on 2026-09-11: `0x604`
+> took **zero** notifications because no channel is defined for it, while the other four ran at
+> ~1 Hz. **It is still undefined — define it.**
 > In CAN-bus test mode RaceChrono asks for everything instead, which is why test mode shows
 > channels that logging mode does not.
+>
+> **Define at least one free-running counter, whichever it is.** `0x604` byte 7 is the heartbeat,
+> but `0x601` and `0x603` bytes 4–5 are per-cycle counters with the same property, and the second
+> road test's zero-drop measurement was made off those two with `0x604` absent.
 
 **`0x602` and `0x603` are transcribed byte for byte from the ESP32 rig in
 `../ndLouvers/step0b-rig/racechrono_ble_test/`, so definitions written against that rig carry over
@@ -161,7 +183,11 @@ easy to point at the wrong thing:
 1. **Pressure is ENCLOSURE pressure and never a static reference.** The cavity is
    aerodynamically live: **measured at 156 Pa below stationary at a mean 116 km/h on the first
    drive (Cp ≈ −0.25)**, which is still 2–3× the 45–90 Pa measurands, is not a single constant Cp,
-   and is speed-correlated so it does not average out of a speed sweep. It is tolerable as a
+   and is speed-correlated so it does not average out of a speed sweep. **That is the only cavity
+   measurement of it there is** — the second drive's box was on the passenger seat, so its
+   speed-correlated pressure record is a cabin record and was withdrawn.
+   **This field is named for where the box is designed to sit, not for where it actually sat**, and
+   nothing in the session file says which. Record the mounting state per session. It is tolerable as a
    density term and disqualifying as a reference (`../ndLouvers/thermals-testing.md` §3.6).
 2. **Temperature is the cavity thermometer** (plan item 1c), with Pi SoC temperature on `0x604`
    as a cross-check rather than the primary proxy. **It is not the inlet density term** — that is
@@ -198,11 +224,18 @@ otherwise decode as ~655 °C. A channel with no trustworthy reading sends `-3276
 deliberately absurd rather than plausible because RaceChrono holds the last value it received
 indefinitely and an invalid marker has to be visible.
 
+> **⚠ One of these four is currently defined `bytesToUint` on the phone** — found 2026-09-11, when
+> three of the four sentinels decoded as −327.68 and one as **+327.68**. By field order it is the
+> **second, `temp1`**; check all four. **This fault is invisible in normal data**, because a
+> positive temperature decodes identically either way, and **nothing on the logger can detect it**.
+> The only ways it shows are the sentinel and a sub-zero ambient — so the check below is the check,
+> and it only works with no probes attached.
+
 **These values carry the per-channel calibration offset** from `KnurLogger.ini`, if one is set — see
 §[Calibration offsets](#calibration-offsets). The session file records the raw reading beside the
 value sent, so the two can always be reconciled.
 
-**Until a probe is enrolled all four read −327.68 °C, and the packet keeps being republished once
+**With no probe on the bus all four send the sentinel, and the packet keeps being republished once
 per sample cycle.** Unbound, bound-but-absent and read-badly all send the same sentinel, which is
 right — none of them is a temperature — and the session file is where the three are told apart. To
 see *which* it is from the phone alone, watch `0x603`: byte 0 is how many probes are on the bus and
@@ -219,11 +252,18 @@ byte 1 is which channels read cleanly.
 | 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
 | 7 | **heartbeat, +1 per second, wraps at 255** | `bytesToUint(raw, 7, 1)` |
 
-**Byte 7 is the channel to watch, and it is the only honest liveness indicator here.** Every other
-field is a physical quantity allowed to sit still — SoC core voltage reads a constant 840 mV on an
+> **⚠ NONE OF THIS FRAME IS DEFINED ON THE PHONE, so none of it is ever sent** — measured on the
+> bench 2026-09-10 and again in the car 2026-09-11, where RaceChrono's subscription burst never
+> asked for `0x604` at all. It is the one frame carrying the throttle bits, the undervoltage
+> comparator and SoC temperature. Enter the six rows above.
+
+**Byte 7 is the channel to watch within this frame.** Every other field here is a physical quantity
+allowed to sit still — SoC core voltage reads a constant 840 mV on an
 idle box for hours — so a frozen value proves nothing about the link. A counter freezing means the
 link died; a counter skipping means a notification was dropped, which is exactly what commissioning
-item 5a asks to be logged.
+item 5a asks to be logged. **It is not the only counter with that property**: `0x601` and `0x603`
+bytes 4–5 advance every cycle regardless of what their sensors report, and the second road test's
+zero-drop measurement was made off those two.
 
 ### `0x603` — 1-Wire bus health
 
@@ -260,9 +300,9 @@ how the fault was found: the field reported the bulk wait whenever the *write* s
 0 ms wait masked ~800 ms of real conversion. It now reports what the cycle actually paid, and the
 `temp` records carry `bulkState` — the raw `therm_bulk_read` readback — beside it.
 
-**Bench-verified in the session file, not yet on the phone.** The packing is the same primitive as
-`0x604`'s, which is phone-proven, but nobody has yet added these five channel definitions in
-RaceChrono and watched them.
+**Confirmed on the phone 2026-09-11.** All five channels are defined and decoded correctly against
+the logger's own record of the same samples, with no probes attached: probes 0, valid-mask 0, read
+errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 
 ## Layout
 
@@ -570,15 +610,18 @@ repositories, because this one is public and session files are data.**
 scp -r KnurLogger:KnurLoggerData/sessions/*.ndjson /c/_claude/KnurLoggerData/sessions/
 ```
 
-**Two things to know before reading one.** A session filename is stamped from the box's wall
+**Three things to know before reading one.** A session filename is stamped from the box's wall
 clock, which in the car is hours wrong — see `CLAUDE.md`, "A session filename means nothing". And
 `taiUs` can jump mid-file when `timesyncd` corrects the clock; `bootUs` and `sessionUs` are the
-axes that survive it.
+axes that survive it. And **copy a session only once the logger has stopped writing it** — a
+mid-write copy is a truncated file that parses perfectly and says the session ended early. One
+lived in the backup that way until it was replaced; `systemctl is-active KnurLogger` is the check.
 
 ## Next
 
 **Find out why the bulk read converts nothing.** The permission is fixed and the write is
-accepted, and the cycle is still 3.2 s. Next time probes are attached, read the one-shot
+accepted, and the cycle is still 3.2 s. **The 2026-09-11 drive added nothing here** — no probes were
+attached, so no `probeCapabilities` record exists. Next time probes are attached, read the one-shot
 `probeCapabilities` record first — **`ext_power` per probe is the first suspect**, because a bulk
 conversion of parasite-powered probes needs a strong pullup this bus does not have. Then read
 `bulkState` in the `temp` records: `0` means no device on the bus supports bulk reading at all,
@@ -587,8 +630,13 @@ conversion of parasite-powered probes needs a strong pullup this bus does not ha
 readings have always been correct, just slow.
 
 Then, needing only a drive: **commissioning item 5a's installed BLE link check** and **item 5.7's
-under-load supply telemetry**, both of which want the enclosure as built and the car moving.
-Neither has ever been exercised — the logger has never run on a moving car.
+under-load supply telemetry**, both of which want the enclosure as built and the car moving. **The
+logger has now run on a moving car twice and neither item is closed.** The second drive measured a
+clean link, but with the box **on the passenger seat**, no probes or pressure sensors attached, over
+143 s with only 46 % of it moving — so it is evidence about the code and nothing about the installed
+position. ~0.5 m of cabin air to the phone is the best case; the cavity is the question.
+**Record where the box was mounted** on every session; without that a run cannot serve either item,
+and a cabin record reads exactly like a cavity one.
 
 **The thermal side is otherwise finished.** The cold-soak calibration is done and the answer was
 no offsets, so **all four `temp<N>OffsetC` staying 0.0 is a result, not an oversight** — do not
@@ -613,10 +661,11 @@ later fixes it, which made the first version of this reader fail 100 % of the ti
 every `enclosure` record. **The same bus carries the five SDP810s, so this will apply to them
 too, and the physical cause is not established** — `../ndLouvers/` open item 44.
 
-**`0x600` and `0x601` are now confirmed on a phone** (2026-09-10): RaceChrono subscribed to both
-by packet ID and each notified at 0.98 Hz across a 57 s session, alongside `0x602` and `0x603` at
-1.00 Hz. What is still unconfirmed is the **equations** — nobody has read a plausible pressure or
-temperature off a RaceChrono gauge yet, only counted the notifications carrying them.
+**`0x600` and `0x601`'s equations are now confirmed on a phone** (2026-09-11), which closes what
+2026-09-10's notification count could not: the recorded values match the logger's own record of the
+same samples — 101.287 kPa against 101 319 Pa, 24.71–25.22 against 24.62–25.24 °C, 38.87–39.98
+against 38.9–40.0 %RH. `0x603` likewise. **`0x602` is the exception and one of its four channels is
+mis-defined on the phone** — see its section above.
 
 **Then the SDP810 readers and the mux**, once the pressure sensors arrive. Expect the retry in
 `i2cBus.cxx` to matter for them, and expect a mux channel switch plus a sensor read to be two

@@ -487,7 +487,7 @@ and ignored. `0x604` took zero notifications because no channel is defined for i
 behaviour under an honoured filter, and the reason the heartbeat channel needs defining before it
 can serve as the liveness indicator it exists to be.
 
-### 2026-09-11 — the same defect in KnurDash, and what it says about the two boxes
+## 2026-09-11 — the same defect in KnurDash, and what it says about the two boxes
 
 The reject-on-unknown-packet-ID fault was fixed in `KnurDash` as well
 (`github.com/chrumck/KnurDash`, commit made on the box itself). It is recorded here because of
@@ -509,6 +509,58 @@ context is iterated and its adapter callbacks fire. Copying this repository's fi
 change working behaviour for no reason. Its commit message says so, in case a future reader
 notices the asymmetry and tries to "align" them.
 
-**KnurDash's fix is compiled and committed but unproven.** Its CAN hardware stayed in the car, so
-the binary restarts continuously on the bench and cannot be exercised. Both boxes go to the car
-together for that.
+**KnurDash's fix was compiled and committed but unproven** when this was written. Its CAN hardware
+stayed in the car, so the binary restarted continuously on the bench and could not be exercised.
+Both boxes went to the car together, and the entry below is the result.
+
+## 2026-09-11 — the second road test: the fix holds, and the next three faults are on the phone
+
+Both boxes connected to RaceChrono on a 143 s, 825 m drive (peak 80.6 km/h, 46 % of samples moving).
+Box 2's session is `2026-09-10T22-47-40.448829Z-log.ndjson` — the name is stamped from the box's
+wrong clock as usual and means nothing.
+
+**The subscription fix holds on both boxes.** Box 2 was asked for the same nine IDs as before, in
+the same shape (`deny all`, then nine `allow single` inside 400 ms), published four and **logged and
+ignored the other five**. It sent 141/141/139/139 notifications on `0x602`/`0x603`/`0x600`/`0x601`
+across 140 s connected; RaceChrono recorded 137/137/135/135, the shortfall being the tail after the
+phone stopped recording, 4.5 s before the disconnect. **Both per-cycle counters advanced by exactly
++1 across every recorded sample — zero drops.** Notify intervals median 1001–1006 ms, max 1084 ms.
+One connect, one disconnect, no supervision drops. **Box 1 kept all twelve of its channels alive to
+the last sample**, which is the first time its fix has run against a phone.
+
+**What the session proved about this code, beyond the filter.** `throttled` live and sticky both 0
+over 559 s, no undervoltage — the supply worker's first run in a moving car, though in a cabin and
+unloaded, so the SoC figures are not comparable with anything the enclosure will produce. The I2C
+retry behaved exactly as characterised on the bench: **550 first-attempt failures, 550 recovered, 0
+exhausted over 550 cycles**, one per sample cycle, with zero BME280 read errors. And `0x600`,
+`0x601` and `0x603`'s channel equations are confirmed end to end, by decoding the RaceChrono
+recording against this logger's record of the same samples.
+
+**Three faults found, all of them on the phone.** `0x604` has no channel and was never asked for;
+one of `0x602`'s four is `bytesToUint` where `bytesToInt` belongs; `0x601` bytes 6–7 has no channel.
+`CLAUDE.md` §"The phone's channel list is part of the instrument" carries the live rules. The one
+worth restating here is **how the signedness fault stayed hidden**: the same sentinel check passed
+on 2026-09-09 reading −327.68 on all four, and the channel list is hand-edited between sessions, so
+a check that passed once was quietly no longer true. Nothing in this repository can see it.
+
+**Two method notes earned here.** The session-cycle counter appears in both records, so a
+BLE-connected session aligns to RaceChrono exactly by joining on cycle number — no
+cross-correlation, no lag, verified as logger `sessionUs 166.8` ↔ phone `t = 7.3 s`. And **the
+session ended in a hard cut** — no `BLE stopped` event, no closing record — which is what a pulled
+fuse looks like when reading a file back.
+
+**What it did not do, and this is the part with a lesson in it.** No probes were attached, so there
+is no `probeCapabilities` record and nothing for the bulk-read question. And **the box was on the
+passenger seat** (owner, asked after the write-up): every reading from the session is therefore
+void, `enclosurePressurePa` and `cavityTemperatureC` having measured the cabin, and the clean link
+is a best case at ~0.5 m rather than evidence about a wheel-well cavity. Commissioning items 5a and
+5.7 do not move.
+
+**The code results survive that intact and the readings do not, which is the useful line.** The
+filter behaviour, the notification accounting, the three phone-side channel faults, the equation
+confirmation and the cycle-counter alignment are all properties of software and protocol; the cabin
+exercises them as well as the cavity would. **A cabin pressure record was written up as a cavity Cp
+point and withdrawn within the same session** — it was strongly speed-correlated and entirely
+plausible. Nothing this repository logs distinguishes the two cases, and nothing it could log
+would: `../ndLouvers/` Step 0b commissioning item 2 now requires the mounting state to be recorded
+by hand, per session.

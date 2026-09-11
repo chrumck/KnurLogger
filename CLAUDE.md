@@ -136,10 +136,14 @@ narrative in this file.
   point at the wrong thing.** `bme280Sensor.cxx` reads it and the field names carry the roles;
   `../ndLouvers/thermals-testing.md` §1.4 owns the reasoning and Step 0b owns the requirement.
   1. **Pressure is ENCLOSURE pressure, never a static reference.** The cavity is aerodynamically
-     live. **Measured on the first drive: 156 Pa below stationary at a mean 116 km/h (Cp ≈ −0.25)**
-     — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa measurands, and
-     not a single constant Cp. Tolerable as a density term, disqualifying as a reference. Logged as
-     `enclosurePressurePa`.
+     live. **Measured on the first drive: 156 Pa below stationary at a mean 116 km/h (Cp ≈ −0.25)**,
+     — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa
+     measurands, and **not a single constant Cp**. Tolerable as a density term, disqualifying as a
+     reference. Logged as `enclosurePressurePa`.
+     **That first drive is the only cavity measurement of it there is.** The second drive's box was
+     on the passenger seat, so its strongly speed-correlated pressure record is a **cabin** record;
+     it was written up as a second Cp point and withdrawn. **This field is named for where the box
+     is, not for where it was designed to be** — nothing in the session file says which.
   2. **Temperature is the CAVITY THERMOMETER** (plan item 1c), with Pi SoC temperature a
      cross-check rather than the primary proxy, and item 1d wants it recorded across a full
      session. **It is NOT the inlet density term** — that is `T_ambient`'s DS18B20, a probe in the
@@ -283,7 +287,12 @@ while `bootUs` moved **+1.0 s**.
 4. **`bootUs` and `sessionUs` are the trustworthy axes and this is what they are for.** Intra-
    session timing is exact across the step. The plan's item 4 requires the dual clock precisely
    so a stepped wall clock costs nothing, and that requirement earned itself here.
-5. **To align against RaceChrono, use physics rather than clocks.** Cross-correlate cavity
+5. **To align against RaceChrono, use the cycle counter if the link was up, and physics if it was
+   not.** `0x601` and `0x603` bytes 4–5 carry the worker's per-cycle counter, and the **same
+   counter is the `cycle` field of every `enclosure` and `temp` record** — so a RaceChrono recording
+   of either channel joins to the session file on cycle number and the alignment is exact, with no
+   fitting and no lag. Verified 2026-09-11: logger `sessionUs 166.8` ↔ phone `t = 7.3 s`.
+   **The fallback, for a session with no usable link:** cross-correlate cavity
    temperature against GPS speed low-passed at ~180 s — the cavity tracks airflow at **r = −0.97**.
    **Require a large overlap**: an unconstrained search returns a spurious near-perfect fit on a
    few dozen bins at the edge of the window, which it did here before the constraint was added.
@@ -311,10 +320,15 @@ CAN frames. This is the single most expensive fault this project has had: it cos
    nothing depending on ordering. "Most of the data points missing" and "one set then frozen" are
    the same fault.
 4. **`0x604` is only notified if a channel is DEFINED for it.** With the filter honoured, a packet
-   nobody subscribes to is never sent — correct behaviour, and it means the `0x604` heartbeat,
-   which is the only honest liveness channel, reaches the phone only once its channels are
-   entered. Measured: `supply` took zero notifies through a 57 s subscription while the other four
-   ran at ~1 Hz.
+   nobody subscribes to is never sent — correct behaviour. Measured on the bench: `supply` took
+   zero notifies through a 57 s subscription while the other four ran at ~1 Hz; **measured again in
+   the car on 2026-09-11**, where RaceChrono's burst never asked for `0x604` at all and the logger
+   recorded `"supply": 0`. Still undefined on the phone; `../ndLouvers/` open item 45.
+   **`0x604` byte 7 is not the only liveness channel, and saying so cost nothing only by luck.**
+   `0x601` and `0x603` bytes 4–5 are per-cycle counters with exactly the same property — they
+   advance whatever the sensors report — and on the second road test the whole
+   dropped-notification measurement was made off them with `0x604` absent throughout. Define
+   `0x604` for the supply telemetry, not because nothing else can prove the link is alive.
 5. **Do not tighten the command-length checks back to equality.** They were `== 1`/`== 3`/`== 7`
    and every observed command matched exactly, so that was never the fault — but the reference
    implementation uses minima and a future field would break equality for no benefit.
@@ -332,8 +346,37 @@ CAN frames. This is the single most expensive fault this project has had: it cos
       ordering is broken in a headless program and box 2 had to fix it, but KnurDash's `main.c`
       calls `gtk_main()`, which iterates the global default context, so its adapter callbacks
       work. **Do not "fix" KnurDash by copying this repository.**
-   **Its fix is compiled and committed but NOT yet phone-tested** — the CAN hardware stayed in the
-   car, so the binary cannot run on the bench.
+   **Its fix is now confirmed on a phone** (2026-09-11): with both boxes connected, box 1 was asked
+   for box 2's four IDs, refused none of them, and kept **all twelve of its channels alive to the
+   last sample** of the recording. It had been compiled and committed but untestable on the bench,
+   the CAN hardware being in the car.
+7. **The fix is confirmed on box 2 in the field too** (2026-09-11). The burst arrived as
+   `deny all` then nine `allow single` inside 400 ms — `0x7F0`, `0x420`, `0x600`, `0x601`, `0x202`,
+   `0x602`, `0x603`, `0x78`, `0x4FA` — five of which this logger does not publish and all five of
+   which were logged and ignored. 141/141/139/139 notifications went out on
+   `0x602`/`0x603`/`0x600`/`0x601` over 140 s connected, and **both per-cycle counters advanced by
+   exactly +1 across every sample the phone recorded: zero drops.** `../ndLouvers/thermals-testing.md`
+   §3.7 owns the numbers. **That drive's box was on the passenger seat**, so it proves the code and
+   nothing about the installed link — ~0.5 m of cabin air to the phone is the best case there is.
+
+## THE PHONE'S CHANNEL LIST IS PART OF THE INSTRUMENT AND THIS CODE CANNOT CHECK IT
+
+**Three RaceChrono channel definitions were found wrong or missing on 2026-09-11, by decoding a
+recording against the session file of the same samples.** Nothing in this repository can detect any
+of them — the logger's own record is correct in every case — so **a "the logger is sending it"
+argument is never an answer to "the phone is showing the wrong number".**
+
+1. **Signedness is the dangerous one, and it hides.** One of `0x602`'s four thermal channels is
+   defined `bytesToUint` where `bytesToInt` belongs. A positive temperature decodes identically
+   either way, so **the fault is invisible in normal data** and shows only on the `−32768` sentinel
+   (as **+327.68** instead of −327.68) or on a sub-zero ambient, which reads ~+655 °C. By field
+   order it is the second of the four, the `temp1` slot.
+2. **The sentinel check is not a one-off.** "All four read −327.68, therefore the definitions are
+   right" was true on 2026-09-09 and false by 2026-09-11 with no code change — the channel list is
+   hand-edited. **Re-run it after any edit**, and note it cannot be run at all with probes
+   attached.
+3. **A missing definition costs the whole packet**, silently, because the filter is honoured:
+   `0x604` and `0x601` bytes 6–7 have no channel and are simply never sent.
 
 ## The BLE worker needs its own main context BEFORE the D-Bus connection
 
@@ -422,6 +465,9 @@ The platform has already been the culprit once and the logger looked guilty (his
   being pulled, or a cranking dip. Repeated hard cuts are the durability risk worth knowing: one
   costs at most the last second, but doing it daily for a season is the classic route to a corrupt
   SD card, so `sudo poweroff` before pulling the fuse is free insurance.
+  **Both road-test sessions so far ended in a hard cut** — no `BLE stopped` event, no closing
+  record, the file simply stops. That is how to recognise one when reading a session back, and it
+  is the practice the note above is asking to change.
 - **Two logger instances run happily side by side and BOTH advertise — nothing refuses, nothing
   warns** (measured 2026-09-10: `SupportedInstances` is 5, `ActiveInstances` went 1 → 2 with a
   log-mode and an `--enroll` instance up together). **`KnurLogger.service` is now installed and
