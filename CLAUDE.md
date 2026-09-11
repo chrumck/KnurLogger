@@ -262,6 +262,32 @@ narrative in this file.
      concluding a sysfs-driven path is untestable.** What it does not establish: real bus timing,
      real conversion time, or `therm_bulk_read`.
 
+## A SESSION FILENAME MEANS NOTHING, and `taiUs` can jump mid-session
+
+**Measured on the first drive (2026-09-10): the box's clock ran 3 h 11 min behind, and
+`systemd-timesyncd` stepped it forward the moment the box regained the network.** The step lands
+*inside* a session file. Confirmed from the straddling record pair: `taiUs` jumped **+11,484 s**
+while `bootUs` moved **+1.0 s**.
+
+1. **A jump in `taiUs` is a clock step until proven otherwise, not a gap in recording.** Check
+   `bootUs` across the same pair. If `bootUs` moved a second and `taiUs` moved hours, nothing was
+   missed and no records were lost. Reading it the other way makes a complete session look like a
+   dead logger.
+2. **Every car session's filename is wrong**, because the name is stamped from that same clock.
+   Sorting or selecting sessions by filename picks the wrong file — that happened during this
+   analysis, and a session was analysed, then wrongly disowned, then re-confirmed.
+3. **Each session is its own boot, so the offset cannot be carried between them.** `bootUs` starts
+   near zero in every car session. The offset is whatever real time elapsed since the last bench
+   sync, so it differs per boot and there is no single correction to apply.
+4. **`bootUs` and `sessionUs` are the trustworthy axes and this is what they are for.** Intra-
+   session timing is exact across the step. The plan's item 4 requires the dual clock precisely
+   so a stepped wall clock costs nothing, and that requirement earned itself here.
+5. **To align against RaceChrono, use physics rather than clocks.** Cross-correlate cavity
+   temperature against GPS speed low-passed at ~180 s — the cavity tracks airflow at **r = −0.97**.
+   **Require a large overlap**: an unconstrained search returns a spurious near-perfect fit on a
+   few dozen bins at the edge of the window, which it did here before the constraint was added.
+6. **Do not "fix" this with a GPS-time fetch** — that is retired, and history §2.5 says so.
+
 ## NEVER return an ATT error from the filter callback
 
 **RaceChrono asks EVERY DIY device for the union of ALL packet IDs it has channel definitions

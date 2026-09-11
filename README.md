@@ -551,6 +551,21 @@ something is untestable:
    binds and its master attributes appear. This is how the udev rule was verified. It needs root,
    `w1_master_remove` undoes it, and the id is parsed as `%02x-%012llx` — the hyphen matters.
 
+## Session files are the only copy until you take one
+
+`filesDir` on the box is the sole home of every session until it is copied off. The workstation
+backup lives at `C:\_claude\KnurLoggerData\sessions\` — **deliberately outside both git
+repositories, because this one is public and session files are data.**
+
+```bash
+scp -r KnurLogger:KnurLoggerData/sessions/*.ndjson /c/_claude/KnurLoggerData/sessions/
+```
+
+**Two things to know before reading one.** A session filename is stamped from the box's wall
+clock, which in the car is hours wrong — see `CLAUDE.md`, "A session filename means nothing". And
+`taiUs` can jump mid-file when `timesyncd` corrects the clock; `bootUs` and `sessionUs` are the
+axes that survive it.
+
 ## Next
 
 **Find out why the bulk read converts nothing.** The permission is fixed and the write is
