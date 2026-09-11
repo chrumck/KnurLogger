@@ -668,3 +668,39 @@ was reachable only by asking what the sensor was doing.
 deleted — still subscribed, still decoding the same bytes under the old name. And **an old recording
 carries the slot numbers that were in force when it recorded**, so a disagreement with `README.md`'s
 slot map means the list has moved since, not that either is wrong.
+
+## 2026-09-11 — the third road test: the installed position, and the phone's list finally verified
+
+**The box was in the wheel-well cavity with the enclosure closed** (owner), four probes attached,
+engine running — the first session in the position the box was built for. Export
+`RaceChrono/20260911_200450_57_aleja_komisji_edukacji_narodowej.rcz`, 415.9 s, 2.68 km.
+
+**The link result.** All three free-running counters — `0x603` bytes 4–5, `0x601` bytes 4–5 and
+`0x604` byte 7 — stepped **exactly +1 on every sample**, with box 1 connected at the same time:
+**zero dropped notifications over 415 s from inside the cavity.** Three times the second drive's
+window, from the position that drive could not test. Probes enumerated 4 and valid-mask 15 on all
+406 thermal samples, `0x603` and `0x601` read errors 0, bulk conversion 762–792 ms, thermal rate
+0.977 Hz measured off the phone's own timestamps — matching the SD figure from §1.15 exactly.
+Live throttle, sticky throttle and the undervoltage comparator all 0; core rail steady at 840 mV.
+
+**Open item 45 closes, and HOW it closed is the part worth keeping.** Two of the three fixes were
+proved by this recording: `0x604` decoded for the first time in its life, and `0x601`'s two check
+values landed at 31 and 96. **The third could not have been proved by it.** `Temperature Front 2`'s
+`bytesToUint`/`bytesToInt` fault is invisible above 0 °C, and every reading in the session was
+between 15 and 46 °C — so the drive that verified two of the three was **structurally incapable**
+of verifying the third. The owner verified it separately, with the sensor disconnected, where the
+channel reads negative. **A test that covers most of a change can be silently blind to the rest of
+it**, and the blindness is a property of the data range, not of the effort.
+
+**A reading the assistant got wrong, corrected by the owner.** `T_ambient` falls 20.1 → 15.9 °C
+across the session. That was written up as the probe shedding its own heat soak into the airstream
+— an instrument artefact to discount. **It is a real ambient change: the garage is warmer than
+outside.** The consequence inverts. Far from being an artefact, the session now contains the
+garage-to-road step that plan commissioning item 4a has been asking for, with the CAN `0x420`
+channel logged beside it. **Before calling a reading an artefact, ask what the car was doing** —
+the logger cannot know it left a warm building and neither could the analysis.
+
+**Not established by this session**, so it is not over-read later: no sustained speed (17 km/h
+median, 83 km/h peak), no steering-lock or suspension-travel sweep, seat occupancy unrecorded — the
+three residuals on plan item 5a. And **the loaded star has still never run hot, vibrating, or for
+hours**; seven minutes on a cool September evening is the whole of its driven record.

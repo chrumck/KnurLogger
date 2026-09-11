@@ -140,7 +140,7 @@ narrative in this file.
      — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa
      measurands, and **not a single constant Cp**. Tolerable as a density term, disqualifying as a
      reference. Logged as `enclosurePressurePa`.
-     **That first drive is the only cavity measurement of it there is.** The second drive's box was
+     **That first drive is the only QUALIFIED cavity measurement of it there is.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). The second drive's box was
      on the passenger seat, so its strongly speed-correlated pressure record is a **cabin** record;
      it was written up as a second Cp point and withdrawn. **This field is named for where the box
      is, not for where it was designed to be** — nothing in the session file says which.
@@ -344,8 +344,9 @@ CAN frames. This is the single most expensive fault this project has had: it cos
    nobody subscribes to is never sent — correct behaviour. Measured on the bench: `supply` took
    zero notifies through a 57 s subscription while the other four ran at ~1 Hz; **measured again in
    the car on 2026-09-11**, where RaceChrono's burst never asked for `0x604` at all and the logger
-   recorded `"supply": 0`. Still undefined on the phone; `../ndLouvers/` open item 45.
-   **Defined on the phone since 2026-09-11, and not yet seen working.**
+   recorded `"supply": 0`. **Defined on the phone 2026-09-11 and CONFIRMED ON THE AIR the same
+   evening** — all six of its channels decoded in the third drive's recording, the frame's first
+   appearance ever. `../ndLouvers/` open item 45, closed.
    **`0x604` byte 7 is not the only liveness channel, and saying so cost nothing only by luck.**
    `0x601` and `0x603` bytes 4–5 are per-cycle counters with exactly the same property — they
    advance whatever the sensors report — and on the second road test the whole
@@ -380,6 +381,11 @@ CAN frames. This is the single most expensive fault this project has had: it cos
    exactly +1 across every sample the phone recorded: zero drops.** `../ndLouvers/thermals-testing.md`
    §3.7 owns the numbers. **That drive's box was on the passenger seat**, so it proves the code and
    nothing about the installed link — ~0.5 m of cabin air to the phone is the best case there is.
+   **The third drive, the same evening, WAS in the cavity with the enclosure closed** (owner): 415 s,
+   box 1 connected simultaneously, and all three free-running counters — `0x603` and `0x601` bytes
+   4–5 and `0x604` byte 7 — stepping exactly +1 on every sample. `../ndLouvers/thermals-testing.md`
+   §3.8. **The cavity is not a link problem**; what plan item 5a still asks for is sustained speed,
+   a steering-lock and suspension-travel sweep, and a recorded seat occupancy.
 
 ## THE PHONE'S CHANNEL LIST IS PART OF THE INSTRUMENT AND THIS CODE CANNOT CHECK IT
 
@@ -400,8 +406,14 @@ argument is never an answer to "the phone is showing the wrong number".**
 3. **A missing definition costs the whole packet**, silently, because the filter is honoured.
    That is how `0x604` went unsent for two road tests.
 
-**All three were fixed on the phone on 2026-09-11 and NONE has been observed working** — the fixes
-are typed in, not verified. `../ndLouvers/` open item 45 owns the verification.
+**All three were fixed on the phone on 2026-09-11 and ALL THREE ARE NOW OBSERVED WORKING** —
+`0x604` and `0x601` on the air in the third drive's recording (`0x604`'s first appearance ever;
+`0x601`'s check values land at 31 and 96), and `Temperature Front 2` by the owner with the sensor
+disconnected, where it reads negative. `../ndLouvers/` open item 45 is closed on that.
+**The three rules above survive the close** — they are about the fault class, which is permanent,
+not about these three instances. **Note which check proved which:** the drive proved two and was
+structurally incapable of proving the third, because every reading in it was 15–46 °C, where both
+decodes agree exactly.
 
 ### Audit the phone's channel list from an export, without the phone
 

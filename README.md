@@ -19,7 +19,10 @@ knows, box 1's CAN frames included, and refusing one lost the whole subscription
 next three faults on the phone rather than in this repository.** Box 2 accepted the whole
 nine-command burst, ignored the five IDs it does not publish, and sent 141/141/139/139
 notifications on `0x602`/`0x603`/`0x600`/`0x601` over 140 s with **zero drops** — both per-cycle
-counters advanced by exactly +1 across every sample RaceChrono recorded. Box 1 (KnurDash), which
+counters advanced by exactly +1 across every sample RaceChrono recorded. **The third drive the same
+evening repeated that over 415 s from inside the wheel-well cavity with the enclosure closed**, on
+three free-running counters independently and with box 1 connected at the same time — the first
+link measurement from the installed position, and still zero drops. Box 1 (KnurDash), which
 had the same defect, kept all twelve of its channels alive to the last sample. **`0x600`, `0x601`
 and `0x603`'s channel equations are now confirmed end to end**, which this file previously listed
 as outstanding. **Three RaceChrono channel definitions are wrong or missing** and no code here can
@@ -251,7 +254,10 @@ easy to point at the wrong thing:
    aerodynamically live: **measured at 156 Pa below stationary at a mean 116 km/h on the first
    drive (Cp ≈ −0.25)**, which is still 2–3× the 45–90 Pa measurands, is not a single constant Cp,
    and is speed-correlated so it does not average out of a speed sweep. **That is the only cavity
-   measurement of it there is** — the second drive's box was on the passenger seat, so its
+   QUALIFIED measurement of it there is**, and a second cavity record from the third drive
+   corroborates the sign and order without being a Cp point, because the route's elevation change
+   is the same order as the signal and no altitude channel was exported — the second drive's box
+   was on the passenger seat, so its
    speed-correlated pressure record is a cabin record and was withdrawn.
    **This field is named for where the box is designed to sit, not for where it actually sat**, and
    nothing in the session file says which. Record the mounting state per session. It is tolerable as a
@@ -291,7 +297,9 @@ otherwise decode as ~655 °C. A channel with no trustworthy reading sends `-3276
 deliberately absurd rather than plausible because RaceChrono holds the last value it received
 indefinitely and an invalid marker has to be visible.
 
-> **⚠ `Temperature Front 2` was defined `bytesToUint` and is now fixed — but not yet verified.**
+> **⚠ `Temperature Front 2` was defined `bytesToUint`; it is fixed and VERIFIED** (owner,
+> 2026-09-11 — with the sensor disconnected the channel reads negative, so the signed decode is in
+> force). Keep the whole entry: the fault class is permanent even though this instance is closed.
 > Found 2026-09-11: three of the four sentinels decoded as −327.68 and that one as **+327.68**. It
 > is `0x602` bytes 2–3, i.e. **`temp1`, the `T_core_in` slot — the probe ΔT_preheat is measured
 > from**. **The fault is invisible in normal data**, because a positive temperature decodes
@@ -322,9 +330,11 @@ byte 1 is which channels read cleanly.
 
 > **⚠ This frame went unsent through two road tests** — no channel was defined for it, so
 > RaceChrono's subscription burst never asked for it and the logger recorded `"supply": 0`
-> notifications. **Defined 2026-09-11 and not yet seen working**; the slot map above has where the
-> six rows went. Confirm from either end: byte 7 ticking +1 per second on the phone, or
-> `bleNotifiesByPacket` in any `supply` record showing `supply` climbing instead of 0.
+> notifications. **Defined 2026-09-11 and CONFIRMED the same evening** on the third drive — all six
+> channels decoded, and byte 7's heartbeat stepped exactly +1 across all 410 samples. The slot map
+> above has where the six rows went. Re-confirm from either end after any edit to the phone's
+> channel list: byte 7 ticking +1 per second on the phone, or `bleNotifiesByPacket` in any
+> `supply` record showing `supply` climbing instead of 0.
 
 **Byte 7 is the channel to watch within this frame.** Every other field here is a physical quantity
 allowed to sit still — SoC core voltage reads a constant 840 mV on an
@@ -705,10 +715,13 @@ lived in the backup that way until it was replaced; `systemctl is-active KnurLog
 
 Needing only a drive: **commissioning item 5a's installed BLE link check** and **item 5.7's
 under-load supply telemetry**, both of which want the enclosure as built and the car moving. **The
-logger has now run on a moving car twice and neither item is closed.** The second drive measured a
-clean link, but with the box **on the passenger seat**, no probes or pressure sensors attached, over
-143 s with only 46 % of it moving — so it is evidence about the code and nothing about the installed
-position. ~0.5 m of cabin air to the phone is the best case; the cavity is the question.
+logger has now run on a moving car three times and neither item is fully closed, but the third run
+— 2026-09-11, in the cavity with the enclosure closed — is the first that counts.** 415 s, four
+probes attached, engine running, box 1 connected simultaneously: zero dropped notifications on
+three independent counters, 4 probes and valid-mask 15 on every sample, zero read errors, and
+throttle and undervoltage flags 0 throughout. What 5a still wants is **sustained speed, a full
+steering-lock and suspension-travel sweep, and a recorded seat occupancy**; what 5.7 still wants is
+**duration, a hot ambient, and the five SDP810s actually drawing**.
 **Record where the box was mounted** on every session; without that a run cannot serve either item,
 and a cabin record reads exactly like a cavity one.
 
