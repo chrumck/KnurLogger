@@ -13,8 +13,12 @@ the -32768 invalid sentinel decoded unsigned, which is the one fault that stays
 invisible once probes are attached and reading above zero.
 
 Only the four channel types box 2 uses are named here. Box 1's channels come back as
-bare type numbers, which is enough to tell them apart and to spot a channel carrying no
-value at all.
+bare type numbers, which is enough to tell them apart.
+
+A channel with no value in any sample is reported but NOT called a fault: RaceChrono
+renders a deliberate out-of-calibration-range marker as no value, so an all-empty
+channel can be a sensor that was out of range for the whole session. Box 1 has two that
+are exactly that.
 """
 
 import struct
@@ -63,7 +67,7 @@ def main(paths):
                 label = "%s Front %d" % (channelType, slot) if isKnown else "%s slot %d" % (channelType, slot)
                 note = ""
                 if not finite:
-                    note = "  <-- NO VALUE in any sample; check the equation"
+                    note = "  <-- no value in ANY sample: out of range all session, or a bad equation"
                 elif channelType == "Temperature" and any(
                     abs(v - UNSIGNED_SENTINEL) < SENTINEL_TOLERANCE for v in finite
                 ):

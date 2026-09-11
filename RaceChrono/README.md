@@ -43,9 +43,11 @@ from an export taken after this one.
    decision.** In lowercase, scanning for it by eye is unreliable. `../Tools/rcz-channels.py`
    checks it from a recording instead.
 
-**`A`–`H` (or `a`–`h`) in an equation are payload bytes 0–7**, and **referencing a byte the frame
-does not carry yields no value at all.** Box 1's `0x7F0` channels `lowPass(E,254)*4` and
-`lowPass(F,254)-50` — bytes 4 and 5 — are `NaN` in every sample of every recording taken so far,
-while the four on the same packet using `a`, `b`, `C` and `D` work. Either that frame is four bytes
-long or those two fields are not being sent. It is a box-1 question, recorded here because the
-channel set is shared.
+**`A`–`H` (or `a`–`h`) in an equation are payload bytes 0–7.**
+
+**An all-empty channel is not necessarily a broken one.** RaceChrono renders a deliberate
+out-of-range marker as no value at all. Box 1's `0x7F0` channels `lowPass(E,254)*4` and
+`lowPass(F,254)-50` are `NaN` in every sample of every recording so far, and **that is by design**
+(owner, 2026-09-11): those sensors were outside their calibration range throughout, and the marker
+is how that is signalled. They are working. `../Tools/rcz-channels.py` reports such channels without
+calling them faults — **ask what the sensor was doing before changing an equation.**

@@ -166,7 +166,7 @@ table is the readable view of it. Packet IDs are decimal, which is what the CAN-
 
 | Packet | Bytes | RaceChrono slot | Carries |
 |---|---|---|---|
-| 1536 `0x600` | 0–3 | `Pressure Front 50` | enclosure pressure, kPa (the `/1000` is the phone's) |
+| 1536 `0x600` | 0–3 | `Pressure Front 50` | enclosure pressure — `/1000` for kPa, displayed in bar |
 | 1536 | 4–5 | `Temperature Front 50` | cavity temperature |
 | 1536 | 6–7 | `Percent Front 50` | enclosure humidity |
 | 1537 `0x601` | 0 | `Digital Front 51` | BME280 status bits, expect 31 |
@@ -219,15 +219,17 @@ definition written against the rig's `0x600` decodes garbage here and must be re
 
 | Bytes | Channel | Equation as deployed | Invalid |
 |---|---|---|---|
-| 0–3 | enclosure pressure, **kPa** | `bytesToUint(raw, 0, 4) / 1000` | `4294967295` → `4294967.295` |
+| 0–3 | enclosure pressure, **kPa on the wire, displayed in bar** | `bytesToUint(raw, 0, 4) / 1000` | `4294967295` → `4294967.295`, i.e. ~42 950 bar |
 | 4–5 | cavity temperature | `bytesToInt(raw, 4, 2) / 100` | `-32768` → −327.68 °C |
 | 6–7 | enclosure humidity, % | `bytesToUint(raw, 6, 2) / 100` | `65535` → 655.35 % |
 
-**The logger sends pressure in whole pascals; the `/1000` is the phone's, chosen so the gauge reads
-kPa.** This table documented the undivided form until 2026-09-11, when the saved vehicle profile
-showed what was actually entered. The divide is fine and the invalid marker survives it —
-`4294967.295` is no more plausible than `4294967295` — but **the two must be read together**, which
-is the reason the profile is now backed up in `RaceChrono/`.
+**The logger sends pressure in whole pascals and the `/1000` is the phone's, because RaceChrono's
+Pressure channel takes kPa and this gauge is set to display bar** (owner, 2026-09-11). So 101 319 Pa
+goes out, RaceChrono stores 101.319 and renders **~1.013 bar**. This table documented the undivided
+form until the saved vehicle profile showed what was actually entered. The divide is fine and the
+invalid marker survives it — ~42 950 bar is no more plausible than 4294967295 Pa — but **the packet
+and the channel must be read together**, which is the reason the profile is now backed up in
+`RaceChrono/`.
 
 **Temperature is signed — use `bytesToInt`.** Pressure and humidity are unsigned and use
 `bytesToUint`; pressure needs the full four bytes because absolute pressure does not fit in two

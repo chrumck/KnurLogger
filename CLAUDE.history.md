@@ -580,11 +580,20 @@ across all sixteen channels, which turned rev 86's inference ("the second of the
 order") into an identification: **`Temperature Front 2`**, i.e. `0x602` bytes 2–3, the `temp1` /
 `T_core_in` slot.
 
-**`Tools/rcz-channels.py` is that decode, and it flags two faults rather than one.** A `Temperature`
-slot reading +327.68 is the sentinel decoded unsigned. A channel whose samples are all `NaN` is a
-defined channel that never produced a value — which turned out to be true of **two of KnurDash's**,
-unnoticed until the tool printed them. Run it on the first recording after any edit to the phone's
-channel list.
+**`Tools/rcz-channels.py` is that decode.** It flags a `Temperature` slot reading +327.68, which is
+the sentinel decoded unsigned, and it *reports* a channel whose samples are all `NaN`. Run it on the
+first recording after any edit to the phone's channel list.
+
+**The all-`NaN` report was written as a fault flag and had to be demoted the same day.** Two of
+KnurDash's channels come back empty in every recording, and the assistant read that as a
+frame-length fault — `lowPass(E,254)` and `lowPass(F,254)` reference bytes 4 and 5 of `0x7F0` while
+the four working channels on that packet use bytes 0–3, so "the frame is four bytes long" fitted
+every observation. **It was wrong** (owner, 2026-09-11): RaceChrono renders a deliberate
+out-of-calibration-range marker as no value, those sensors were out of range throughout, and the
+channels are working as designed. **An empty channel and a mistyped equation are indistinguishable
+in an export**, so the tool now reports rather than accuses. The general form of the mistake is
+worth keeping: a hypothesis that explains every observation is not thereby correct, and this one
+was reachable only by asking what the sensor was doing.
 
 **Two things about slots that are easy to get wrong.** Changing a slot's *type* changes its id, so
 `Digital Front 15` and `Temperature Front 15` are different channels and the old one survives unless

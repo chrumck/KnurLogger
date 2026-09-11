@@ -406,12 +406,15 @@ python3 Tools/rcz-channels.py session.rcz
    channel types rather than the four DIY ones. Enough to tell them apart and to spot a dead one.
 4. **The profile itself can be exported and is now committed**, at `RaceChrono/vehicleProfile.json`
    — the equations as entered, for both boxes, with `localUuid` stripped. Checking it against this
-   README found that **`0x600`'s pressure channel carries a `/1000` the README did not document**,
-   which is how a spec and a deployment drift without anyone noticing.
-5. **`A`–`H` in an equation are payload bytes 0–7, and a byte the frame does not carry yields no
-   value at all.** That is what the all-`NaN` flag catches: box 1's two dead channels are
-   `lowPass(E,254)` and `lowPass(F,254)` on `0x7F0`, bytes 4 and 5, while the four working ones on
-   that packet use `a`, `b`, `C`, `D`. Either the frame is four bytes or those fields are not sent.
+   README found that **`0x600`'s pressure channel carries a `/1000` the README did not document**
+   — RaceChrono's Pressure channel takes kPa and that gauge displays bar — which is how a spec and
+   a deployment drift without anyone noticing.
+5. **AN ALL-EMPTY CHANNEL IS NOT NECESSARILY A BROKEN ONE.** RaceChrono renders a deliberate
+   out-of-range marker as no value at all, so a channel that is `NaN` in every sample can be a
+   sensor that sat outside its calibration range for the whole session. **Box 1's two are exactly
+   that** (owner, 2026-09-11) — `lowPass(E,254)` and `lowPass(F,254)` on `0x7F0`, working as
+   designed. The tool reports them and no longer calls them faults. **Do not "fix" a channel on
+   this evidence alone**; ask what the sensor was doing.
 6. **RaceChrono's parser is case-insensitive** — `bytesToUint`, `bytesTouInt`, `bytestouint` and
    `bytesToUInt` all appear in the profile and all work. **Do not normalise the casing**: there is
    nothing to fix, and `bytestoint` differs from `bytestouint` by the single letter that decides
