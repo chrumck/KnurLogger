@@ -160,11 +160,13 @@ which bytes carry what; this one says which predefined channel slot each field w
 a slot is what a gauge, a lap chart or an exported CSV is named after. **Losing it means re-picking
 23 slots, and re-picking slots is how one of them ended up decoding signed data as unsigned.**
 
-Slots as of **2026-09-11**. Packet IDs are decimal, which is what the CAN-ID field takes.
+Slots as of **2026-09-11**, and **verified against RaceChrono's own exported profile**, which is
+committed at `RaceChrono/vehicleProfile.json` — that file is the authority on what is entered, this
+table is the readable view of it. Packet IDs are decimal, which is what the CAN-ID field takes.
 
 | Packet | Bytes | RaceChrono slot | Carries |
 |---|---|---|---|
-| 1536 `0x600` | 0–3 | `Pressure Front 50` | enclosure pressure, kPa |
+| 1536 `0x600` | 0–3 | `Pressure Front 50` | enclosure pressure, kPa (the `/1000` is the phone's) |
 | 1536 | 4–5 | `Temperature Front 50` | cavity temperature |
 | 1536 | 6–7 | `Percent Front 50` | enclosure humidity |
 | 1537 `0x601` | 0 | `Digital Front 51` | BME280 status bits, expect 31 |
@@ -215,11 +217,17 @@ decision, 2026-09-10). That rig is spent, so the IDs were released for real use.
 definition written against the rig's `0x600` decodes garbage here and must be re-entered.**
 `0x602`–`0x604` are unchanged and still carry over.
 
-| Bytes | Channel | Equation | Invalid |
+| Bytes | Channel | Equation as deployed | Invalid |
 |---|---|---|---|
-| 0–3 | enclosure pressure, Pa | `bytesToUint(raw, 0, 4)` | `4294967295` |
+| 0–3 | enclosure pressure, **kPa** | `bytesToUint(raw, 0, 4) / 1000` | `4294967295` → `4294967.295` |
 | 4–5 | cavity temperature | `bytesToInt(raw, 4, 2) / 100` | `-32768` → −327.68 °C |
 | 6–7 | enclosure humidity, % | `bytesToUint(raw, 6, 2) / 100` | `65535` → 655.35 % |
+
+**The logger sends pressure in whole pascals; the `/1000` is the phone's, chosen so the gauge reads
+kPa.** This table documented the undivided form until 2026-09-11, when the saved vehicle profile
+showed what was actually entered. The divide is fine and the invalid marker survives it —
+`4294967.295` is no more plausible than `4294967295` — but **the two must be read together**, which
+is the reason the profile is now backed up in `RaceChrono/`.
 
 **Temperature is signed — use `bytesToInt`.** Pressure and humidity are unsigned and use
 `bytesToUint`; pressure needs the full four bytes because absolute pressure does not fit in two
@@ -384,6 +392,11 @@ Hardware/             box-2 hardware; nothing here is logger code
 Tools/                offline diagnostics; nothing here runs on the box
   rcz-channels.py       decode a RaceChrono .rcz's channel slots and flag a mistyped
                         equation — the phone's channel list, audited without the phone
+
+RaceChrono/           the phone's configuration, which lives nowhere else
+  vehicleProfile.json   RaceChrono's exported vehicle profile, localUuid stripped;
+                        both boxes' channels, since the two share one channel set
+  README.md             why it is here, how to re-import it, and its traps
 
 SystemSetup/          host configuration; nothing here is logger code
   pi-headless-setup.md    the runbook — start here
