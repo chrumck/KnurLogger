@@ -11,6 +11,11 @@ channel slots included. Re-picking slots by hand is what produced the `bytesToUi
 `bytesToInt`-belongs fault on `Temperature Front 2` (`../ndLouvers/` open item 45), so a backup that
 can be re-imported is worth more than a table that has to be re-typed.
 
+**This directory holds the PROFILE, not recordings.** Session `.rcz` exports live outside both
+repositories, in `C:\_claude\RaceChrono\` — `../ndLouvers/thermals-testing.md` §2.5 item 4 owns
+that and says how they differ from the SD session files. Sessions are cited by `.rcz` filename in
+`../CLAUDE.history.md`; do not look for them here.
+
 **Exported 2026-09-11**, from the profile named `AE30`. It is a snapshot, not a live mirror —
 **the app is the authority**, and this file is stale from the moment a channel is edited.
 Re-export after any change.
