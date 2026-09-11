@@ -80,6 +80,14 @@ software and the host configuration that satisfy them, and owns no measurement d
 Read, in this order, before changing anything here:
 
 1. `../ndLouvers/CFD-Learning-Plan.md` — Step 0b, especially commissioning items 2, 4, 5a and 5b.
+1a. `../ndLouvers/thermals-testing.md` — the thermal measurement companion: probe siting, the
+   cavity BME280, the cold-soak method, clock alignment and every recorded thermal result. Read it
+   before changing anything that touches `oneWireProbes.cxx` or `bme280Sensor.cxx`. It owns no
+   requirement; Step 0b does.
+1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **Nothing in it is
+   built yet** (the SDP810s are undelivered), but it is what the pressure worker will have to
+   satisfy when there is one, and it records that the five SDP810s will share the I2C bus whose
+   first-transfer refusal is documented above.
 2. `Hardware/logger-perfboard-wiring.md` — pinouts, I2C addresses, mux channel numbering and
    bring-up order. Its §3a net list is the authority on every connection. It is subordinate to the
    plan's Step 0b, which it lived alongside until 2026-09-10.
@@ -151,9 +159,10 @@ is: RaceChrono holds the last value it received indefinitely.
 easy to point at the wrong thing:
 
 1. **Pressure is ENCLOSURE pressure and never a static reference.** The cavity is
-   aerodynamically live: at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands, five to ten
-   times the signal, and it is speed-correlated so it does not average out of a speed sweep. It
-   is tolerable as a density term and disqualifying as a reference.
+   aerodynamically live: **measured at 156 Pa below stationary at a mean 116 km/h on the first
+   drive (Cp ≈ −0.25)**, which is still 2–3× the 45–90 Pa measurands, is not a single constant Cp,
+   and is speed-correlated so it does not average out of a speed sweep. It is tolerable as a
+   density term and disqualifying as a reference (`../ndLouvers/thermals-testing.md` §3.6).
 2. **Temperature is the cavity thermometer** (plan item 1c), with Pi SoC temperature on `0x604`
    as a cross-check rather than the primary proxy. **It is not the inlet density term** — that is
    `T_ambient`'s DS18B20 on `0x602` byte 0–1.

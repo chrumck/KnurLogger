@@ -134,11 +134,12 @@ narrative in this file.
   every populated channel has its own pair.
 - **The BME280's three quantities have three different consumers, and two of them are easy to
   point at the wrong thing.** `bme280Sensor.cxx` reads it and the field names carry the roles;
-  the plan's thermal-channels section owns the reasoning.
+  `../ndLouvers/thermals-testing.md` §1.4 owns the reasoning and Step 0b owns the requirement.
   1. **Pressure is ENCLOSURE pressure, never a static reference.** The cavity is aerodynamically
-     live; at Cp −1 the offset is ~464 Pa against 45–90 Pa measurands, and it is speed-correlated
-     so it will not average out of a speed sweep. Tolerable as a density term, disqualifying as a
-     reference. Logged as `enclosurePressurePa`.
+     live. **Measured on the first drive: 156 Pa below stationary at a mean 116 km/h (Cp ≈ −0.25)**
+     — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa measurands, and
+     not a single constant Cp. Tolerable as a density term, disqualifying as a reference. Logged as
+     `enclosurePressurePa`.
   2. **Temperature is the CAVITY THERMOMETER** (plan item 1c), with Pi SoC temperature a
      cross-check rather than the primary proxy, and item 1d wants it recorded across a full
      session. **It is NOT the inlet density term** — that is `T_ambient`'s DS18B20, a probe in the
