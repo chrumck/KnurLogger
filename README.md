@@ -8,91 +8,60 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status: all five workers are written, all four DS18B20s are enrolled, the loaded 4 × 5 m
-1-Wire star reads CRC-clean, and the BME280 is read and logged. The first road test ran on
-2026-09-10 and found one fault, since fixed: the logger refused RaceChrono's per-frame
-subscription and froze the phone's data.** RaceChrono asks every device for every packet ID it
-knows, box 1's CAN frames included, and refusing one lost the whole subscription — `CLAUDE.md`
-§"Never return an ATT error from the filter callback" owns it.
+**Status.** All five workers are written and the box has driven three times. **The third drive
+(2026-09-11) is the first from the installed position** — in the wheel-well cavity, enclosure
+closed, four probes attached, box 1 connected at the same time — and it is clean on every count it
+could be read on: 415 s with **zero dropped notifications on three free-running counters
+independently**, 4 probes and valid-mask 15 on every sample, zero read errors, live and sticky
+throttle and the undervoltage comparator all 0, cavity ~10 K over ambient.
 
-**The second road test (2026-09-11) confirms that fix in the field on both boxes, and found the
-next three faults on the phone rather than in this repository.** Box 2 accepted the whole
-nine-command burst, ignored the five IDs it does not publish, and sent 141/141/139/139
-notifications on `0x602`/`0x603`/`0x600`/`0x601` over 140 s with **zero drops** — both per-cycle
-counters advanced by exactly +1 across every sample RaceChrono recorded. **The third drive the same
-evening repeated that over 415 s from inside the wheel-well cavity with the enclosure closed**, on
-three free-running counters independently and with box 1 connected at the same time — the first
-link measurement from the installed position, and still zero drops. Box 1 (KnurDash), which
-had the same defect, kept all twelve of its channels alive to the last sample. **`0x600`, `0x601`
-and `0x603`'s channel equations are now confirmed end to end**, which this file previously listed
-as outstanding. **Three RaceChrono channel definitions are wrong or missing** and no code here can
-detect them — see `CLAUDE.md` §"The phone's channel list is part of the instrument" and
-§[`0x604`](#0x604--supply-health-and-logger-liveness) below.
+What each drive settled, because they are not interchangeable:
 
-> **⚠ That drive's box was on the PASSENGER SEAT with no probes attached.** Everything above is a
-> code or protocol result and stands; **every READING from that session is void**, including the
-> BME280's, which described the cabin. The link result is a best case — ~0.5 m of cabin air to the
-> phone — and says nothing about a wheel-well cavity. `../ndLouvers/thermals-testing.md` §3.7.
+1. **First, 2026-09-10.** Its BLE observations are void — the logger refused RaceChrono's
+   per-frame subscription burst with an ATT error and the phone froze on one frame set. Fixed;
+   `CLAUDE.md` §"Never return an ATT error from the filter callback" owns it. Its SD record was
+   unaffected and carries the first thermal analysis.
+2. **Second, 2026-09-11.** Confirms that fix in the field on both boxes — the whole nine-command
+   burst accepted, the five IDs box 2 does not publish ignored, 141/141/139/139 notifications over
+   140 s with zero drops; box 1 (KnurDash), which had the same defect, kept all twelve of its
+   channels alive. It also closed the `0x600`/`0x601`/`0x603` equation check and exposed three
+   phone-side channel faults. **Its box was on the PASSENGER SEAT**, so every *reading* from it is
+   void, the BME280's included — a cabin record (`../ndLouvers/thermals-testing.md` §3.7). Only the
+   code and protocol results survive, and those do not depend on where the box sat.
+3. **Third, 2026-09-11.** The installed-position run above.
 
-> **⚠ `bme280IntervalMs` is a NEW REQUIRED KEY in `[sensors]`, and the production `.ini` is not
-> in git.** A missing key is a startup failure, like every other key in this file, so **the
-> deployed logger will refuse to start until the line is added to `~/bin/KnurLogger.ini`** —
-> `deploy-logger.sh` replaces the binary and never updates the `.ini`. Add it before deploying:
->
-> ```bash
-> ssh KnurLogger "grep -q bme280IntervalMs ~/bin/KnurLogger.ini || sed -i '/^bme280Address=/a bme280IntervalMs=1000' ~/bin/KnurLogger.ini; grep -A3 '^\[sensors\]' ~/bin/KnurLogger.ini"
-> ```
+**All three phone-side channel faults are fixed and all three are now observed working** — `0x604`
+defined and decoding for the first time, `0x601` completed and renumbered, and `Temperature
+Front 2` corrected from `bytesToUint`. Nothing in this repository can detect a fault in the phone's
+channel list; `CLAUDE.md` §"The phone's channel list is part of the instrument" owns the rule,
+which outlives these three instances.
 
-The session writer (append-only, ~1 s `fsync`, both measured), the supply-telemetry worker, the
-RaceChrono BLE worker, **DS18B20 enrollment** and the **BME280 reader** are all done, and the
-thermal and supply channels decode correctly in
-RaceChrono on a phone (2026-09-09: `0x602` read −327.68 °C on all four thermal channels, the
-deliberate no-probe-bound sentinel, which confirms packet ID, byte order, signedness and scaling
-end to end — **for the channel definitions in force that day; one of the four had become
-`bytesToUint` by 2026-09-11**, so re-run this check after any edit to the phone's channel list).
-**The enrollment** (2026-09-10, at the car): 63 consecutive cycles enumerated four probes with
-a valid-mask of 15 every cycle — zero read errors, zero CRC failures, zero non-probe entries —
-which closes the plan's thermal item 1 first requirement. `temp0` = `28-06254385da1f`,
-`temp1` = `28-0625424044b7`, `temp2` = `28-062542ac86b6`, `temp3` = `28-0625424e16c9`, in installed
-order. An earlier attempt the same day bound three and was abandoned, having unplugged each probe
-as the next went in; three faults it exposed are fixed (`CLAUDE.history.md` §1.11–§1.13).
-**Sampling is 0.977 Hz since 2026-09-11, and the bulk read is what got it there.**
-Two conditions were needed and neither alone was enough: `SystemSetup/grant-w1-bulk-read.sh` clears
-the `EACCES` on `therm_bulk_read`, **and the trigger must be eight bytes — `"trigger
-"`** — because
-`therm_bulk_read_store` gates on `size == sizeof("trigger")`. The logger wrote seven for a day; the
-write cannot fail, so the only evidence was `err=-22` in the kernel log. Measured at the car over
-123 cycles: **one 762–790 ms conversion for all four probes**, cycle interval mean 1023 ms, and
-**zero CRC failures across 492 reads**. Parasite power was the standing suspect and was wrong —
-`ext_power` reads `1` on all four. `CLAUDE.history.md` §1.15 has the diagnosis.
+**Sampling is 0.977 Hz since 2026-09-11**, via `therm_bulk_read`: one 762–790 ms conversion for all
+four probes, 1023 ms mean cycle, zero CRC failures across 492 reads. Two conditions were needed and
+neither alone was enough — `SystemSetup/grant-w1-bulk-read.sh` for the `EACCES`, and an **eight-byte**
+trigger write, because `therm_bulk_read_store` gates on `size == sizeof("trigger")`. Parasite power
+was the standing suspect and was wrong. `CLAUDE.history.md` §1.15.
 **Every thermal reading taken before 2026-09-11 is at 0.31 Hz** and no reprocessing changes that.
 
-**The map is independently confirmed** (2026-09-10): warming each probe in installed order moved
-`temp0`, `temp1`, `temp2`, `temp3` in that order with clean separation, +3.8 to +5.4 K each.
-**The cold-soak calibration is done and the answer is no offsets** — 12.9 undisturbed minutes,
-four-probe mean 21.958 °C, spread 0.193 K, which is ~3 % of a ~6 K ΔT_preheat signal and cannot be
-separated from a real spatial gradient across four locations. All four `temp<N>OffsetC` stay 0.0.
-**A 7.53 h unattended run holds up** (2026-09-10, bench, open air, no probes bound, no phone
-connected): 27,123 sample cycles with inter-cycle gaps of median 1002 ms and a **maximum of
-1004 ms**, zero gaps over 2 s, zero dropped records, zero error events, `throttled` live and
-sticky 0 throughout, SoC temperature 50.1–55.0 °C, and a clean closing record on SIGTERM. Session
-growth measured **1457 B/s**, so ~6 MB/h once four probes report — about 72 MB for a 12 h day
-against 108 GB free. It exercised neither BLE notify load (`0 notifications sent`) nor the sealed
-enclosure in the wheel well, where the thermal picture will be different. Getting BLE working needed an
-`apt full-upgrade` on 2026-09-09 — `bluez 5.82-1.1+rpt1` on kernel `6.18.34` could not register an
-advertisement at all, which `CLAUDE.history.md` records in full because the symptom points at the
-logger and the cause is not in it; `CLAUDE.md` carries the diagnostic sequence to reuse. The host setup under `SystemSetup/` **has been applied**
-(2026-09-09): dependencies installed, the boot-time pass run, rebooted and re-audited. `/dev/i2c-1`
-and the 1-Wire bus exist, the build toolchain is installed, and the
-Bluetooth soft block is cleared and survived a reboot, and the box is **key-only over SSH**
-(`ssh-harden.sh` ran too, so all four scripts have now been applied), and the box has since taken a
-full upgrade to kernel `6.18.39` / `bluez 5.82-1.1+rpt2`.
-**The perfboard's sensor zone is assembled**, minus the pressure-sensor part — the five SDP810s
-are still being delivered. So the buses are no longer silent, and an empty I2C scan is no longer
-the correct result. The BME280 answers at **`0x77`**, which is now its specified address; the mux
-is a **PCA9548A** and was silent because its `~RESET` had been soldered to header pin 9 instead of
-pin 11 — resoldered and verified answering at `0x70`; and the 1-Wire phantoms have stopped, which
-is attributed to `R11` terminating the line. `CLAUDE.md` has the facts to code against;
+**The four DS18B20s are enrolled** (2026-09-10, at the car) and the loaded 4 × 5 m star reads
+CRC-clean — 63 consecutive cycles, valid-mask 15, zero read errors — which closes the plan's
+thermal item 1. The map is independently confirmed by warming each probe in installed order.
+**The cold-soak calibration is done and the answer is no offsets**: spread 0.193 K over 12.9
+undisturbed minutes, ~3 % of a ~6 K ΔT_preheat signal and inseparable from a real spatial gradient,
+so all four `temp<N>OffsetC` stay 0.0 — **a result, not an oversight**.
+
+**A 7.53 h unattended bench run holds up**: 27,123 cycles, worst-case gap 1004 ms, zero gaps over
+2 s, zero dropped records, `throttled` 0 throughout, 1457 B/s (~72 MB for a 12 h day against 108 GB
+free). It was open-air and idle with no probes bound and `0 notifications sent`, so it exercises
+neither BLE load nor the sealed enclosure.
+
+**The host setup under `SystemSetup/` has been applied** and the box is key-only over SSH, on
+kernel `6.18.39` / `bluez 5.82-1.1+rpt2` — the upgrade is what made BLE advertising work at all
+(`CLAUDE.history.md` §1.2; the symptom points at the logger and the cause is not in it).
+**The perfboard's sensor zone is assembled**, minus the five undelivered SDP810s, so an empty I2C
+scan is no longer the correct result: the BME280 answers at **`0x77`**, now its specified address,
+the **PCA9548A** mux answers at `0x70` since its `~RESET` was resoldered from header pin 9 to
+pin 11, and the 1-Wire phantoms have stopped. `CLAUDE.md` has the facts to code against;
 `CLAUDE.history.md` has the diagnoses behind them.
 
 ---
@@ -114,6 +83,10 @@ Read, in this order, before changing anything here:
    built yet** (the SDP810s are undelivered), but it is what the pressure worker will have to
    satisfy when there is one, and it records that the five SDP810s will share the I2C bus whose
    first-transfer refusal is documented above.
+1c. `one-wire-probes.md` — the 1-Wire subsystem's traps and standing requirements: the ROM-ID
+   bindings, the `28-*` family filter, `therm_bulk_read`, the ~100 s tail a pulled probe leaves,
+   the fake-sysfs harness, and the enrollment and offset requirements. **Read it before touching
+   `oneWireProbes.cxx`.** Split out of `CLAUDE.md` on 2026-09-15.
 2. `Hardware/logger-perfboard-wiring.md` — pinouts, I2C addresses, mux channel numbering and
    bring-up order. Its §3a net list is the authority on every connection. It is subordinate to the
    plan's Step 0b, which it lived alongside until 2026-09-10.
@@ -317,33 +290,6 @@ right — none of them is a temperature — and the session file is where the th
 see *which* it is from the phone alone, watch `0x603`: byte 0 is how many probes are on the bus and
 byte 1 is which channels read cleanly.
 
-### `0x604` — supply health and logger liveness
-
-| Bytes | Content | Equation |
-|---|---|---|
-| 0 | low nibble = live throttle bits; bit 4 = records dropped; bit 5 = enrollment mode | `bytesToUint(raw, 0, 1)` |
-| 1 | sticky throttle bits, latched since **boot** not since session start | `bytesToUint(raw, 1, 1)` |
-| 2 | undervoltage comparator; **255 = could not be read**, not "no alarm" | `bytesToUint(raw, 2, 1)` |
-| 3–4 | SoC core millivolts — **NOT the supply rail** | `bytesToUint(raw, 3, 2)` |
-| 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
-| 7 | **heartbeat, +1 per second, wraps at 255** | `bytesToUint(raw, 7, 1)` |
-
-> **⚠ This frame went unsent through two road tests** — no channel was defined for it, so
-> RaceChrono's subscription burst never asked for it and the logger recorded `"supply": 0`
-> notifications. **Defined 2026-09-11 and CONFIRMED the same evening** on the third drive — all six
-> channels decoded, and byte 7's heartbeat stepped exactly +1 across all 410 samples. The slot map
-> above has where the six rows went. Re-confirm from either end after any edit to the phone's
-> channel list: byte 7 ticking +1 per second on the phone, or `bleNotifiesByPacket` in any
-> `supply` record showing `supply` climbing instead of 0.
-
-**Byte 7 is the channel to watch within this frame.** Every other field here is a physical quantity
-allowed to sit still — SoC core voltage reads a constant 840 mV on an
-idle box for hours — so a frozen value proves nothing about the link. A counter freezing means the
-link died; a counter skipping means a notification was dropped, which is exactly what commissioning
-item 5a asks to be logged. **It is not the only counter with that property**: `0x601` and `0x603`
-bytes 4–5 advance every cycle regardless of what their sensors report, and the second road test's
-zero-drop measurement was made off those two.
-
 ### `0x603` — 1-Wire bus health
 
 | Bytes | Content | Equation | Expected with four probes |
@@ -386,6 +332,33 @@ the kernel marks every slave ready regardless, so check byte 2–3 before trusti
 the logger's own record of the same samples, with no probes attached: probes 0, valid-mask 0, read
 errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 
+### `0x604` — supply health and logger liveness
+
+| Bytes | Content | Equation |
+|---|---|---|
+| 0 | low nibble = live throttle bits; bit 4 = records dropped; bit 5 = enrollment mode | `bytesToUint(raw, 0, 1)` |
+| 1 | sticky throttle bits, latched since **boot** not since session start | `bytesToUint(raw, 1, 1)` |
+| 2 | undervoltage comparator; **255 = could not be read**, not "no alarm" | `bytesToUint(raw, 2, 1)` |
+| 3–4 | SoC core millivolts — **NOT the supply rail** | `bytesToUint(raw, 3, 2)` |
+| 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
+| 7 | **heartbeat, +1 per second, wraps at 255** | `bytesToUint(raw, 7, 1)` |
+
+> **⚠ This frame went unsent through two road tests** — no channel was defined for it, so
+> RaceChrono's subscription burst never asked for it and the logger recorded `"supply": 0`
+> notifications. **Defined 2026-09-11 and CONFIRMED the same evening** on the third drive — all six
+> channels decoded, and byte 7's heartbeat stepped exactly +1 across all 410 samples. The slot map
+> above has where the six rows went. Re-confirm from either end after any edit to the phone's
+> channel list: byte 7 ticking +1 per second on the phone, or `bleNotifiesByPacket` in any
+> `supply` record showing `supply` climbing instead of 0.
+
+**Byte 7 is the channel to watch within this frame.** Every other field here is a physical quantity
+allowed to sit still — SoC core voltage reads a constant 840 mV on an
+idle box for hours — so a frozen value proves nothing about the link. A counter freezing means the
+link died; a counter skipping means a notification was dropped, which is exactly what commissioning
+item 5a asked to be logged. **It is not the only counter with that property**: `0x601` and `0x603`
+bytes 4–5 advance every cycle regardless of what their sensors report, and the second road test's
+zero-drop measurement was made off those two.
+
 ## Layout
 
 Single translation unit: every `.cxx` is `#include`-d into `main.cxx`, in the order below, and only
@@ -407,6 +380,9 @@ raceChronoBle.cxx     bluez_inc: adapter, advertisement, GATT, notify timers
 bluez_inc/            submodule, github.com/weliem/bluez_inc
 
 build/KnurLogger.ini  config TEMPLATE; the deployed copy is ~/bin/KnurLogger.ini on the box
+
+one-wire-probes.md    the 1-Wire subsystem's traps and standing requirements — read before
+                      touching oneWireProbes.cxx
 
 Hardware/             box-2 hardware; nothing here is logger code
   logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
@@ -710,81 +686,32 @@ lived in the backup that way until it was replaced; `systemctl is-active KnurLog
 
 ## Next
 
-**The bulk read is fixed and the sample rate is closed** (2026-09-11, `CLAUDE.history.md` §1.15) —
-0.977 Hz measured at the car, plan open item 43 closed. Nothing is outstanding on it.
+**Needing a drive, not code.** Commissioning item 5.7's under-load supply telemetry still wants
+duration, a hot ambient, and the five SDP810s actually drawing. Items 1c and 1d — ventilated versus
+sealed, and the thermal envelope — want a **hot day**; the sealed configuration has cool-evening
+data only. **Record where the box was mounted on every session.** Without it a run cannot serve
+either, because a cabin record reads exactly like a cavity one.
 
-Needing only a drive: **commissioning item 5a's installed BLE link check** and **item 5.7's
-under-load supply telemetry**, both of which want the enclosure as built and the car moving. **The
-logger has now run on a moving car three times and neither item is fully closed, but the third run
-— 2026-09-11, in the cavity with the enclosure closed — is the first that counts.** 415 s, four
-probes attached, engine running, box 1 connected simultaneously: zero dropped notifications on
-three independent counters, 4 probes and valid-mask 15 on every sample, zero read errors, and
-throttle and undervoltage flags 0 throughout. What 5a still wants is **sustained speed, a full
-steering-lock and suspension-travel sweep, and a recorded seat occupancy**; what 5.7 still wants is
-**duration, a hot ambient, and the five SDP810s actually drawing**.
-**Record where the box was mounted** on every session; without that a run cannot serve either item,
-and a cabin record reads exactly like a cavity one.
-
-**The thermal side is otherwise finished.** The cold-soak calibration is done and the answer was
-no offsets, so **all four `temp<N>OffsetC` staying 0.0 is a result, not an oversight** — do not
-"fix" it. The channel → role map is confirmed by warming. Both are closed as plan open items 41
-and 42.
-
-**The BME280 reader is DONE** (2026-09-10) and it did not wait for the pressure sensors. It sits
-on the main I2C bus at `0x77` behind no mux, so it was independent of the five undelivered
-SDP810s. `bme280Sensor.cxx` reads it in forced mode at ×1 oversampling with the IIR filter off —
-the datasheet's lowest-self-heating setting, chosen because self-heating in the cavity
-thermometer is an error in the quantity it exists to report. Bench-measured over 64 cycles: chip
-ID `0x60`, calibration read, ~100.4 kPa / 34.5 °C / 26 %RH, 15-16 ms per cycle. **A five-minute
-run gave 300 valid cycles out of 300, zero read errors and nothing exhausted.**
-The fixed-point compensation was checked against the datasheet's independent floating-point
-reference and agrees to **0.05 Pa, 0.002 °C and 0.005 %RH**.
-
-**Its one hard-won finding is a bus characteristic, not a driver detail — read
-§[Getting on the box](#getting-on-the-box)'s neighbour in `CLAUDE.md` before writing any more I2C
-code.** The first transfer after an idle bus is refused every single time and a retry 500 µs
-later fixes it, which made the first version of this reader fail 100 % of the time while
-`i2cdetect` insisted the part was fine. `i2cBus.cxx` retries and **counts** the retries into
-every `enclosure` record. **The same bus carries the five SDP810s, so this will apply to them
-too, and the physical cause is not established** — `../ndLouvers/` open item 44.
-
-**`0x600` and `0x601`'s equations are now confirmed on a phone** (2026-09-11), which closes what
-2026-09-10's notification count could not: the recorded values match the logger's own record of the
-same samples — 101.287 kPa against 101 319 Pa, 24.71–25.22 against 24.62–25.24 °C, 38.87–39.98
-against 38.9–40.0 %RH. `0x603` likewise. **`0x602` is the exception and one of its four channels is
-mis-defined on the phone** — see its section above.
-
-**Then the SDP810 readers and the mux**, once the pressure sensors arrive. Expect the retry in
-`i2cBus.cxx` to matter for them, and expect a mux channel switch plus a sensor read to be two
+**Needing a part.** The SDP810 readers and the mux, once the five sensors arrive. Expect the retry
+in `i2cBus.cxx` to matter for them, and expect a mux channel switch plus a sensor read to be two
 transfers that must not be interleaved with anything else on the bus.
 
-`pi-headless-setup.md` §Work Progress is the authority on host state. `CLAUDE.md` carries the four
-architecture requirements the plan imposes — BLE as the primary data path with the SD card as the
-durable raw/diagnostic record, an append-only file with a ~1 s `fsync` cadence, DS18B20 channel
-enrollment, and supply-health telemetry — plus the hardware traps. Read it before writing code.
-`CLAUDE.history.md` is its audit trail: resolved faults with the diagnostics that found them,
-reversed decisions, and the retirement notes that exist to stop the next agent rebuilding what was
-deliberately removed.
+**Not outstanding, and not to be reopened.** The installed BLE link (commissioning item 5a,
+closed 2026-09-15 on the third drive), the sample rate (plan open item 43), the thermal cold-soak
+calibration and the channel → role map (open items 41 and 42), the subscription-filter fault, and
+all three phone-side channel definitions (open item 45). All four `temp<N>OffsetC`
+staying 0.0 **is the result** — do not "fix" it.
 
-**Build order was BLE first** (owner, 2026-09-09), and that is now spent — all five workers exist.
-The reasoning still matters for the trip to the car: BLE is the primary data path *and* the only
-feedback channel there, because the probes are on a car parked in an underground garage with no
-network, so a phone watching `temp0`–`temp3` move is the only way to see what enrollment did
-without carrying the box home first.
+**What is testable on the box today:** the build, config loading, the session writer and its fsync
+cadence, the supply-telemetry worker, a BLE advertiser against a phone, the BME280 at `0x77`, the
+mux at `0x70`, and — via the fake-sysfs harness above — every branch of the 1-Wire worker except a
+real reading, real bus timing and `therm_bulk_read`. **What is not:** anything requiring a real
+SDP810, which is undelivered, or a real DS18B20, the four being installed on the car.
 
-**What is testable on the box today:** the build itself, config loading, the session-file writer
-and its fsync cadence, the supply-telemetry worker (`vcgencmd` and the `rpi_volt` hwmon both
-answer), a BLE advertiser against a phone, the **BME280 at `0x77`** since the sensor zone was
-assembled, and — via the fake-sysfs harness above — **every branch of the 1-Wire worker except a
-real reading**. **What is not:** anything requiring a real SDP810 (not delivered) or a real DS18B20
-(the probes are on the car). **The mux answers at `0x70`** since the `~RESET` resolder, so it is
-no longer on this list.
-**Those unknowns were answered at the car on 2026-09-10, and the last of them on 2026-09-11.** The
-loaded 4 × 5 m star enumerates and reads CRC-clean with all four probes on it — 63 consecutive
-cycles, valid-mask 15, zero read errors. A per-probe read costs **799–832 ms**, so a sequential
-four-probe cycle was **3198–3281 ms**. `therm_bulk_read` **does** appear the moment a `w1_therm`
-slave attaches; the write to it was refused with `EACCES` and then silently rejected for being
-seven bytes, and **both are fixed** — 123 cycles at a 1023 ms mean interval with one 762–790 ms
-conversion for all four, and **zero CRC failures across 492 reads on the star through the
-`read_scratchpad` path**. **What the star result does NOT cover** is a session: 3.4 minutes,
-stationary, cold, in a garage. Read `0x603` bytes 2–3 on the first drive.
+**Where the rest lives.** `SystemSetup/pi-headless-setup.md` §Work Progress is the authority on
+host state. `CLAUDE.md` carries the four architecture requirements the plan imposes — BLE as the
+primary data path with the SD card as the durable raw/diagnostic record, an append-only file with a
+~1 s `fsync` cadence, DS18B20 channel enrollment, and supply-health telemetry — plus every hardware
+trap. Read it before writing code. `CLAUDE.history.md` is its audit trail: resolved faults with the
+diagnostics that found them, reversed decisions, and the retirement notes that exist to stop the
+next agent rebuilding what was deliberately removed.
