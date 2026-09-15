@@ -704,3 +704,59 @@ the logger cannot know it left a warm building and neither could the analysis.
 median, 83 km/h peak), no steering-lock or suspension-travel sweep, seat occupancy unrecorded — the
 three residuals on plan item 5a. And **the loaded star has still never run hot, vibrating, or for
 hours**; seven minutes on a cool September evening is the whole of its driven record.
+
+## 2026-09-13/15 — the track day: the instrument holds up, and a CAN byte turns out to have been thrown away for five sessions
+
+Two morning sessions at Tor Poznań, analysed 2026-09-15 from
+`C:\_claude\RaceChrono\20260913_poznan_knurek_ae30.rcz`. The box was in the cavity behind the
+**left** wheel well, enclosure closed, beside the i-ELOOP supercapacitor bank. The measurement
+results belong to `../ndLouvers/thermals-testing.md` §3.9; what is here is what it says about this
+repository.
+
+**The logger came through its first real load case.** 41 minutes across the two sessions, 4 733
+thermal cycles, and the loaded 4 × 5 m star had never before been exercised hot, vibrating or for
+longer than seven minutes. Two single-cycle CRC failures on `temp3`, each flagged three independent
+ways — valid-mask bit cleared, `0x603` bytes 2–3 incremented, `−32768` sent — which is the invalid-
+data contract doing exactly what it exists for. Zero BME280 read errors. **Zero dropped
+notifications on all three free-running counters, in both sessions.** The logger did not restart
+across the 83-minute pit break: `0x601`'s cycle counter runs 3334 → 8269 against 4994 s elapsed, to
+within 8 cycles, so one logger session spanned the morning as the constant-12 V feed intends.
+
+**The sticky throttle byte is non-zero for the first time, and this repository cannot say when.**
+`0x604` byte 1 reads **5** on every sample of both sessions — `undervoltage` and `throttled`,
+latched since **boot** — while byte 0's live bits and byte 2's comparator read 0 throughout. So
+nothing happened during either session, and something happened before the first one opened. **No
+BLE record can ever date a latched bit**, which is the point worth keeping: `recordStickyTransitions`
+timestamps the first transition of each bit and `startSupplyMonitor` records
+`stickyAtSessionStart`, and **both exist only in the SD session file.** The relevant SD file is
+still on the box. `../ndLouvers/` open item 48. The box is now powered through cranking and
+build-sheet §10 step 3's crank watch was bypassed rather than passed, so cranking is the obvious
+candidate and is not yet the established one.
+
+**The expensive finding is not about this code at all.** `0x420` byte 7, the outside-air
+temperature the plan's thermal item 4a is entirely built on, **has never had a RaceChrono channel
+defined**. Box 1 forwards the frame whole and its byte 0 is the coolant channel, so the frame
+arrives — but **RaceChrono stores decoded channels, not raw frames**, so the ambient byte was
+discarded on arrival in every session so far and no recording can be reprocessed to recover it.
+
+This is a fourth instance of the class the "phone's channel list is part of the instrument" section
+records, and the worst-behaved one. **A DIY packet with no channel is never sent**, which is at
+least symmetrical: the logger records `"supply": 0` and the gap is visible from either end — that
+is how `0x604` was caught. **A CAN byte with no channel is silently dropped by the phone alone.**
+Box 1 sent it, box 2 was never involved, and nothing in either repository or either logger's record
+can detect the loss. `../ndLouvers/` open item 47, and the rule now in `CLAUDE.md`: *"box 1 already
+broadcasts the frame" is a statement about cost, never about whether the data exists.*
+
+**A tool defect found by the same analysis.** `Tools/rcz-channels.py` read only the archive root,
+so on a session that was paused and resumed it silently reported the first stretch and discarded
+the rest — half of this track day. Fragments are now enumerated and reported separately; they are
+not merged, because a channel edited between stretches legitimately differs across them. **The
+first run of the audit tool on this file was wrong and looked complete**, which is the failure mode
+the tool was written to prevent in the phone's channel list and had in itself.
+
+**And one earlier claim is corrected rather than extended.** Box 1's two `0x7F0` channels,
+`lowPass(E,254)*4` and `lowPass(F,254)-50`, have been recorded here since 2026-09-11 as
+all-`NaN`-by-design, out of calibration range. **They read normally on track** and are empty only
+for the first 200–550 s of each session. The 2026-09-11 statement was right about those recordings
+and wrong as a property of the channels — "empty" is a property of the session, and one recording
+can never settle it.

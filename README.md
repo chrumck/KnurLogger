@@ -1,21 +1,29 @@
 # KnurLogger
 
 Headless data logger for the ND Miata hood-louver instrumentation ("box 2"), running on a
-Raspberry Pi 4B in the cavity behind the right wheel well.
+Raspberry Pi 4B in the cavity behind the left wheel well.
 
 It publishes differential pressure, temperature and enclosure conditions over Bluetooth LE as a
 [RaceChrono DIY BLE device](https://github.com/aollin/racechrono-ble-diy-device), which is the
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status.** All five workers are written and the box has driven three times. **The third drive
-(2026-09-11) is the first from the installed position** — in the wheel-well cavity, enclosure
-closed, four probes attached, box 1 connected at the same time — and it is clean on every count it
-could be read on: 415 s with **zero dropped notifications on three free-running counters
-independently**, 4 probes and valid-mask 15 on every sample, zero read errors, live and sticky
-throttle and the undervoltage comparator all 0, cavity ~10 K over ambient.
+**Status.** All five workers are written, the box has driven three times, and it has run a
+**two-session track day at Poznań (2026-09-13)** — the first run under sustained thermal load, and
+the first that exercises the loaded 1-Wire star hot, vibrating and for a useful duration. Across
+41 minutes and 4 733 thermal cycles: **zero dropped notifications on three free-running counters
+independently, in both sessions**, 4 probes enumerated on every sample, BME280 read errors 0, and
+**two single-cycle CRC failures on one probe**, each flagged three independent ways. The logger did
+not restart across the 83-minute pit break — one session spans the morning, which is the constant
+12 V feed working as designed.
 
-What each drive settled, because they are not interchangeable:
+**One thing is not clean:** `0x604` byte 1 reads **5** on every sample of both sessions —
+`undervoltage` and `throttled` latched since boot — while the live bits and the `rpi_volt`
+comparator read 0 throughout. Nothing happened *during* either session, and **nothing in a `.rcz`
+can date it**; `recordStickyTransitions` and `stickyAtSessionStart` can, and both live only in the
+SD session file, which is still on the box. `../ndLouvers/` open item 48.
+
+What each outing settled, because they are not interchangeable:
 
 1. **First, 2026-09-10.** Its BLE observations are void — the logger refused RaceChrono's
    per-frame subscription burst with an ATT error and the phone froze on one frame set. Fixed;
@@ -28,7 +36,15 @@ What each drive settled, because they are not interchangeable:
    phone-side channel faults. **Its box was on the PASSENGER SEAT**, so every *reading* from it is
    void, the BME280's included — a cabin record (`../ndLouvers/thermals-testing.md` §3.7). Only the
    code and protocol results survive, and those do not depend on where the box sat.
-3. **Third, 2026-09-11.** The installed-position run above.
+3. **Third, 2026-09-11.** The first from the installed position — in the wheel-well cavity,
+   enclosure closed, four probes attached, box 1 connected at the same time — and clean on every
+   count it could be read on: 415 s, zero dropped notifications, valid-mask 15 throughout, cavity
+   ~10 K over ambient. It is what closed `../ndLouvers/` commissioning item 5a.
+4. **Track day, 2026-09-13.** The load case, above. It also supplies what item 5a was closed
+   without — sustained speed to 190 km/h and a circuit's worth of steering and suspension
+   loading — and the first matched plate-on/plate-off comparison
+   (`../ndLouvers/thermals-testing.md` §3.9). **The cavity rise turns out to be an airflow
+   effect:** ~2 K over ambient at track speed against the third drive's ~10 K on an urban route.
 
 **All three phone-side channel faults are fixed and all three are now observed working** — `0x604`
 defined and decoding for the first time, `0x601` completed and renumbered, and `Temperature
@@ -186,7 +202,9 @@ Three things this table is carrying rather than repeating:
 3. **`0x601` was renumbered from 50–53 to 51–55 on 2026-09-11**, when byte 6–7 was added. **Any
    recording made before that carries the old slot numbers**, so a session and this table can
    disagree without either being wrong. `Tools/rcz-channels.py` prints what a given recording
-   actually used.
+   actually used — **and a session that was paused and resumed carries one fragment per stretch**,
+   which the tool reports separately. Reading only the archive root silently discards every later
+   stretch; that is half of the 2026-09-13 track day.
 
 **`0x602` and `0x603` are transcribed byte for byte from the ESP32 rig in
 `../ndLouvers/step0b-rig/racechrono_ble_test/`, so definitions written against that rig carry over
@@ -229,7 +247,10 @@ easy to point at the wrong thing:
    and is speed-correlated so it does not average out of a speed sweep. **That is the only cavity
    QUALIFIED measurement of it there is**, and a second cavity record from the third drive
    corroborates the sign and order without being a Cp point, because the route's elevation change
-   is the same order as the signal and no altitude channel was exported — the second drive's box
+   is the same order as the signal and no altitude channel was exported. **The 2026-09-13 track day
+   adds two more and they are the best-conditioned yet** — Cp −0.120 and −0.108 over 0–190 km/h on
+   a circuit with a 7.4 m altitude span, and the first export to carry an altitude channel at all;
+   they corroborate the first drive rather than displacing it. The second drive's box
    was on the passenger seat, so its
    speed-correlated pressure record is a cabin record and was withdrawn.
    **This field is named for where the box is designed to sit, not for where it actually sat**, and
@@ -337,7 +358,7 @@ errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 | Bytes | Content | Equation |
 |---|---|---|
 | 0 | low nibble = live throttle bits; bit 4 = records dropped; bit 5 = enrollment mode | `bytesToUint(raw, 0, 1)` |
-| 1 | sticky throttle bits, latched since **boot** not since session start | `bytesToUint(raw, 1, 1)` |
+| 1 | sticky throttle bits, latched since **boot** not since session start — **observed at 5 on the 2026-09-13 track day**, `undervoltage` + `throttled` | `bytesToUint(raw, 1, 1)` |
 | 2 | undervoltage comparator; **255 = could not be read**, not "no alarm" | `bytesToUint(raw, 2, 1)` |
 | 3–4 | SoC core millivolts — **NOT the supply rail** | `bytesToUint(raw, 3, 2)` |
 | 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
@@ -351,8 +372,15 @@ errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 > channel list: byte 7 ticking +1 per second on the phone, or `bleNotifiesByPacket` in any
 > `supply` record showing `supply` climbing instead of 0.
 
-**Byte 7 is the channel to watch within this frame.** Every other field here is a physical quantity
-allowed to sit still — SoC core voltage reads a constant 840 mV on an
+**Byte 1 is the one to read after a run, and byte 7 during it.** Byte 1 latches since **boot**, so
+a session that starts with it non-zero is reporting something that happened before the recording
+opened, and **no BLE record can ever date that** — `recordStickyTransitions` timestamps the first
+transition of each bit and `stickyAtSessionStart` says whether it was inherited, and both are in
+the SD session file only. That is exactly the case the 2026-09-13 track day produced
+(`../ndLouvers/` open item 48).
+
+**Byte 7 is the channel to watch while the link is live.** Every other field here is a physical
+quantity allowed to sit still — SoC core voltage reads a constant 840 mV on an
 idle box for hours — so a frozen value proves nothing about the link. A counter freezing means the
 link died; a counter skipping means a notification was dropped, which is exactly what commissioning
 item 5a asked to be logged. **It is not the only counter with that property**: `0x601` and `0x603`

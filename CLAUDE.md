@@ -140,7 +140,7 @@ narrative in this file.
      — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa
      measurands, and **not a single constant Cp**. Tolerable as a density term, disqualifying as a
      reference. Logged as `enclosurePressurePa`.
-     **That first drive is the only QUALIFIED cavity measurement of it there is.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). The second drive's box was
+     **That first drive is the only QUALIFIED cavity measurement of it there is.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). **The 2026-09-13 track day adds two more records, the best-conditioned yet** — Cp −0.120 and −0.108 over 0–190 km/h on a circuit with a 7.4 m altitude span and the first export to carry an altitude channel; they corroborate without displacing the first drive, because a whole-session fit averages away the speed-structure that finding is about. The second drive's box was
      on the passenger seat, so its strongly speed-correlated pressure record is a **cabin** record;
      it was written up as a second Cp point and withdrawn. **This field is named for where the box
      is, not for where it was designed to be** — nothing in the session file says which.
@@ -287,6 +287,14 @@ argument is never an answer to "the phone is showing the wrong number".**
    attached.
 3. **A missing definition costs the whole packet**, silently, because the filter is honoured.
    That is how `0x604` went unsent for two road tests.
+4. **For a CAN frame the cost is worse, because the frame arrives anyway and the byte is thrown
+   away.** A DIY packet nobody subscribes to is never sent; a **CAN** frame is forwarded whole by
+   box 1 and RaceChrono then stores only the channels it has definitions for. **There is no
+   raw-frame layer in a `.rcz`**, so an undefined byte is discarded on arrival and no recording can
+   be reprocessed to recover it. Found 2026-09-15: `0x420` byte 7, the outside-air temperature the
+   plan's thermal item 4a is built on, **has never had a channel defined**, and five sessions of it
+   are gone. `../ndLouvers/` open item 47. **"Box 1 already broadcasts the frame" is a statement
+   about cost, never about whether the data exists.**
 
 **All three were fixed on the phone on 2026-09-11 and ALL THREE ARE NOW OBSERVED WORKING** —
 `0x604` and `0x601` on the air in the third drive's recording (`0x604`'s first appearance ever;
@@ -330,10 +338,17 @@ python3 Tools/rcz-channels.py session.rcz
    that** (owner, 2026-09-11) — `lowPass(E,254)` and `lowPass(F,254)` on `0x7F0`, working as
    designed. The tool reports them and no longer calls them faults. **Do not "fix" a channel on
    this evidence alone**; ask what the sensor was doing.
+   **The 2026-09-13 track day proves it from the other side:** both channels read normally once
+   the car is warm and are empty only for the first 200–550 s of each session. So "empty" is a
+   property of the session, not of the channel — and a single recording can never settle it.
 6. **RaceChrono's parser is case-insensitive** — `bytesToUint`, `bytesTouInt`, `bytestouint` and
    `bytesToUInt` all appear in the profile and all work. **Do not normalise the casing**: there is
    nothing to fix, and `bytestoint` differs from `bytestouint` by the single letter that decides
    signed against unsigned.
+7. **A resumed session has one fragment per stretch**, the first at the archive root and the rest
+   under `resume_<n>/`, and the tool reports them separately. It used to read the root only, which
+   silently dropped half of the 2026-09-13 track day. A channel edited between stretches
+   legitimately differs across fragments, which is why they are not merged.
 
 ## The BLE worker needs its own main context BEFORE the D-Bus connection
 
@@ -480,8 +495,10 @@ The platform has already been the culprit once and the logger looked guilty (his
   `UP RUNNING`, BlueZ `Powered: yes` / `PowerState: on`. It *shipped* blocked, and history §1.3 is
   why that state cannot be undone from `bluetoothctl`.
 - **Some channels the plan needs will never appear on box 2's SD card.** CAN ambient
-  (`0x420` byte 7) and, if it is on the bus, **cooling-fan state** arrive through box 1's CAN
-  broadcast into RaceChrono — not through this logger (`../ndLouvers/` §7 open item 35). So the
+  (`0x420` byte 7) and, if it is on the bus, **cooling-fan state** can only arrive through box 1's
+  CAN broadcast into RaceChrono — not through this logger (`../ndLouvers/` §7 open item 35).
+  **"Can arrive" is not "does": the ambient one has no channel definition and therefore has never
+  arrived at all** (trap above; `../ndLouvers/` open item 47). So the
   record for a session is **split across two devices, and RaceChrono is what reassembles it** —
   which is the whole reason BLE is the primary data path. The consequence: **a box-2 channel that
   never reaches the phone cannot be aligned to the fan state that explains it**, and the fan can
