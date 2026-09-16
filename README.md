@@ -767,3 +767,10 @@ primary data path with the SD card as the durable raw/diagnostic record, an appe
 trap. Read it before writing code. `CLAUDE.history.md` is its audit trail: resolved faults with the
 diagnostics that found them, reversed decisions, and the retirement notes that exist to stop the
 next agent rebuilding what was deliberately removed.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE), which also states what it does not cover and the absence of any
+warranty of fitness for vehicle use. **`bluez_inc` is a submodule, not a copy**, so its own MIT
+licence travels with it rather than being restated here. The sibling
+[ndLouvers](https://github.com/chrumck/ndLouvers) repository carries the same licence.

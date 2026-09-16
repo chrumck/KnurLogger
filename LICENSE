@@ -1,0 +1,41 @@
+MIT License
+
+Copyright (c) 2026 Tomasz Dobrowolski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+SCOPE. This licence covers the original work in this repository: the logger
+source, the host configuration under SystemSetup/, the offline tools under
+Tools/, the hardware build sheet under Hardware/, the RaceChrono channel
+definitions under RaceChrono/, and the documentation.
+
+It does NOT cover bluez_inc, which is a git submodule rather than a copy: that
+code is MIT licensed by Martijn van Welie and carries its own LICENSE in its own
+repository. It also does not cover RaceChrono, BlueZ, Raspberry Pi OS or any
+other dependency this project talks to or builds against.
+
+NO WARRANTY OF FITNESS FOR VEHICLE USE. This repository documents a logger wired
+to a car's constant 12 V supply and mounted in a wheel-well cavity, and its
+Hardware/ build sheet is a set of instructions someone could follow. It is a
+record of what was built for one car, not validated engineering advice, and it
+has electrical, thermal and mechanical risk. Anyone building or fitting
+something from it does so at their own risk and is responsible for their own
+fusing, isolation, mounting and compliance with applicable road-use regulation.
