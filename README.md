@@ -261,10 +261,12 @@ easy to point at the wrong thing:
    and is speed-correlated so it does not average out of a speed sweep. **That is the only cavity
    QUALIFIED measurement of it there is**, and a second cavity record from the third drive
    corroborates the sign and order without being a Cp point, because the route's elevation change
-   is the same order as the signal and no altitude channel was exported. **The 2026-09-13 track day
-   adds two more and they are the best-conditioned yet** — Cp −0.120 and −0.108 over 0–190 km/h on
-   a circuit with a 7.4 m altitude span, and the first export to carry an altitude channel at all;
-   they corroborate the first drive rather than displacing it. The second drive's box
+   is the same order as the signal and no altitude channel was exported. **Two track days then add
+   SEVEN sessions and they CONTRADICT the first drive** — Cp −0.108 to −0.144, flat to within ±0.006
+   from 40 to 200 km/h, on circuits with 8–14 m of altitude span and the altitude channel present;
+   `../ndLouvers/` open item 49 owns the disagreement, where the plan's rev 92 review arithmetic
+   (12 Pa per metre of GPS altitude error against a 94 Pa signal at 45 km/h) recommends the track
+   result, and it is not yet decided. The second drive's box
    was on the passenger seat, so its
    speed-correlated pressure record is a cabin record and was withdrawn.
    **This field is named for where the box is designed to sit, not for where it actually sat**, and

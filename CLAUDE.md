@@ -435,7 +435,8 @@ The platform has already been the culprit once and the logger looked guilty (his
      well below a normal dip so this should be benign, but build sheet §10 step 3's crank watch was
      bypassed rather than passed. A crank brownout shows up as a latched undervoltage bit, or as
      the session file splitting with a fresh `session` record if the Pi rebooted.
-  4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V — ~3.3 Ah over a 12 h day
+  4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V, plausibly 330–430 mA once
+     BLE and five workers are counted — ~3.3–5 Ah over a 12 h day
      against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
      in, i.e. a flat battery.** Estimated, not measured; plan item 5.3 still owes the real figure.
   **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is the fuse
