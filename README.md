@@ -8,14 +8,19 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status.** All five workers are written, the box has driven three times, and it has run a
-**two-session track day at Poznań (2026-09-13)** — the first run under sustained thermal load, and
-the first that exercises the loaded 1-Wire star hot, vibrating and for a useful duration. Across
-41 minutes and 4 733 thermal cycles: **zero dropped notifications on three free-running counters
-independently, in both sessions**, 4 probes enumerated on every sample, BME280 read errors 0, and
-**two single-cycle CRC failures on one probe**, each flagged three independent ways. The logger did
-not restart across the 83-minute pit break — one session spans the morning, which is the constant
-12 V feed working as designed.
+**Status.** All five workers are written, the box has driven three times, and it has run **two
+track days at Poznań (2026-09-13 and 2026-09-14)** — the first runs under sustained thermal load,
+and the first to exercise the loaded 1-Wire star hot, vibrating and for a useful duration. Across
+117 minutes and 10 118 thermal cycles in seven sessions: **zero dropped notifications on three
+free-running counters independently, in every session**, 4 probes enumerated on every sample,
+BME280 read errors 0, and **two single-cycle CRC failures on one probe**, each flagged three
+independent ways.
+
+**The logger ran continuously across both days** — 21.7 h of it unattended overnight with the fuse
+left in, and the BME280 cycle counter lands 29 cycles (0.04 %) from the prediction, so there was no
+restart. Seven further thermal read errors appeared during 2026-09-14's pit breaks and **none
+during any recorded running**; together with 2026-09-13's two, which fell inside its stationary pit
+soak, every read error on record so far happened with the car parked.
 
 **One thing is not clean:** `0x604` byte 1 reads **5** on every sample of both sessions —
 `undervoltage` and `throttled` latched since boot — while the live bits and the `rpi_volt`
@@ -45,6 +50,15 @@ What each outing settled, because they are not interchangeable:
    loading — and the first matched plate-on/plate-off comparison
    (`../ndLouvers/thermals-testing.md` §3.9). **The cavity rise turns out to be an airflow
    effect:** ~2 K over ambient at track speed against the third drive's ~10 K on an urban route.
+5. **Track day, 2026-09-14.** Six fragments, wet drying to dry, 07:30–14:05. Zero invalid thermal
+   samples all day, and **one invalid BME280 sample that described itself exactly as specified** —
+   all three values to their sentinels in the same cycle and the `0x601` status byte dropping
+   **31 → 3**, with the read-error counter correctly unmoved, because a skipped measurement is not
+   a failed transfer. **`0x601` byte 0 is the channel that catches this case, not bytes 2–3**, and
+   this is the first time it has read anything but 31 in the field.
+   Its enclosure result belongs to the plan rather than here, and it is the largest one so far:
+   **the cavity reached 100 % RH with a zero dewpoint margin for 4.8 minutes**
+   (`../ndLouvers/thermals-testing.md` §3.10).
 
 **All three phone-side channel faults are fixed and all three are now observed working** — `0x604`
 defined and decoding for the first time, `0x601` completed and renumbered, and `Temperature
@@ -266,7 +280,7 @@ easy to point at the wrong thing:
 
 | Bytes | Content | Equation | Expected |
 |---|---|---|---|
-| 0 | bit 0 present, bit 1 calibration read, bit 2 pressure valid, bit 3 temperature valid, bit 4 humidity valid | `bytesToUint(raw, 0, 1)` | **31** |
+| 0 | bit 0 present, bit 1 calibration read, bit 2 pressure valid, bit 3 temperature valid, bit 4 humidity valid | `bytesToUint(raw, 0, 1)` | **31**; **3** on a skipped measurement |
 | 1 | chip ID as read | `bytesToUint(raw, 1, 1)` | **96** (`0x60`); `88` would be a BMP280 |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0** |
 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | +1 per second, wraps every **18.2 h** |
@@ -276,6 +290,14 @@ easy to point at the wrong thing:
 temperature and pressure legitimately sit still for minutes, so a frozen `0x600` is not by itself
 evidence of anything. Byte 4–5 advances every cycle regardless of what the part reports, which is
 what separates a dead worker from a still cavity.
+
+> **⚠ BYTE 0 IS WHAT CATCHES A SKIPPED MEASUREMENT, AND BYTES 2–3 DELIBERATELY DO NOT.** Measured
+> once in the field, 2026-09-14: one cycle sent all three `0x600` values as their invalid sentinels
+> together — which is the `t_fine` rule, a skipped temperature invalidating pressure and humidity —
+> and **byte 0 dropped 31 → 3**, keeping only *present* and *calibration read*. **The read-error
+> counter correctly stayed at 0**: the transfer succeeded and `lastReadMs` was normal, so nothing
+> failed to read. **A cumulative read-error count of 0 is therefore not evidence that every sample
+> was valid.** First time byte 0 has read anything but 31 in the field.
 
 ### `0x602` — the four thermal channels
 

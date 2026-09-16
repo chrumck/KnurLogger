@@ -760,3 +760,48 @@ all-`NaN`-by-design, out of calibration range. **They read normally on track** a
 for the first 200–550 s of each session. The 2026-09-11 statement was right about those recordings
 and wrong as a property of the channels — "empty" is a property of the session, and one recording
 can never settle it.
+
+## 2026-09-14/16 — the second track day: a 21.7-hour continuous run, and a zero that does not mean what it looks like
+
+Six fragments from a wet-to-dry track day at Poznań, analysed 2026-09-16 from
+`C:\_claude\RaceChrono\20260914_poznan_knurek_ae30.rcz`. The measurement results belong to
+`../ndLouvers/thermals-testing.md` §3.10 — including the day's largest one, the cavity reaching
+100 % RH with a zero dewpoint margin. What is here is what it says about this repository.
+
+**The logger ran continuously across both track days and was never power-cycled.** 09-13's last
+sample to 09-14's first is 78 182 s; the BME280 cycle counter reads 20 743 against 20 772 predicted
+from the measured within-day 0.986 Hz — **29 cycles adrift over 21.7 hours, 0.04 %**. That is worth
+recording twice over. It is the longest unattended run this box has done, by a wide margin over the
+7.53 h bench run, and it happened with the fuse left in overnight, which is the failure mode
+`CLAUDE.md` names as "a fuse left in for a week is a flat battery". One night is ~3.3 Ah of the
+ND's ~45 Ah and is comfortable; the practice is now established rather than hypothetical.
+
+It also fixes the shape of the sticky-latch question. `0x604` byte 1 reads **5** on every sample of
+all five sessions, unchanged from 09-13, and since there was no reboot between them **the latch
+predates a continuous two-day run.** The search window for `../ndLouvers/` open item 48 is older,
+not newer, and only the SD file can narrow it.
+
+**A zero read-error count is not evidence that every sample was valid.** One BME280 cycle on
+2026-09-14 sent all three `0x600` values as their sentinels together, **`0x601` byte 0 dropped
+31 → 3**, and `bmeReadErrors` stayed at 0 with `lastReadMs` normal. That is correct in every
+respect — the transfer succeeded and the part reported a skipped measurement, which is not a read
+error — but it means the health channel a reader reaches for first cannot see this case. **Byte 0
+is the channel that says so**, and until this day it had never read anything but 31 in the field.
+Both `CLAUDE.md` and `README.md` now say it at the point where the counter is described.
+
+**Every thermal read error on record has happened with the car parked.** Seven appeared during
+2026-09-14's pit breaks and **none during any of the five recorded sessions**; the counter is flat
+inside all six fragments and steps only across the gaps. Adding 09-13's two, which fell inside that
+day's stationary pit soak, that is nine of nine. **This is an observation, not a diagnosis** — the
+breaks are unrecorded, so nothing here timestamps them and "parked" is inference from the pit
+schedule. The SD record is the only thing that could turn it into a diagnosis, and it is still on
+the box. Worth knowing before anyone reads a rising `0x603` bytes 2–3 as a driving-load problem.
+
+**And rev 90's reading of the cavity Cp did not survive contact with more data.** Rev 90 recorded
+the 09-13 sessions as corroborating the first drive without displacing it, on the argument that a
+whole-session fit averages away the speed structure §3.6 found. The 09-14 sessions band by speed
+and are **flat from 40 to 200 km/h**, so there is no structure to average away and the two records
+contradict each other. `../ndLouvers/` open item 49 owns it. Nothing in this repository turns on
+the answer: the channel is disqualified as a static reference at either value, which is the only
+part `CLAUDE.md` and `README.md` need to state, and both now say so explicitly rather than implying
+a settled number.

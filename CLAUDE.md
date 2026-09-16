@@ -132,6 +132,14 @@ narrative in this file.
 - **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The mux
   is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups downstream, so
   every populated channel has its own pair.
+- **A SKIPPED BME280 MEASUREMENT DOES NOT MOVE THE READ-ERROR COUNTER, AND THAT IS CORRECT.**
+  Measured once in the field, 2026-09-14. All three `0x600` values go to their sentinels in the
+  same cycle — a skipped temperature invalidates pressure and humidity through the shared `t_fine`
+  intermediate — and **`0x601` byte 0 drops 31 → 3**, keeping only *present* and *calibration
+  read*. `bmeReadErrors` stays put and `lastReadMs` stays normal, because the transfer succeeded
+  and the part simply reported no measurement. **So `bmeReadErrors == 0` is not evidence that every
+  sample was valid**; byte 0 is the channel that says so, and this was the first time it read
+  anything but 31 in the field. `../ndLouvers/thermals-testing.md` §3.10.
 - **The BME280's three quantities have three different consumers, and two of them are easy to
   point at the wrong thing.** `bme280Sensor.cxx` reads it and the field names carry the roles;
   `../ndLouvers/thermals-testing.md` §1.4 owns the reasoning and Step 0b owns the requirement.
@@ -140,7 +148,7 @@ narrative in this file.
      — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa
      measurands, and **not a single constant Cp**. Tolerable as a density term, disqualifying as a
      reference. Logged as `enclosurePressurePa`.
-     **That first drive is the only QUALIFIED cavity measurement of it there is.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). **The 2026-09-13 track day adds two more records, the best-conditioned yet** — Cp −0.120 and −0.108 over 0–190 km/h on a circuit with a 7.4 m altitude span and the first export to carry an altitude channel; they corroborate without displacing the first drive, because a whole-session fit averages away the speed-structure that finding is about. The second drive's box was
+     **That first drive is the only QUALIFIED cavity measurement of it there is.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). **Two track days add SEVEN sessions and they now CONTRADICT the first drive** — Cp −0.108 to −0.144, and flat when banded by speed (−0.122 to −0.134 from 40 to 200 km/h), which is a measured absence of the first drive's structure rather than an averaging artefact. `../ndLouvers/` open item 49 owns the disagreement and it is not settled. **The disqualification as a reference survives either answer**, which is the only part this repository needs. The second drive's box was
      on the passenger seat, so its strongly speed-correlated pressure record is a **cabin** record;
      it was written up as a second Cp point and withdrawn. **This field is named for where the box
      is, not for where it was designed to be** — nothing in the session file says which.
