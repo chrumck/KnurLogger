@@ -10,23 +10,33 @@ durable record and the only thing that can prove a sample was missing rather tha
 
 **Status.** All five workers are written, the box has driven three times, and it has run **two
 track days at Poznań (2026-09-13 and 2026-09-14)** — the first runs under sustained thermal load,
-and the first to exercise the loaded 1-Wire star hot, vibrating and for a useful duration. Across
-117 minutes and 10 118 thermal cycles in seven sessions: **zero dropped notifications on three
-free-running counters independently, in every session**, 4 probes enumerated on every sample,
-BME280 read errors 0, and **two single-cycle CRC failures on one probe**, each flagged three
-independent ways.
+and the first to exercise the loaded 1-Wire star hot, vibrating and for a useful duration.
+**The SD record of both days has now been read** (2026-09-18) and it is one continuous
+**38.09-hour session**, 404 573 records, of which the 21.7 h unattended overnight is a part:
+**zero gaps over 2 s, zero dropped records, zero CRC failures in 133 894 thermal cycles**, four
+probes enumerated on every one, BME280 cumulative read errors 0, and **zero dropped notifications
+on three free-running counters independently, in every one of the 13 connections.** It ended with
+a clean `BLE stopped`, not a hard cut.
 
-**The logger ran continuously across both days** — 21.7 h of it unattended overnight with the fuse
-left in, and the BME280 cycle counter lands 29 cycles (0.04 %) from the prediction, so there was no
-restart. Seven further thermal read errors appeared during 2026-09-14's pit breaks and **none
-during any recorded running**; together with 2026-09-13's two, which fell inside its stationary pit
-soak, every read error on record so far happened with the car parked.
+**The "two CRC failures" previously reported are withdrawn.** All 17 samples the counter flagged
+across both days are `temp3`/`T_aft` transiting **exactly 85.000 °C** with a good CRC — which is
+also the DS18B20's power-on scratchpad default, byte for byte, so the logger cannot tell the two
+apart. `T_aft` peaks at **101.25 °C** and spends 2 351 samples above 85 °C in nine post-run
+heat-soak stretches, which is outside the part's ±0.5 °C band and is a real finding rather than an
+erratum. The "every read error happened parked" observation survives and now has a mechanism: it is
+the pit soak driving the aft probe through the threshold. `CLAUDE.md` and `one-wire-probes.md` own
+the trap; `../ndLouvers/` open items 52 and 53 own the decisions.
 
-**One thing is not clean:** `0x604` byte 1 reads **5** on every sample of both sessions —
+**The undervoltage latch is dated.** `0x604` byte 1 reads **5** on every sample —
 `undervoltage` and `throttled` latched since boot — while the live bits and the `rpi_volt`
-comparator read 0 throughout. Nothing happened *during* either session, and **nothing in a `.rcz`
-can date it**; `recordStickyTransitions` and `stickyAtSessionStart` can, and both live only in the
-SD session file, which is still on the box. `../ndLouvers/` open item 48.
+comparator read 0 throughout. No `.rcz` could date it; the SD file does. `stickyAtSessionStart` is
+already 5 in the baseline record at `bootUs` **13.17 s**, so both bits were earned **within 13.2 s
+of kernel boot** and never moved across 38 hours. Two of ten boots carry it, so it is an
+intermittent power-on transient — item 5.4's supply-margin question, not a cranking dip.
+`../ndLouvers/` open item 48.
+
+**Eight BME280 measurements were skipped, not one** — the extra seven fell between recorded
+fragments, which is why the `.rcz` showed one. Each carried the specified signature exactly.
 
 What each outing settled, because they are not interchangeable:
 
@@ -88,11 +98,18 @@ neither BLE load nor the sealed enclosure.
 **The host setup under `SystemSetup/` has been applied** and the box is key-only over SSH, on
 kernel `6.18.39` / `bluez 5.82-1.1+rpt2` — the upgrade is what made BLE advertising work at all
 (`CLAUDE.history.md` §1.2; the symptom points at the logger and the cause is not in it).
-**The perfboard's sensor zone is assembled**, minus the five undelivered SDP810s, so an empty I2C
+**The perfboard's sensor zone is assembled**, with the five SDP810s delivered 2026-09-17 and
+**the first fitted to mux channel 0 and reading correctly** (2026-09-18), so an empty I2C
 scan is no longer the correct result: the BME280 answers at **`0x77`**, now its specified address,
 the **PCA9548A** mux answers at `0x70` since its `~RESET` was resoldered from header pin 9 to
-pin 11, and the 1-Wire phantoms have stopped. `CLAUDE.md` has the facts to code against;
-`CLAUDE.history.md` has the diagnoses behind them.
+pin 11, **`0x25` answers behind mux channel 0**, and the 1-Wire phantoms have stopped.
+`CLAUDE.md` has the facts to code against; `CLAUDE.history.md` has the diagnoses behind them.
+
+**`P0` is a bench bring-up, not a measurement** — product `0x03020A01` (SDP810-500Pa), serial
+`0x000000009B994E22`, CRC clean, the nominal 60 counts/Pa scale factor returned, and −0.029 Pa mean
+with sd 0.010 Pa on open ports. There is no wand, tube or filter, so nothing has been measured.
+**Do not address mux channels 1–5: their pull-ups are not fitted and probing one hangs the whole
+bus** — `CLAUDE.md` and `Hardware/logger-perfboard-wiring.md` §5.
 
 ---
 
@@ -110,7 +127,8 @@ Read, in this order, before changing anything here:
    before changing anything that touches `oneWireProbes.cxx` or `bme280Sensor.cxx`. It owns no
    requirement; Step 0b does.
 1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **Nothing in it is
-   built yet** (the SDP810s are undelivered), but it is what the pressure worker will have to
+   built yet** (the SDP810s arrived 2026-09-17 but no wand is cut), but it is what the pressure
+   worker will have to
    satisfy when there is one, and it records that the five SDP810s will share the I2C bus whose
    first-transfer refusal is documented above.
 1c. `one-wire-probes.md` — the 1-Wire subsystem's traps and standing requirements: the ROM-ID
@@ -352,6 +370,13 @@ where a probe that dropped off the bus or a bus that is retrying shows up. Byte 
 equivalent of `0x604`'s heartbeat — it advances every cycle regardless of what the probes read, so
 it separates a dead worker from four steady temperatures.
 
+> **⚠ BYTE 2–3 IS NOT A BUS-QUALITY FIGURE ON ITS OWN.** It counts *untrusted samples*, and every
+> one of the 17 it counted across the two track days was `temp3` sitting at exactly 85.000 °C with
+> a **good CRC** — the power-on-default collision `CLAUDE.md` and `one-wire-probes.md` describe.
+> The loaded star recorded **zero** CRC failures in 133 894 cycles. From the phone this counter is
+> indistinguishable between "the bus is retrying" and "the aft probe is hot", so **only the SD
+> record separates them**; a rising counter is a reason to read the session file, not a diagnosis.
+
 **Byte 2–3 counts only probes that answered and read badly.** A bound channel whose probe is *absent*
 does not increment it, because a dropped lead and a marginal bus send you to different parts of the
 car; absence shows up as byte 0 falling and byte 1 losing a bit.
@@ -382,7 +407,7 @@ errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 | Bytes | Content | Equation |
 |---|---|---|
 | 0 | low nibble = live throttle bits; bit 4 = records dropped; bit 5 = enrollment mode | `bytesToUint(raw, 0, 1)` |
-| 1 | sticky throttle bits, latched since **boot** not since session start — **observed at 5 on the 2026-09-13 track day**, `undervoltage` + `throttled` | `bytesToUint(raw, 1, 1)` |
+| 1 | sticky throttle bits, latched since **boot** not since session start — **observed at 5 across both track days**, `undervoltage` + `throttled`, dated from the SD file to the first 13.2 s after boot | `bytesToUint(raw, 1, 1)` |
 | 2 | undervoltage comparator; **255 = could not be read**, not "no alarm" | `bytesToUint(raw, 2, 1)` |
 | 3–4 | SoC core millivolts — **NOT the supply rail** | `bytesToUint(raw, 3, 2)` |
 | 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
@@ -400,8 +425,10 @@ errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 a session that starts with it non-zero is reporting something that happened before the recording
 opened, and **no BLE record can ever date that** — `recordStickyTransitions` timestamps the first
 transition of each bit and `stickyAtSessionStart` says whether it was inherited, and both are in
-the SD session file only. That is exactly the case the 2026-09-13 track day produced
-(`../ndLouvers/` open item 48).
+the SD session file only. **That is exactly the case the track days produced, and reading the SD
+file is what settled it:** `stickyAtSessionStart` was already 5 at `bootUs` 13.17 s, so the latch
+is a power-on transient inside the first 13 seconds (`../ndLouvers/` open item 48). The general
+lesson is the one to keep — **a non-zero byte 1 is a question the phone cannot answer.**
 
 **Byte 7 is the channel to watch while the link is live.** Every other field here is a physical
 quantity allowed to sit still — SoC core voltage reads a constant 840 mV on an
@@ -723,7 +750,9 @@ something is untestable:
 
 `filesDir` on the box is the sole home of every session until it is copied off. The workstation
 backup lives at `C:\_claude\KnurLoggerData\sessions\` — **deliberately outside both git
-repositories, because this one is public and session files are data.**
+repositories, because this one is public and session files are data.** It is **current as of
+2026-09-18**: all 32 sessions, including the 324 MB two-day track file. Before that date the card
+had carried both track days and a 21.7-hour continuous run as the only copy.
 
 ```bash
 scp -r KnurLogger:KnurLoggerData/sessions/*.ndjson /c/_claude/KnurLoggerData/sessions/
@@ -744,9 +773,15 @@ sealed, and the thermal envelope — want a **hot day**; the sealed configuratio
 data only. **Record where the box was mounted on every session.** Without it a run cannot serve
 either, because a cabin record reads exactly like a cavity one.
 
-**Needing a part.** The SDP810 readers and the mux, once the five sensors arrive. Expect the retry
-in `i2cBus.cxx` to matter for them, and expect a mux channel switch plus a sensor read to be two
-transfers that must not be interleaved with anything else on the bus.
+**Needing code, no longer a part.** The SDP810 reader and the mux driver. One sensor is fitted on
+channel 0 and reads correctly by hand, so the protocol is settled: stop-continuous `0x3FF9`,
+identity `0x367C`/`0xE102`, then **`0x3615` started once** — never per sample — and a 9-byte read
+per cycle carrying differential pressure, temperature and the scale factor with a CRC on each word.
+Retain the returned scale factor per sensor rather than hard-coding 60, since the ±125 Pa part
+returns 240. A mux channel switch plus a sensor read are two transfers that must not be interleaved
+with anything else on the bus, and the `i2cBus.cxx` retry covers both. **Iterate a configured list
+of populated channels — never sweep**, because addressing a channel whose pull-ups are not fitted
+hangs the bus (`CLAUDE.md`).
 
 **Not outstanding, and not to be reopened.** The installed BLE link (commissioning item 5a,
 closed 2026-09-15 on the third drive), the sample rate (plan open item 43), the thermal cold-soak
@@ -756,9 +791,11 @@ staying 0.0 **is the result** — do not "fix" it.
 
 **What is testable on the box today:** the build, config loading, the session writer and its fsync
 cadence, the supply-telemetry worker, a BLE advertiser against a phone, the BME280 at `0x77`, the
-mux at `0x70`, and — via the fake-sysfs harness above — every branch of the 1-Wire worker except a
-real reading, real bus timing and `therm_bulk_read`. **What is not:** anything requiring a real
-SDP810, which is undelivered, or a real DS18B20, the four being installed on the car.
+mux at `0x70`, **one real SDP810 at `0x25` behind mux channel 0**, and — via the fake-sysfs harness
+above — every branch of the 1-Wire worker except a real reading, real bus timing and
+`therm_bulk_read`. **What is not:** anything needing more than one SDP810 or a populated mux
+channel other than 0, anything needing a pneumatic input, and a real DS18B20, the four being
+installed on the car.
 
 **Where the rest lives.** `SystemSetup/pi-headless-setup.md` §Work Progress is the authority on
 host state. `CLAUDE.md` carries the four architecture requirements the plan imposes — BLE as the

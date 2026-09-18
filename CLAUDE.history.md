@@ -805,3 +805,124 @@ contradict each other. `../ndLouvers/` open item 49 owns it. Nothing in this rep
 the answer: the channel is disqualified as a static reference at either value, which is the only
 part `CLAUDE.md` and `README.md` need to state, and both now say so explicitly rather than implying
 a settled number.
+
+
+## 2026-09-17 — the pressure sensors arrive, and what that does and does not unblock
+
+**The five SDP810s were delivered and are being fitted.** Every file in this repository that
+described them as undelivered has been reconciled: `CLAUDE.md`'s hardware-facts bullet and its
+bench-test note, `README.md`'s sensor-zone, pressure-companion and testable-today paragraphs, and
+`Hardware/logger-perfboard-wiring.md`'s preamble, parts status and I2C-idle note. The plan's
+Step 0b remains the authority on what any of it is for.
+
+**What this repository has to get right at the bench**, recorded here because the fitting is
+happening now and the consequences are not reversible in software:
+
+1. **`F1` and `TVS1` are still unfitted, and the plan's risk 14 requires them before the sensors
+   are connected.** Build-sheet §10 steps 2–3 were bypassed rather than passed, so the rail that
+   will feed five new parts has never been on a meter. The parts line in §9 now says so where it is
+   read rather than by cross-reference.
+2. **The single ±125 Pa must be connectorised, not hard-soldered.** It is time-shared between two
+   duties in different measurement phases, which is why the plan's open item 38 closed without a
+   sixth sensor. Soldering it down reopens a purchase.
+3. **One sensor per mux channel, each channel with its own pull-ups.** All five share one fixed I2C
+   address and cannot be strapped apart; the mux does not pass pull-ups downstream.
+4. **Record each serial against its mux position as it goes on.** The plan's commissioning item 2
+   has the channel→role record as outstanding for the SDP810s, and the role→channel mapping itself
+   stays deliberately open — do not invent one at the bench to fill the column.
+
+**The first-transfer-after-idle deviation now gets its real test.** §1's refusal fault was measured
+against the BME280 at `0x77` with a nearly empty bus. The five SDP810s sit behind the mux on the
+same `SDA_MAIN`/`SCL_MAIN`, and a mux channel switch followed by a sensor read is two transfers of
+which the first is the one after idle. Bringing them up is the first observation of that behaviour
+at full device count. The retry counter is already in place to see it.
+
+**A separate drift the same sweep caught.** The build sheet's §7 still said "the DS18B20s are not
+fitted yet" — they have been fitted and enrolled since the four-probe star passed, and have since
+run two track days. The hazard it guards is real and unchanged, so the check now reads as governing
+any probe swap or re-fit rather than a first power-on.
+
+## 2026-09-18 — the two-day SD record read on the bench, and three documented facts corrected
+
+The box came back from the car to the bench, the service was stopped, and the 324 MB two-day
+session file was read for the first time. It is the record the plan's open item 48 had been waiting
+for. **Nothing in this entry is a live instruction** — the live versions are in `CLAUDE.md`,
+`one-wire-probes.md`, `README.md` and `Hardware/logger-perfboard-wiring.md`.
+
+**The session is 38.09 h, not 21.7 h.** `2026-09-11T18-08-06.244419Z-log.ndjson`, 404 573 records,
+one continuous run spanning both track days; the 21.7 h in the earlier entry is the unattended
+overnight stretch inside it. 13 BLE-connected windows, which are the 13 RaceChrono recordings — so
+this file is also the only record of what the instrument did *between* sessions, and that turned
+out to be where most of the findings live.
+
+**1. "Two CRC failures" was wrong, and the mechanism is worth more than the correction.** All 17
+samples that `0x603` bytes 2–3 counted across both days carry `crcOk = true` and the reason
+`powerOnDefault`: `temp3` was passing through exactly 85.000 °C, which is also the DS18B20's
+power-on scratchpad default, and the scratchpad is byte-identical in both cases
+(`50 05 4b 46 7f ff 0c 10 1c`). There was never a bus error. **The loaded star recorded zero CRC
+failures in 133 894 cycles**, which is a much stronger result than the one it replaced.
+What made this findable only from the SD file: the phone sees a bare counter, so "two CRC failures"
+was the only available reading of it and it was not checkable from the `.rcz`. The diagnostic that
+settled it was dumping the four preceding samples of each flagged cycle — the flagged value sits on
+a smooth ramp between neighbours ~60 mK away, which no reset can produce.
+
+**2. `T_aft` runs far hotter than anything had recorded.** Peak **101.25 °C**; 2 351 samples above
+85 °C; nine post-run heat-soak stretches of 170–400 s, of which **92 % fall between recorded
+sessions** — which is why two track days of `.rcz` analysis never saw it. It also explains, rather
+than undermines, the earlier "every read error happened parked" observation: the pit soak is what
+drives the aft probe through the detector's threshold.
+
+**3. The undervoltage latch is dated, and the cranking hypothesis is dead.** `stickyAtSessionStart`
+is already 5 in the `supplyBaseline` record, which is written at `bootUs` 13.17 s — so both bits
+were earned inside the first 13.2 s after kernel start, before the session opened, and neither
+moved again in 38 hours. Sampling ten boots, two carry the latch and eight do not. A cranking dip
+would have landed mid-session with `recordStickyTransitions` timestamping it, and none ever did.
+This lands on commissioning item 5.4's supply margin rather than on the crank watch.
+
+**4. The first-transfer-after-idle fault is bimodal per boot.** `CLAUDE.md` said "every time".
+Reading `i2cFirstAttemptFailures` across all 32 sessions: most show exactly one failure per cycle,
+**eight show exactly zero**, the 38-hour session among them at 0 in 135 146 cycles. A bench sweep
+the same day found 0 refusals in 300 BME280 reads and 150 SDP810 reads at 2–1000 ms gaps. The
+counter that was added so the retry would not become folklore is what exposed this; without it the
+two modes are indistinguishable, because the retry hides both.
+**A false alarm avoided by the same counters:** `i2cExhausted` is non-zero in two sessions (67 and
+41). Both are confined to the first ~90 s with `present=false` — the BME280 physically off the
+board during assembly work, with the service still running. `CLAUDE.md` names the check that
+separates that from a degraded bus.
+
+**5. The session ended cleanly.** `BLE stopped, 55447 notifications sent` — the first road session
+on record that is not a hard cut.
+
+**Two smaller things.** Eight BME280 measurements were skipped, not the one the `.rcz` showed; the
+other seven fell between fragments. And one thermal cycle was abandoned 0.1 s before shutdown with
+`therm_bulk_read=''`, engaging the per-probe fallback — a teardown race, and the first time that
+fallback has run in the field.
+
+**A record-keeping trap worth keeping.** `2026-09-11T17-11-40` and `2026-09-11T17-11-43` are named
+2.3 s apart and are **different boots**: `bootUs` 13.2 s and 12.7 s, `stickyAtSessionStart` 5 and 0,
+and a sticky bit cannot fall. Each boot restores the same saved clock and starts the logger ~13 s
+later, so filename adjacency does not even imply the same boot.
+
+## 2026-09-18 — the first SDP810 on the mux, and a bus hung by probing an empty channel
+
+**`P0` reads.** After the owner rewired the channel-0 segment, `0x25` answers behind mux channel 0.
+Identity `0x367C`/`0xE102` returns product **`0x03020A01`** (SDP810-500Pa) and serial
+`0x000000009B994E22`, CRC clean on all six words; `0x3615` continuous mode returns the nominal
+**60 counts/Pa** scale factor and reads −0.029 Pa mean, sd 0.010 Pa, on open ports at 26 °C. That is
+inside the datasheet's 0.1 Pa zero accuracy and 0.05 Pa zero repeatability. **It qualifies nothing**
+— there is no wand, tube or filter — and `../ndLouvers/pressure-testing.md` §3.1 says so at length.
+
+**Probing empty mux channel 1 hung the whole bus.** With `P0` working, one read addressed to `0x25`
+on channel 1 — empty, `R3`/`R4` not fitted — NAK'd, and every subsequent transfer on the **main**
+bus then failed with `ETIMEDOUT`, mux and BME280 alike. The diagnosis was slow because every
+cheap check said the bus was fine: `i2cdetect` still listed `0x70` and `0x77` (quick-write probes
+still got ACKs), and `pinctrl get 2`/`3` showed `SDA` and `SCL` both **idle-high**, so the usual
+stuck-low signature was absent. **A `~RESET` pulse on GPIO17 recovered it** — which is what `R12`
+and net list row 12 exist for, and the first time that path has been used deliberately.
+
+Two things to carry: this is build sheet §1's "misbehaves as you switch" warning arriving in
+practice, so it is now stated as a prohibition in `CLAUDE.md` and §5; and **a hung bus can present
+with both lines high and a clean `i2cdetect`**, so neither is evidence against it. A follow-up
+sweep after recovery showed 2 of 12 BME280 reads failing, which looked like the idle-bus fault
+returning and was not — it was the bus settling. Re-measuring properly gave 0 failures in 450
+reads.

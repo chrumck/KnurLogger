@@ -59,8 +59,10 @@ narrative in this file.
 
 ## Hardware facts that surprise people
 
-- **The sensor zone is ASSEMBLED, minus the pressure-sensor part** (owner, 2026-09-09) — the five
-  SDP810s are still being delivered. **An empty I2C scan is therefore no longer the correct
+- **The sensor zone is ASSEMBLED** (owner, 2026-09-09), and **the five SDP810s were delivered
+  2026-09-17; the first is fitted to mux channel 0 and reads correctly** — one per mux channel, each channel needing its own
+  pull-ups, and the single ±125 Pa **connectorised rather than hard-soldered** (plan open
+  item 38). **An empty I2C scan is therefore no longer the correct
   result**, and neither is zero `28-*` devices (history §2.6 for what the acceptance criteria used
   to say). Three facts from the assembled board matter before writing any bus code:
   1. **The BME280 is at `0x77`, and that is the specified address** (owner decision, 2026-09-09,
@@ -98,10 +100,19 @@ narrative in this file.
      measurement of link quality** and bring it back up afterwards to collect artefacts.
      `rfkill block wifi`, never `rfkill block all`.
   5. **The pressure sensors have no such problem** — they sit on the perfboard and bench-test
-     directly, once they arrive.
-- **THE FIRST I2C TRANSFER AFTER AN IDLE BUS IS REFUSED, EVERY TIME, AND A RETRY FIXES IT**
-  (measured 2026-09-10 against the BME280 at `0x77`). This is the single most expensive thing to
+     directly. They arrived 2026-09-17; the first was brought up on the bench 2026-09-18.
+- **THE FIRST I2C TRANSFER AFTER AN IDLE BUS IS REFUSED ON SOME BOOTS, AND A RETRY FIXES IT**
+  (measured 2026-09-10 against the BME280 at `0x77`; **"every time" corrected to "some boots"
+  2026-09-18**). This is the single most expensive thing to
   not know on this board, because it presents as *the device is dead* and it is not.
+  0. **It is bimodal per boot — on or off for the whole life of a boot, never in between.**
+     Reading `i2cFirstAttemptFailures` across all 32 sessions on the card: most show **exactly one
+     failure per sample cycle**; **eight show exactly zero**, the 38-hour two-day track session
+     among them at 0 in 135 146 cycles. A bench sweep on 2026-09-18 found 0 refusals in 300 BME280
+     reads and 150 SDP810 reads at gaps of 2–1000 ms, and 0 in 40 interleaved mux-select-plus-read
+     cycles. **So a clean run is evidence about that boot and about nothing else**, and the
+     paragraphs below describe the refusing mode, which is still the common one. Whatever causes
+     it is latched at initialisation. `../ndLouvers/` open item 44.
   1. **The measurement.** With an idle gap of **10 ms or more the first `I2C_RDWR` fails every
      single time** — `EREMOTEIO`, a NAK. A second attempt **500 µs** later succeeded **60 of 60**
      across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the first attempt mostly works
@@ -115,20 +126,36 @@ narrative in this file.
      `i2ctransfer -y 1 w1@0x77 0xd0 r1` is the one-line check, and **run it several times**: a
      single result of either kind means nothing.
   4. **The retry lives in `i2cBus.cxx` and is COUNTED, not swallowed** — `firstAttemptFailures`,
-     `recoveredTransfers` and `exhaustedTransfers` land in every `enclosure` record. About **one
-     recovered transfer per sample cycle is the measured normal**; `i2cExhausted` moving off zero
-     is the signal that the bus has actually degraded. A retry that hid this would have turned a
-     hardware characteristic into folklore.
+     `recoveredTransfers` and `exhaustedTransfers` land in every `enclosure` record. **On a
+     refusing boot, one recovered transfer per sample cycle is the normal; on a non-refusing boot
+     the normal is zero** (item 0). A retry that hid this would have turned a hardware
+     characteristic into folklore — and it is also the only thing that revealed the bimodality.
+     **`i2cExhausted` moving off zero is NOT by itself a degraded bus — check `present` first.**
+     Two sessions carry it (67 on 2026-09-17, 41 on 2026-09-18) and both are confined to the first
+     ~90 s with `present=false` and reason `deviceUnavailable`/`notAnswering`: the BME280 was
+     physically off the board during assembly work, with the service running. The counter was
+     right and the alarming reading of it would have been wrong. **A degraded bus is `i2cExhausted`
+     climbing while the device is present**, which has never been seen.
   5. **Ten attempts, not four, and the difference was measured.** A chain long enough for one
      isolated register read is not long enough for a cycle of eight transfers: at four attempts
      **2 of 64 cycles still lost every channel**; at ten, **64 of 64 and then 300 of 300
      over a five-minute run came back clean**, nothing exhausted. The attempts are free when
      unused — cycle read time was 15-16 ms either way.
-  6. **This is unqualified hardware and it will apply to the five SDP810s too**, which sit on the
+  6. **This is unqualified hardware and it applies to the five SDP810s too**, which sit on the
      same `SDA_MAIN`/`SCL_MAIN` behind the mux. The cause is not established — the main bus has
      no added pull-up (net list rows 10 and 11) and the BME280 breakout's own pull-ups are what
      the bus relies on. **Do not treat the retry as the answer to the physical question**; it is
      what makes the channel work while that question is open (`../ndLouvers/` open item 44).
+- **NEVER ADDRESS A MUX CHANNEL WHOSE PULL-UP PAIR IS NOT FITTED — IT HANGS THE WHOLE BUS**
+  (measured 2026-09-18). With `P0` working on channel 0, one probe of empty channel 1 NAK'd and
+  every subsequent transfer on the **main** bus failed with `ETIMEDOUT` — mux and BME280 alike. The
+  symptoms are deceptive: `i2cdetect` still listed `0x70` and `0x77`, and `pinctrl get 2`/`3`
+  showed `SDA` and `SCL` both idle-high, so nothing read as stuck. **Recovery is a `~RESET` pulse
+  on GPIO17** — `pinctrl set 17 op dl`, pause, `pinctrl set 17 op dh` — which is what `R12` and
+  net list row 12 are for. Four of the five channels are still empty and their `R1`–`R10` pairs are
+  not fitted, and `P5`'s `R13`/`R14` are footprints only. **The pressure worker must iterate a
+  configured list of populated channels and never sweep**, and a bring-up scan must do the same.
+  Build sheet §5.
 - **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The mux
   is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups downstream, so
   every populated channel has its own pair.
@@ -168,6 +195,17 @@ narrative in this file.
   triangle test frames; that rig is spent and the owner released the IDs. **Any RaceChrono channel
   definition written against the rig's `0x600` must be re-entered** — the bytes decode to
   something else now. `0x602`–`0x604` are unchanged and still carry over.
+- **A DS18B20 AT EXACTLY 85.00 °C IS INDISTINGUISHABLE FROM ONE THAT HAS JUST RESET, AND `T_aft`
+  GOES THERE** (measured 2026-09-18 from the two-day SD record). 85.00 °C is the power-on
+  scratchpad default *and* a real temperature, and the scratchpad bytes are identical
+  (`50 05 4b 46 7f ff 0c 10 1c`) in both cases, so `oneWireProbes.cxx`'s `powerOnDefault` check
+  cannot tell them apart. All 17 flagged samples in that session are `temp3` transiting 85.000 °C
+  on a smooth ramp with a good CRC — **not one is a bus fault**, and the "two CRC failures"
+  reported for the 2026-09-13 track day are withdrawn. `T_aft` peaks at **101.25 °C** and puts
+  2 351 samples above 85 °C, so this is a band the aft probe lives in rather than an edge case.
+  **The reason code sends a reader to the power and the pull-ups, and that is the cost** — it is a
+  diagnosis the data cannot support. `one-wire-probes.md` owns the requirement and
+  `../ndLouvers/` open items 52 and 53 own the decisions.
 - **The whole 1-Wire path is in [`one-wire-probes.md`](one-wire-probes.md)**, split out of this
   file on 2026-09-15: the ROM-ID bindings, the mandatory `28-*` family filter, `therm_bulk_read`
   and the two conditions that make it convert, the ~100 s tail a pulled probe leaves behind, the
@@ -443,9 +481,11 @@ The platform has already been the culprit once and the logger looked guilty (his
   being pulled, or a cranking dip. Repeated hard cuts are the durability risk worth knowing: one
   costs at most the last second, but doing it daily for a season is the classic route to a corrupt
   SD card, so `sudo poweroff` before pulling the fuse is free insurance.
-  **Every road-test session so far has ended in a hard cut** — no `BLE stopped` event, no closing
-  record, the file simply stops. That is how to recognise one when reading a session back, and it
-  is the practice the note above is asking to change.
+  **A hard cut is recognisable when reading a session back** — no `BLE stopped` event, no closing
+  record, the file simply stops. Every road-test session through 2026-09-11 ended that way.
+  **The two-day track session did NOT**: it closes with `BLE stopped, 55447 notifications sent`,
+  so the `poweroff`-before-pulling-the-fuse practice was followed and the note above is now
+  describing something that happens rather than something to start doing.
 - **Two logger instances run happily side by side and BOTH advertise — nothing refuses, nothing
   warns** (measured 2026-09-10: `SupportedInstances` is 5, `ActiveInstances` went 1 → 2 with a
   log-mode and an `--enroll` instance up together). **`KnurLogger.service` is now installed and

@@ -622,7 +622,7 @@ found, which is the point.
        reads `0x60` — at the address the build sheet explicitly told us not to use, instead of the
        specified `0x76`. The build sheet's §2 owns the discrepancy and the owner owns the fix
        (pull `SDO` down, or accept `0x77` and amend net list row 9).
-    2. **Nothing answers at `0x70`**, so the mux is silent. Expected if the TCA9548A is not
+    2. **Nothing answers at `0x70`**, so the mux is silent. Expected if the mux is not
        populated, since it exists only to serve the SDP810s. `gpio=17=op,dh` rules out a held
        reset.
     3. **The 1-Wire phantoms have stopped.** Three scans over 36 s gave `w1_bus_master1` alone,

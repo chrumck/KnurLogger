@@ -146,6 +146,36 @@ charged **186 read errors to a bus that had not failed once** (history §1.12).
    first version threw the bytes away, which is why the fault at the car could not be told
    apart from a marginal bus without going back.
 
+## The `powerOnDefault` check asserts a cause it cannot establish
+
+**85.00 °C is the DS18B20's power-on scratchpad default AND a temperature a probe can be at, and
+the scratchpad is byte-identical in both cases** — `50 05 4b 46 7f ff 0c 10 1c`, with a valid CRC.
+`oneWireProbes.cxx` treats `centiC == TEMP_POWER_ON_DEFAULT_CENTI_C` as a reset and its comment
+says the cause "points at power or a marginal pull-up rather than at a hot probe". **Measured
+2026-09-18 against the two-day SD record, that inference is wrong in every instance on file.**
+
+1. **All 17 flagged samples are `temp3` transiting 85.000 °C on a smooth ramp**, e.g.
+   84.94 → 85.00 → 85.06, with neighbours ~60 mK away and `crcOk = true` throughout. `T_aft` peaks
+   at **101.25 °C** and spends 2 351 samples above 85 °C, in nine post-run heat-soak stretches.
+   **The aft probe lives in this band; it does not visit it.**
+2. **The rejection itself is defensible and the reason code is not.** Discarding one sample per
+   85 °C crossing costs 0.013 % of the session and is the conservative choice, since the logger
+   genuinely cannot vouch for that reading. What is not defensible is naming a cause: the record
+   sent a reader to the power rail and the pull-ups, and there was nothing there.
+3. **The inverse error is the one that will cost something.** A probe that genuinely resets while
+   sitting in the 80–90 °C band produces exactly this record, so the check that was meant to catch
+   resets is now blind in the one place resets would be hardest to spot.
+4. **The discriminator available is context, not content.** A reset is a step from an unrelated
+   value; a transit sits between neighbours a resolution step away. The previous valid reading per
+   channel is already in hand.
+
+**This file owns the requirement; the decision is the plan's** — `../ndLouvers/` open item 53, with
+open item 52 for the measurement-accuracy half. **At minimum the reason code must stop asserting
+power or the pull-up.** Until it changes, read `powerOnDefault` on `temp3` as "the probe was at
+85 °C" unless the neighbouring samples say otherwise, and note that `0x603` bytes 2–3 counts these,
+so **that counter is not a bus-quality figure on its own** (`../ndLouvers/thermals-testing.md`
+§2.5 item 3).
+
 ## Testing the whole path without probes
 
 **The whole 1-Wire path IS testable without probes, and this is how** (2026-09-10).

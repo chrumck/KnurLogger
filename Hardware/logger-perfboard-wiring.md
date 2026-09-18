@@ -11,13 +11,15 @@ been **powered and it powers the Pi**. **No measurement has been taken anywhere 
 §10 step 2 (dummy load) and step 3 (crank transient) were bypassed. Step 4 is **partly met**: the
 Pi has been logged into and reports `throttled=0x0` at idle (2026-09-09), which is the Pi's own
 opinion of its rail and not a meter on it — step 2 stands, and so does the warm full-load re-read.
-**The sensor zone is now assembled** (owner, 2026-09-09), minus the pressure-sensor part — the five
-SDP810s have not been delivered. Its first bus scan raised three things and **§2 owns all of them**:
+**The sensor zone is now assembled** (owner, 2026-09-09), and **the five SDP810s were delivered
+2026-09-17; the first is fitted to mux channel 0 and reads correctly** (2026-09-18 — §5 has its
+product number and serial). Its first bus scan raised three things and **§2 owns all of them**:
 the BME280 answers at `0x77`, which the owner has **accepted as the specified address**; the mux is
-a **PCA9548A** rather than a TCA9548A, which is harmless; and **the mux is held in reset by an open
-fault on the `MUX_RST` net** — the one item on this board that needs a meter before anything else
-happens. Figures marked *(verify)* are from datasheets or general practice and must be confirmed
-against the parts in hand.
+a **PCA9548A** rather than a TCA9548A, which is harmless; and the mux was **held in reset by a
+mis-soldered `~RESET`**, since resoldered and answering at `0x70`. Figures marked *(verify)* are
+from datasheets or general practice and must be confirmed against the parts in hand.
+**Four mux channels are still empty and their pull-up pairs are not fitted — do not address them**
+(§5's warning; it hangs the whole bus).
 
 **The HW-384 replaced the MP1584 and absorbed most of the discrete protection chain** (plan
 commissioning item 5): onboard reverse-polarity protection, a 1.5 A input fuse and a 300 W TVS on
@@ -103,14 +105,23 @@ open hardware question and note 2 is now closed.
    through `R12` and **passes**, so that row alone would have cleared a faulty board. Also, GPIO17
    only goes high once the firmware has read `config.txt`, so any reading taken with the Pi off or
    mid-boot reads low legitimately and means nothing.
-3. **THE FIRST TRANSFER AFTER AN IDLE BUS IS REFUSED, AND THIS IS UNQUALIFIED HARDWARE**
-   (measured 2026-09-10 against the BME280 at `0x77`). With an idle gap of 10 ms or more the
+3. **THE FIRST TRANSFER AFTER AN IDLE BUS IS REFUSED — ON SOME BOOTS, AND THIS IS UNQUALIFIED
+   HARDWARE** (measured 2026-09-10 against the BME280 at `0x77`; **scope corrected 2026-09-18**).
+   With an idle gap of 10 ms or more the
    first `I2C_RDWR` fails every time with `EREMOTEIO`; a second attempt 500 µs later succeeded
    60 of 60 across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the first attempt mostly
    works. **`i2cdetect` and a shell loop of `i2ctransfer` do not show it**, because they issue
    transfers milliseconds apart and stay inside the warm window — so a clean `i2cdetect` beside a
    program that fails 100 % of the time is not a contradiction, and it is not a software bug.
    `i2ctransfer -y 1 w1@0x77 0xd0 r1`, run several times, is the check.
+   **It does not happen on every boot, and that is the sharpest fact about it.** Reading
+   `i2cFirstAttemptFailures` across all 32 sessions on the card (2026-09-18): most show **exactly
+   one failure per sample cycle**, and **eight show exactly zero** — including the 38-hour two-day
+   track session, 0 in 135 146 cycles. A bench sweep the same day found 0 refusals in 300 BME280
+   reads and 150 SDP810 reads at gaps of 2–1000 ms. **So the behaviour is latched at
+   initialisation and is either on or off for the life of a boot.** Two consequences: **a clean run
+   proves nothing about the board**, only about that boot; and any future diagnosis must record
+   which mode the boot was in before comparing anything.
    **The cause is not established.** `SDA_MAIN` and `SCL_MAIN` carry **no added pull-up**
    (net list rows 10 and 11); the bus relies on the Pi's own and on whatever the BME280 breakout
    fits, and that breakout's onboard pull-up is already known to have overridden the `SDO` tie
@@ -503,15 +514,32 @@ final, record it per session in that session's file, and log it at boot alongsid
 serials (plan commissioning item 2). Reassigning a channel is then a tube move plus one line in
 the session mapping — never a relabelled board.
 
-| Mux ch | Channel | Sensor fitted | Serial | Tube tails |
+| Mux ch | Channel | Sensor fitted | Product / serial, as read | Tube tails |
 |---|---|---|---|---|
-| SD0/SC0 | **P0** | SDP810 ±500 Pa | record at build | `P0+` / `P0−` |
-| SD1/SC1 | **P1** | SDP810 ±500 Pa | record at build | `P1+` / `P1−` |
-| SD2/SC2 | **P2** | SDP810 ±500 Pa | record at build | `P2+` / `P2−` |
-| SD3/SC3 | **P3** | SDP810 ±500 Pa | record at build | `P3+` / `P3−` |
-| SD4/SC4 | **P4** | SDP810 **±125 Pa** | record at build | `P4+` / `P4−` |
-| SD5/SC5 | **P5** | Unpopulated. Reserved position, wired for a sixth sensor. | — | — |
+| SD0/SC0 | **P0** | SDP810 ±500 Pa — **FITTED 2026-09-18** | `0x03020A01` / **`0x000000009B994E22`** | `P0+` / `P0−` |
+| SD1/SC1 | **P1** | SDP810 ±500 Pa — not fitted | record at build | `P1+` / `P1−` |
+| SD2/SC2 | **P2** | SDP810 ±500 Pa — not fitted | record at build | `P2+` / `P2−` |
+| SD3/SC3 | **P3** | SDP810 ±500 Pa — not fitted | record at build | `P3+` / `P3−` |
+| SD4/SC4 | **P4** | SDP810 **±125 Pa** — not fitted; **connectorised, not soldered** | record at build | `P4+` / `P4−` |
+| SD5/SC5 | **P5** | Unpopulated. Reserved position, wired for a sixth sensor. `R13`/`R14` are footprints only. | — | — |
 | SD6–7 | — | Not used. Leave unpopulated. | | |
+
+**Read the product number, do not trust the bag.** P0's was read back over I2C on 2026-09-18
+(`0x367C`, `0xE102`, 18 bytes, CRC clean) and `0x03020A01` is the SDP810-500Pa signature;
+`0x03020B01` would be the ±125 Pa part, which is the substitution this column exists to catch. The
+sensor also returned its **60 counts/Pa** scale factor, matching the plan's nominal — read it and
+retain it per sensor rather than hard-coding one, since the ±125 Pa part returns 240.
+
+> **⚠ NEVER ADDRESS A MUX CHANNEL WHOSE PULL-UP PAIR IS NOT FITTED — IT HANGS THE WHOLE BUS.**
+> Measured the hard way on 2026-09-18: with P0 working, a probe of **channel 1** (empty, `R3`/`R4`
+> not yet fitted) NAK'd, and every subsequent transfer on the **main** bus then failed with
+> `ETIMEDOUT` — the mux, the BME280, everything. `i2cdetect` still listed `0x70` and `0x77`, and
+> `SDA`/`SCL` both measured idle-high, so nothing looked wrong. **A `~RESET` pulse on GPIO17
+> recovered it** (`pinctrl set 17 op dl`, pause, `pinctrl set 17 op dh`). This is §1's "misbehaves
+> as you switch" warning arriving in practice. Two rules follow: a bring-up scan must enumerate
+> only channels whose resistors are in, and **the pressure worker must never sweep channels
+> blindly** — it iterates a configured list of populated channels, and an unconfigured channel is
+> never selected.
 
 **Range belongs in this table because it is a hardware fact, not a scenario one.** Exactly one
 ±125 Pa part exists and it sits at P4. That constrains which roles P4 can serve without
@@ -630,7 +658,8 @@ of that script wrote 400 kHz, copied from `iSitePiLogger`; corrected 2026-09-09 
 
 ## 7. Two ways to destroy hardware — check both before first power
 
-**Check 1 still applies in full** — the DS18B20s are not fitted yet. **Check 2 was bypassed**; see
+**Check 1 applies to every probe fitting, not only the first.** All four DS18B20s are now fitted
+and enrolled, so it governs any swap or re-fit rather than a first power-on. **Check 2 was bypassed**; see
 the note under it.
 
 1. **DS18B20 supply voltage.** These parts accept 3.0–5.5 V, and the 1-Wire data line idles at
@@ -687,7 +716,11 @@ pins soldered in; `C12` 100 µF output electrolytic. Not powered or measured.
 **On hand** *(per the plan's inventory — verify condition)*: Pi 4B, microSD, BME280, PCA9548A,
 4 × DS18B20 with 5 m cable. **MP1584 module — superseded by the HW-384, now an unused spare.**
 
-**Awaiting delivery**: 4 × SDP810-500Pa, 1 × SDP810-125Pa.
+**Delivered 2026-09-17**: 4 × SDP810-500Pa, 1 × SDP810-125Pa. **One ±500 Pa is fitted to mux
+channel 0 and reads correctly** (2026-09-18, §5 has its serial); the other four are not fitted.
+Fit `F1` and `TVS1` and bench the supply into a dummy load **before connecting them** (plan risk
+14; §10 steps 2–3 were bypassed, not passed — and the channel-0 sensor went on ahead of them,
+so that precondition is now bypassed for it too).
 
 > **⚠ The single SDP810-125Pa must be CONNECTORISED, not hard-soldered** (plan open item 38,
 > closed rev 67e). It is time-shared between two duties in different measurement phases —
@@ -760,9 +793,9 @@ the supply is qualified alone, first, and the expensive parts go on last.
    buses, nothing to do with this perfboard.
    **A SINGLE FAILED TRANSFER IS NOT AN ABSENT PART ON THIS BOARD, AND THIS STEP IS WHERE THAT
    MATTERS** (§2 note 3, `../../ndLouvers/CFD-Learning-Plan.md` open item 44). The first transfer
-   after an idle bus is refused every time, so **repeat every read here several times before
+   after an idle bus is refused on some boots, so **repeat every read here several times before
    concluding anything** — `i2ctransfer -y 1 w1@0x77 0xd0 r1`, not once. This applies to the five
-   SDP810s when they arrive: they sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux, and a
+   SDP810s, delivered 2026-09-17: they sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux, and a
    mux channel switch followed by a sensor read is two transfers of which the first is the one
    after idle.
 6. **Add the four DS18B20s** *(plan item 2 of the thermal section)*, **one probe at a time** —
