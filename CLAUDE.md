@@ -376,9 +376,14 @@ argument is never an answer to "the phone is showing the wrong number".**
    box 1 and RaceChrono then stores only the channels it has definitions for. **There is no
    raw-frame layer in a `.rcz`**, so an undefined byte is discarded on arrival and no recording can
    be reprocessed to recover it. Found 2026-09-15: `0x420` byte 7, the outside-air temperature the
-   plan's thermal item 4a is built on, **has never had a channel defined**, and five sessions of it
+   plan's thermal item 4a is built on, had never had a channel defined, and five sessions of it
    are gone. `../ndLouvers/` open item 47. **"Box 1 already broadcasts the frame" is a statement
    about cost, never about whether the data exists.**
+   **The channel was defined on 2026-09-19** — `H-40` on predefined channel 10031 — so the byte is
+   recorded from the next session onward. **That changes nothing about the five lost sessions and
+   nothing about the rule**, which is why this entry keeps its present tense about the mechanism:
+   the loss is silent on both boxes and in the export, so only a channel defined *before* a session
+   ever helps.
 
 **All three were fixed on the phone on 2026-09-11 and ALL THREE ARE NOW OBSERVED WORKING** —
 `0x604` and `0x601` on the air in the third drive's recording (`0x604`'s first appearance ever;
@@ -422,6 +427,13 @@ python3 Tools/rcz-channels.py session.rcz
    README found that **`0x600`'s pressure channel carries a `/1000` the README did not document**
    — RaceChrono's Pressure channel takes kPa and that gauge displays bar — which is how a spec and
    a deployment drift without anyone noticing.
+   > **⚠ A `git diff` OF THAT FILE IS NOT A REVIEW OF IT** (2026-09-19). RaceChrono emits
+   > `customChannels` in an order that shifts as entries are added, so a re-export rewrites lines
+   > that did not change: adding 14 channels produced 184 insertions and 86 deletions. **Compare two
+   > exports by `(pid, channelId)`**, decoding each id as `slot * 2**20 + channelType`, or an
+   > equation edited by hand passes review unseen — which is the one fault class this file exists to
+   > catch. Do **not** sort the array to make the diff readable: the committed file is the export
+   > verbatim minus `localUuid`, and re-import has never been tested against any other shape.
 5. **AN ALL-EMPTY CHANNEL IS NOT NECESSARILY A BROKEN ONE.** RaceChrono renders a deliberate
    out-of-range marker as no value at all, so a channel that is `NaN` in every sample can be a
    sensor that sat outside its calibration range for the whole session. **Box 1's two are exactly

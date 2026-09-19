@@ -8,25 +8,29 @@ them can break the other.
 **Why this is here at all.** Channel definitions are hand-typed into the app. The byte-level
 specification is in `../README.md`; this file is the actual configuration, equations and predefined
 channel slots included. Re-picking slots by hand is what produced the `bytesToUint`-where-
-`bytesToInt`-belongs fault on `Temperature Front 2` (`../ndLouvers/` open item 45), so a backup that
+`bytesToInt`-belongs fault on `Temperature Front 2` (`../../ndLouvers/` open item 45), so a backup that
 can be re-imported is worth more than a table that has to be re-typed.
 
 **This directory holds the PROFILE, not recordings.** Session `.rcz` exports live outside both
-repositories, in `C:\_claude\RaceChrono\` — `../ndLouvers/thermals-testing.md` §2.5 item 4 owns
+repositories, in `C:\_claude\RaceChrono\` — `../../ndLouvers/thermals-testing.md` §2.5 item 4 owns
 that and says how they differ from the SD session files. Sessions are cited by `.rcz` filename in
 `../CLAUDE.history.md`; do not look for them here.
 
-**Exported 2026-09-11**, from the profile named `AE30`. It is a snapshot, not a live mirror —
+**Exported 2026-09-19**, from the profile named `AE30`. It is a snapshot, not a live mirror —
 **the app is the authority**, and this file is stale from the moment a channel is edited.
 Re-export after any change.
 
-> **⚠ IT IS STALE NOW, AND DELIBERATELY SO.** The logger has published `0x605`, `0x606` and
-> `0x607` — the six pressure channels and their status fields — since 2026-09-19, and **none of
-> them is in this file, because none of them is on the phone yet.** Until they are entered, the
-> three packets are never sent at all: RaceChrono's subscription burst never asks for them, which
-> is exactly how `0x604` went unsent through two road tests. `../README.md` §"The slot map" and the
-> `0x605`–`0x607` sections are what to type. **Re-export and re-commit this file once they are in**,
-> and run the sentinel check with the sensors disconnected before trusting any of them.
+**This export is the one that carries `0x605`–`0x607`.** The pressure channels and their status
+fields were entered on 2026-09-19 and verified the same day — the sentinel check with the sensors
+disconnected, every channel negative, and `0x606`'s free-running counter stepping +1 — so all eight
+of box 2's packets are now subscribed. It also carries the `0x420` byte 7 channel that
+`../../ndLouvers/` open item 47 had been waiting for.
+
+> **⚠ A `git diff` OF THIS FILE IS NOT A REVIEW OF IT.** RaceChrono emits `customChannels` in an
+> order that shifts as entries are added, so a re-export rewrites lines that did not change — this
+> one showed 184 insertions and 86 deletions for 14 added channels. **Diff it by `(pid, channelId)`
+> instead**, decoding each id as `slot × 2²⁰ + channelType`, or an equation edited by hand will pass
+> review unseen. That is the fault class this whole directory exists to catch.
 
 ## Restoring it
 
@@ -43,14 +47,25 @@ from an export taken after this one.
 
 ## What is in it
 
-35 custom channels across ten packet IDs. Box 2's are `0x600`–`0x604` (23 channels; `../README.md`
-§"The slot map" is the human-readable version). Box 1's are `0x78`, `0x202`, `0x420`, `0x4FA` and
-`0x7F0`. **Box 2's `0x605`–`0x607` are missing** — see the warning above; adding them takes it to
-38 packets' worth across thirteen IDs, 14 channels more.
+49 custom channels across thirteen packet IDs. **Box 2's are `0x600`–`0x607`, 36 channels**
+(`../README.md` §"The slot map" is the human-readable version). **Box 1's are `0x78`, `0x202`,
+`0x420`, `0x4FA` and `0x7F0`, 13 channels.**
 
-**No ID in this file collides with `0x605`–`0x607`**, which is what was checked before those three
-were chosen: across both boxes the only IDs claimed are `0x78`, `0x202`, `0x420`, `0x4FA`,
-`0x600`–`0x604` and `0x7F0`.
+**The IDs claimed across both boxes are therefore `0x78`, `0x202`, `0x420`, `0x4FA`, `0x600`–`0x607`
+and `0x7F0`.** Check a proposed new packet ID against that list here, in this file, rather than
+against either box's source: the two devices share one channel set, so an ID free on one of them is
+not necessarily free.
+
+Two of those 49 are not in the slot map and are worth naming, because each is a decision rather
+than an omission:
+
+1. **`P5` has no channel** — `0x606` bytes 2–3. Mux channel 5 is unpopulated, so the field is a
+   permanent sentinel inside a packet that is subscribed anyway. `../README.md` slot-map note 5
+   owns it, including what to do if channel 5 is ever populated.
+2. **`0x420` byte 7 is now defined**, as `H-40` on predefined channel 10031, alongside byte 0's
+   existing `A-40` on 10026. That is the outside-air temperature of `../../ndLouvers/` open item 47.
+   Defining it fixes nothing retrospectively — no past recording can be reprocessed — so it counts
+   only from the first session recorded after this export.
 
 **Two things worth knowing before editing an equation by hand.**
 

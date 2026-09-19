@@ -126,8 +126,11 @@ failures and the enabled/valid masks answer different questions, and one counter
 first two is what misclassified a hot probe as a bus fault for two track days on the thermal side.
 **The role→channel mapping is untouched and still open** (`../ndLouvers/` open item 30a): the
 baseline record says so in a field of its own rather than leaving its absence to be inferred.
-**The phone's six pressure channels and their status fields are not entered yet** — until they
-are, the three packets are never sent at all.
+**The phone's pressure channels are entered and verified** (owner, 2026-09-19), so `0x605`–`0x607`
+are now subscribed and sent. The sentinel check passed with the sensors disconnected, and `0x606`
+bytes 4–5 advance by exactly +1 per sample. **`Pressure Front 6` is deliberately not defined** —
+see the slot map. One verification is outstanding: `Tools/rcz-channels.py` against a recording that
+carries the new slots.
 
 ---
 
@@ -196,9 +199,8 @@ so the OS pairing list will never show it.
 > subscription, so entering the logging regime means only the packet IDs you have defined channels
 > for get notified. Measured 2026-09-10 on the bench and again in the car on 2026-09-11, when
 > `0x604` took **zero** notifications because no channel was defined for it while the other four
-> ran at ~1 Hz. The first five packets were defined on 2026-09-11; **`0x605`–`0x607` are published
-> by the logger as of 2026-09-19 and must still be entered on the phone**, and until they are they
-> are not sent at all.
+> ran at ~1 Hz. The first five packets were defined on 2026-09-11 and **`0x605`–`0x607` on
+> 2026-09-19**, so all eight are now subscribed.
 > In CAN-bus test mode RaceChrono asks for everything instead, which is why test mode shows
 > channels that logging mode does not.
 >
@@ -211,9 +213,9 @@ so the OS pairing list will never show it.
 **RaceChrono channels are hand-typed into the phone and exist nowhere else.** The tables below say
 which bytes carry what; this one says which predefined channel slot each field was put in, because
 a slot is what a gauge, a lap chart or an exported CSV is named after. **Losing it means re-picking
-23 slots, and re-picking slots is how one of them ended up decoding signed data as unsigned.**
+36 slots, and re-picking slots is how one of them ended up decoding signed data as unsigned.**
 
-Slots as of **2026-09-11**, and **verified against RaceChrono's own exported profile**, which is
+Slots as of **2026-09-19**, and **verified against RaceChrono's own exported profile**, which is
 committed at `RaceChrono/vehicleProfile.json` — that file is the authority on what is entered, this
 table is the readable view of it. Packet IDs are decimal, which is what the CAN-ID field takes.
 
@@ -247,17 +249,17 @@ table is the readable view of it. Packet IDs are decimal, which is what the CAN-
 | 1541 | 4–5 | `Pressure Front 3` | `P2` |
 | 1541 | 6–7 | `Pressure Front 4` | `P3` |
 | 1542 `0x606` | 0–1 | `Pressure Front 5` | `P4` |
-| 1542 | 2–3 | `Pressure Front 6` | `P5` |
+| 1542 | 2–3 | **not defined** — see note 5 | `P5` |
 | 1542 | 4–5 | `Digital Front 21` | sample cycles — free-running |
 | 1542 | 6–7 | `Digital Front 22` | last cycle, ms |
 | 1543 `0x607` | 0 | `Digital Front 23` | channels enabled, bitmask |
 | 1543 | 1 | `Digital Front 24` | valid-this-cycle mask |
 | 1543 | 2–3 | `Digital Front 25` | read errors |
 | 1543 | 4–5 | `Digital Front 26` | CRC failures |
-| 1543 | 6 | **`Temperature Front 21`** | sensor temperature, lowest enabled channel |
+| 1543 | 6 | **`Temperature Front 20`** | sensor temperature, lowest enabled channel |
 | 1543 | 7 | `Digital Front 27` | mux channel selected |
 
-Four things this table is carrying rather than repeating:
+Five things this table is carrying rather than repeating:
 
 1. **`Temperature Front 15` is a Temperature slot on purpose.** It was a Digital one until
    2026-09-11. It is the only `0x604` field with decimals; the rest are integers, and **SoC core
@@ -266,16 +268,32 @@ Four things this table is carrying rather than repeating:
 2. **Changing a slot's type changes its identity.** `Digital Front 15` and `Temperature Front 15`
    are different channels with different ids, so a retyped field leaves the old slot behind unless
    it is deleted — still subscribed, still decoding the same bytes under the old name.
-3. **The six pressure channels are `Pressure Front 1`–`6` and their status fields are `Digital
-   Front 21`–`27` plus `Temperature Front 21`** — chosen to sit clear of every slot above, so no
+3. **The pressure channels are `Pressure Front 1`–`5` and their status fields are `Digital
+   Front 21`–`27` plus `Temperature Front 20`** — chosen to sit clear of every slot above, so no
    existing channel is disturbed and a `.rcz` from before 2026-09-19 can be told apart from one
    after it by their presence alone.
+   **`0x607` byte 6 is `Temperature Front 20`, not the 21 this table specified until 2026-09-19.**
+   The slot entered on the phone won, as the profile always does; 20 was free, satisfies the same
+   clear-of-everything property, and `Temperature Front 21` and `Digital Front 21` would have been
+   distinct channels anyway, so nothing was at stake either way. **Do not re-pick it to match an
+   older table** — deleting and re-entering a channel by hand is the operation that produced the
+   `bytesToUint` fault on `Temperature Front 2`, and it would buy nothing.
 4. **`0x601` was renumbered from 50–53 to 51–55 on 2026-09-11**, when byte 6–7 was added. **Any
    recording made before that carries the old slot numbers**, so a session and this table can
    disagree without either being wrong. `Tools/rcz-channels.py` prints what a given recording
    actually used — **and a session that was paused and resumed carries one fragment per stretch**,
    which the tool reports separately. Reading only the archive root silently discards every later
    stretch; that is half of the 2026-09-13 track day.
+5. **`P5` has no channel on the phone, and that is a decision** (owner, 2026-09-19). Mux channel 5
+   is unpopulated — its pull-ups are footprints only and addressing it hangs the bus — so the
+   worker never enables it and `0x606` bytes 2–3 carry the `−32768` sentinel permanently. An
+   undefined field inside a *subscribed* packet costs nothing: `0x606` is sent for its other three
+   channels and the phone simply discards these two bytes. **This is not the open item 47 mistake
+   and must not be filed as one** — that was an undefined byte on a frame nobody could see was
+   missing, carrying data that existed. Here the packet is visible, the field is a constant, and
+   the logger's own `0x607` byte 0 states that channel 5 is disabled. **If mux channel 5 is ever
+   populated, define `Pressure Front 6` as `bytesToInt(raw,2,2)/10000` before the first session
+   that uses it** — the data is unrecoverable afterwards.
 
 **`0x602` and `0x603` are transcribed byte for byte from the ESP32 rig in
 `../ndLouvers/step0b-rig/racechrono_ble_test/`, so definitions written against that rig carry over
@@ -491,7 +509,7 @@ discharges. What exists is the channel a measurement will one day travel down.
 | 1541 | 4–5 | `P2` | `bytesToInt(raw, 4, 2) / 10000` | as above |
 | 1541 | 6–7 | `P3` | `bytesToInt(raw, 6, 2) / 10000` | as above |
 | 1542 `0x606` | 0–1 | `P4` | `bytesToInt(raw, 0, 2) / 10000` | as above |
-| 1542 | 2–3 | `P5` | `bytesToInt(raw, 2, 2) / 10000` | as above |
+| 1542 | 2–3 | `P5` | **no channel defined** — slot-map note 5 | as above |
 | 1542 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | free-running, wraps at 65535 |
 | 1542 | 6–7 | last cycle, ms | `bytesToUint(raw, 6, 2)` | **~16** for five sensors |
 
@@ -541,9 +559,11 @@ marker needs, because RaceChrono holds the last value it received indefinitely.
 
 > **⚠ ZERO IS A COMPLETELY PLAUSIBLE DIFFERENTIAL PRESSURE, WHICH MAKES THE SENTINEL MATTER MORE
 > HERE THAN ON THE THERMAL CHANNELS.** All six are published as `-32768` before the worker has read
-> anything, so a phone that connects first sees six unmistakable non-readings rather than six
-> believable readings of nothing. A thermal channel reading 0 °C at least looks like weather; a
-> pressure channel reading 0 Pa looks like a correct answer.
+> anything — five of them reaching the phone, `P5` having no channel — so a phone that connects
+> first sees unmistakable non-readings rather than believable readings of nothing. A thermal channel
+> reading 0 °C at least looks like weather; a pressure channel reading 0 Pa looks like a correct
+> answer. **The sentinel check passed on all five with the sensors disconnected** (owner,
+> 2026-09-19): every one read negative.
 
 **`0x606` bytes 4–5 advance every cycle whatever the sensors report**, which is what separates a
 dead worker from five steady pressures — and five steady zeroes is the resting state of a healthy
@@ -928,13 +948,13 @@ sealed, and the thermal envelope — want a **hot day**; the sealed configuratio
 data only. **Record where the box was mounted on every session.** Without it a run cannot serve
 either, because a cabin record reads exactly like a cavity one.
 
-**Needing the phone, not code.** **The six pressure channels and their status fields have to be
-typed into RaceChrono**, and until they are, `0x605`–`0x607` are never sent at all — which is
-exactly how `0x604` went unsent through two road tests. The slot map and the byte tables above are
-what to enter. Then **run the sentinel check with the sensors disconnected**, the only state it
-works in: every pressure channel must read **negative**, −3.2768 kPa, not +3.2768. The *sign* is
-what the check turns on, so it survives the small magnitude. `Tools/rcz-channels.py` now
-flags that fault on `Pressure` slots as well as `Temperature` ones.
+**Needing the phone — nearly done.** The pressure channels and their status fields are **entered
+and verified** (owner, 2026-09-19): the sentinel check passed with the sensors disconnected, every
+channel reading **negative** −3.2768 kPa, and `0x606` bytes 4–5 advance by exactly +1 per sample.
+The profile is re-exported and committed. **One item is left, and it needs a recording rather than
+the phone:** run `Tools/rcz-channels.py` against the first `.rcz` carrying the new slots and confirm
+each one appears and none is all-`NaN`. **The sentinel check is not retired by passing** — re-run it
+after *any* edit to the channel list, and note it only works with the sensors disconnected.
 
 **Needing code: nothing pressure-side.** The SDP810 reader and the mux driver are written, built
 and bench-run — [`pressure-worker-plan.md`](pressure-worker-plan.md) carries what each step did.

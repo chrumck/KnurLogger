@@ -1079,3 +1079,39 @@ such.** `deploy-logger.sh` only ever *creates* the `.ini`, so a new config key n
 differed **only** in comment blocks and the new `[pressure]` section, no value line — then backed up
 to `KnurLogger.ini.bak-20260919`, replaced, and the four ROM ID bindings re-read afterwards to
 confirm nothing was lost.
+
+## 2026-09-19 — the phone's list catches up: the pressure channels entered, and a CAN byte finally defined
+
+**The last step of `pressure-worker-plan.md` that needed neither code nor a part is done.** The
+pressure channels and their status fields were typed into RaceChrono and verified the same day:
+the **sentinel check passed with the sensors disconnected**, every channel reading negative
+−3.2768, and `0x606` bytes 4–5 advancing by exactly +1 per sample. `0x605`–`0x607` are now
+subscribed and sent. **Step 10 item 5 is still outstanding** — `Tools/rcz-channels.py` against a
+recording — so the step's acceptance is unmet: nothing has yet been decoded against the logger's own
+session record of the same samples, which is the check that found all three 2026-09-11 faults.
+
+**Two deviations from the slot map `README.md` had specified, and both were settled in the
+documents rather than on the phone.** `0x607` byte 6 went into `Temperature Front 20` instead of
+`Temperature Front 21`: slot 20 was free and satisfies the same clear-of-everything property, and
+the alternative — deleting a channel and re-picking a slot by hand — is exactly the operation that
+produced the `bytesToUint` fault on `Temperature Front 2`. **The profile is the authority on what is
+entered and the README table is its readable view**, so the table moved. And **`Pressure Front 6`
+was deliberately not defined**: `P5` is the unpopulated mux channel 5, so the field carries a
+constant sentinel inside a packet that is subscribed for its other three channels, and the phone
+simply discards two bytes. That is not open item 47's failure mode and must not be filed as one —
+there the packet was invisible and the data existed.
+
+**`0x420` byte 7 was defined at the same sitting**, as `H-40` on predefined channel 10031. That is
+the outside-air temperature of `../ndLouvers/` open item 47, undefined since the project began.
+**It recovered nothing**: five sessions of it stay gone, because RaceChrono stores decoded channels
+and a `.rcz` has no raw-frame layer. The item stays open until a recording is audited through the
+new channel, and §"The phone's channel list is part of the instrument" item 4 keeps its present
+tense about the mechanism for that reason.
+
+**A new trap came out of committing the re-export: a `git diff` of `RaceChrono/vehicleProfile.json`
+is not a review of it.** RaceChrono emits `customChannels` in an order that shifts as entries are
+added, so adding 14 channels produced **184 insertions and 86 deletions**, and an equation edited by
+hand would have passed review unseen — the one fault class that file exists to catch. Comparing by
+`(pid, channelId)` is the check. **Sorting the array was considered and rejected**: the committed
+file is the export verbatim minus `localUuid`, and re-import has never been tested against any other
+shape, so normalising it would trade a reviewable diff for an untested restore path.

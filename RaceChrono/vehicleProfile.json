@@ -28,20 +28,6 @@
     },
     {
       "deviceType": 12,
-      "channelId": 4264841,
-      "pid": 1539,
-      "equation": "bytesToUint(raw,4,2)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 12653449,
-      "pid": 1540,
-      "equation": "bytestouint(raw,1,1)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
       "channelId": 16847753,
       "pid": 1540,
       "equation": "bytestouint(raw,7,1)",
@@ -49,16 +35,9 @@
     },
     {
       "deviceType": 12,
-      "channelId": 54596489,
-      "pid": 1537,
-      "equation": "bytesTouInt(raw,1,1)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 4264843,
-      "pid": 1538,
-      "equation": "bytesToInt(raw,6,2)/100",
+      "channelId": 25236361,
+      "pid": 1543,
+      "equation": "bytestouint(raw,1,1)",
       "obdHeader": 0
     },
     {
@@ -70,27 +49,6 @@
     },
     {
       "deviceType": 12,
-      "channelId": 2098161,
-      "pid": 2032,
-      "equation": "lowPass(F,254)-50",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 10066,
-      "pid": 2032,
-      "equation": "lowPass(C,254)-40",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 10071,
-      "pid": 514,
-      "equation": "E*0.4",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
       "channelId": 1119113,
       "pid": 1539,
       "equation": "bytesToUint(raw,0,1)",
@@ -98,23 +56,9 @@
     },
     {
       "deviceType": 12,
-      "channelId": 5313417,
-      "pid": 1539,
-      "equation": "bytesToUint(raw,6,2)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 13702025,
-      "pid": 1540,
-      "equation": "bytestouint(raw,2,1)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 55645065,
-      "pid": 1537,
-      "equation": "bytesTouInt(raw,2,2)",
+      "channelId": 26284937,
+      "pid": 1543,
+      "equation": "bytestouint(raw,2,2)",
       "obdHeader": 0
     },
     {
@@ -122,6 +66,13 @@
       "channelId": 1119115,
       "pid": 1538,
       "equation": "bytesToInt(raw,0,2)/100",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 1119117,
+      "pid": 1541,
+      "equation": "bytestoint(raw,0,2)/10000",
       "obdHeader": 0
     },
     {
@@ -140,23 +91,9 @@
     },
     {
       "deviceType": 12,
-      "channelId": 14750601,
-      "pid": 1540,
-      "equation": "bytestouint(raw,3,2)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 56693641,
-      "pid": 1537,
-      "equation": "bytesTouInt(raw,4,2)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 1002,
-      "pid": 120,
-      "equation": "min(max(bitsToUint(raw,28,12)-153,0)/4,100)",
+      "channelId": 27333513,
+      "pid": 1543,
+      "equation": "bytestouint(raw,4,2)",
       "obdHeader": 0
     },
     {
@@ -189,9 +126,9 @@
     },
     {
       "deviceType": 12,
-      "channelId": 1005,
-      "pid": 2032,
-      "equation": "lowPass(a,254)-40",
+      "channelId": 2167693,
+      "pid": 1541,
+      "equation": "bytestoint(raw,2,2)/10000",
       "obdHeader": 0
     },
     {
@@ -203,16 +140,9 @@
     },
     {
       "deviceType": 12,
-      "channelId": 1007,
-      "pid": 2032,
-      "equation": "lowPass(D,254)*100/32",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
-      "channelId": 1009,
-      "pid": 2032,
-      "equation": "lowPass(E,254)*4",
+      "channelId": 10031,
+      "pid": 1056,
+      "equation": "H-40",
       "obdHeader": 0
     },
     {
@@ -238,13 +168,6 @@
     },
     {
       "deviceType": 12,
-      "channelId": 57742217,
-      "pid": 1537,
-      "equation": "bytestouint(raw,6,2)",
-      "obdHeader": 0
-    },
-    {
-      "deviceType": 12,
       "channelId": 53547913,
       "pid": 1537,
       "equation": "bytesTouInt(raw,0,1)",
@@ -252,9 +175,184 @@
     },
     {
       "deviceType": 12,
+      "channelId": 28382089,
+      "pid": 1543,
+      "equation": "bytestouint(raw,7,1)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
       "channelId": 3216267,
       "pid": 1538,
       "equation": "bytesToInt(raw,4,2)/100",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 3216269,
+      "pid": 1541,
+      "equation": "bytestoint(raw,4,2)/10000",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 4264841,
+      "pid": 1539,
+      "equation": "bytesToUint(raw,4,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 12653449,
+      "pid": 1540,
+      "equation": "bytestouint(raw,1,1)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 54596489,
+      "pid": 1537,
+      "equation": "bytesTouInt(raw,1,1)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 4264843,
+      "pid": 1538,
+      "equation": "bytesToInt(raw,6,2)/100",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 21042059,
+      "pid": 1543,
+      "equation": "bytestoint(raw,6,1)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 4264845,
+      "pid": 1541,
+      "equation": "bytestoint(raw,6,2)/10000",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 2098161,
+      "pid": 2032,
+      "equation": "lowPass(F,254)-50",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 10066,
+      "pid": 2032,
+      "equation": "lowPass(C,254)-40",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 10071,
+      "pid": 514,
+      "equation": "E*0.4",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 5313417,
+      "pid": 1539,
+      "equation": "bytesToUint(raw,6,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 13702025,
+      "pid": 1540,
+      "equation": "bytestouint(raw,2,1)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 55645065,
+      "pid": 1537,
+      "equation": "bytesTouInt(raw,2,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 22090633,
+      "pid": 1542,
+      "equation": "bytestouint(raw,4,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 5313421,
+      "pid": 1542,
+      "equation": "bytestoint(raw,0,2)/10000",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 14750601,
+      "pid": 1540,
+      "equation": "bytestouint(raw,3,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 56693641,
+      "pid": 1537,
+      "equation": "bytesTouInt(raw,4,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 23139209,
+      "pid": 1542,
+      "equation": "bytestouint(raw,6,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 1002,
+      "pid": 120,
+      "equation": "min(max(bitsToUint(raw,28,12)-153,0)/4,100)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 1005,
+      "pid": 2032,
+      "equation": "lowPass(a,254)-40",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 1007,
+      "pid": 2032,
+      "equation": "lowPass(D,254)*100/32",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 1009,
+      "pid": 2032,
+      "equation": "lowPass(E,254)*4",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 57742217,
+      "pid": 1537,
+      "equation": "bytestouint(raw,6,2)",
+      "obdHeader": 0
+    },
+    {
+      "deviceType": 12,
+      "channelId": 24187785,
+      "pid": 1543,
+      "equation": "bytestouint(raw,0,1)",
       "obdHeader": 0
     },
     {
