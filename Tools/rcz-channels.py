@@ -11,7 +11,7 @@ phone's channel list auditable without the phone. The values then say whether ea
 equation was typed correctly: a thermal channel reading +327.68 instead of -327.68 is
 the -32768 invalid sentinel decoded unsigned, which is the one fault that stays
 invisible once probes are attached and reading above zero. The six pressure channels
-carry the same sentinel and are checked the same way, at +3276.8 -- and they need it
+carry the same sentinel and are checked the same way, at +3.2768 -- and they need it
 more, because a wrong sign on a pressure channel corrupts ORDINARY data rather than only
 the marker: a negative differential is normal on half of them, depending only on which
 port the tube lands in.
@@ -43,16 +43,16 @@ SENTINEL_TOLERANCE = 0.01
 # stays invisible in normal data: above zero, both decodes agree exactly.
 #
 # Temperature channels divide by 100 and so land on +327.68; the six pressure channels carry
-# decipascals and divide by 10, landing on +3276.8. Both are impossible readings -- +327.68 C, and
-# 3276.8 Pa against a part whose full range is 500 Pa.
+# decipascals and divide by 10000 for kPa, landing on +3.2768. Both are impossible readings --
+# +327.68 C, and 3276.8 Pa against a part whose full range is 500 Pa.
 #
-# THE PRESSURE FIGURE MOVED FROM +3.2768 TO +3276.8 ON 2026-09-19, when the phone-side divide went
-# from /10000 to /10 (owner). If that divide is ever changed again this constant MUST move with it,
-# and nothing will warn you: the check would simply stop matching and report a healthy channel.
+# THIS CONSTANT IS TIED TO THE PHONE-SIDE DIVIDE AND MUST MOVE WITH IT. Nothing will warn you if it
+# does not: the check would simply stop matching and report every pressure channel as healthy. A
+# /10 variant was tried on 2026-09-19 and withdrawn, which is exactly how that hazard was found.
 #
 # Pressure Front 50 is NOT in danger of this and must not be flagged: 0x600's enclosure pressure is
 # unsigned BY DESIGN and its marker is 4294967.295, which no signed decode produces.
-UNSIGNED_SENTINELS = {"Temperature": 327.68, "Pressure": 3276.8}
+UNSIGNED_SENTINELS = {"Temperature": 327.68, "Pressure": 3.2768}
 
 
 def decodeChannelId(channelId):

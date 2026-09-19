@@ -60,7 +60,7 @@ were chosen: across both boxes the only IDs claimed are `0x78`, `0x202`, `0x420`
 2. **`bytestoint` and `bytestouint` differ by one letter, and that letter is the signed/unsigned
    decision.** In lowercase, scanning for it by eye is unreliable. `../Tools/rcz-channels.py`
    checks it from a recording instead — on `Temperature` slots at +327.68 and, since 2026-09-19,
-   on `Pressure` slots at +3276.8. **The pressure channels need that check more than the thermal
+   on `Pressure` slots at +3.2768. **The pressure channels need that check more than the thermal
    ones did**: a negative differential is normal on half of them, depending only on which port the
    tube lands in, so a wrong sign there corrupts ordinary data rather than only the marker.
    `Pressure Front 50` is exempt and must stay `bytesToUint` — `0x600`'s enclosure pressure is

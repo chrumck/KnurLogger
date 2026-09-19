@@ -406,8 +406,8 @@ python3 Tools/rcz-channels.py session.rcz
    tool flags a `Temperature` slot carrying **+327.68**, which is the `−32768` sentinel decoded
    unsigned. It also flags a channel whose samples are all `NaN` — a defined channel that never
    produced a value, which is what two of KnurDash's turned out to be.
-   **It checks `Pressure` slots the same way since 2026-09-19, at +3276.8**, the same sentinel
-   through the pressure channels' `/10`. That check matters *more* than the thermal one: a
+   **It checks `Pressure` slots the same way since 2026-09-19, at +3.2768**, the same sentinel
+   through the pressure channels' `/10000`. That check matters *more* than the thermal one: a
    negative differential is normal on half the pressure channels, depending only on which port the
    tube lands in, so an unsigned decode there corrupts **ordinary data** rather than only the
    marker. **`Pressure Front 50` is deliberately exempt** — `0x600`'s enclosure pressure is

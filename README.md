@@ -486,12 +486,12 @@ discharges. What exists is the channel a measurement will one day travel down.
 
 | Packet | Bytes | Channel | Equation | Invalid |
 |---|---|---|---|---|
-| 1541 `0x605` | 0–1 | `P0` | `bytesToInt(raw, 0, 2) / 10` | `-32768` → **−3276.8** |
-| 1541 | 2–3 | `P1` | `bytesToInt(raw, 2, 2) / 10` | as above |
-| 1541 | 4–5 | `P2` | `bytesToInt(raw, 4, 2) / 10` | as above |
-| 1541 | 6–7 | `P3` | `bytesToInt(raw, 6, 2) / 10` | as above |
-| 1542 `0x606` | 0–1 | `P4` | `bytesToInt(raw, 0, 2) / 10` | as above |
-| 1542 | 2–3 | `P5` | `bytesToInt(raw, 2, 2) / 10` | as above |
+| 1541 `0x605` | 0–1 | `P0` | `bytesToInt(raw, 0, 2) / 10000` | `-32768` → **−3.2768 kPa** |
+| 1541 | 2–3 | `P1` | `bytesToInt(raw, 2, 2) / 10000` | as above |
+| 1541 | 4–5 | `P2` | `bytesToInt(raw, 4, 2) / 10000` | as above |
+| 1541 | 6–7 | `P3` | `bytesToInt(raw, 6, 2) / 10000` | as above |
+| 1542 `0x606` | 0–1 | `P4` | `bytesToInt(raw, 0, 2) / 10000` | as above |
+| 1542 | 2–3 | `P5` | `bytesToInt(raw, 2, 2) / 10000` | as above |
 | 1542 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | free-running, wraps at 65535 |
 | 1542 | 6–7 | last cycle, ms | `bytesToUint(raw, 6, 2)` | **~16** for five sensors |
 
@@ -504,32 +504,39 @@ part is affordable **because the session file carries raw counts and the returne
 full resolution**, so any session can be reprocessed; only a `.rcz` cannot, which is the asymmetry
 that governs everything on this link.
 
-> **⚠ THESE SIX CHANNELS CARRY PASCALS UNDER A LABEL THAT SAYS kPa, AND THAT IS DELIBERATE**
-> (owner, 2026-09-19). RaceChrono's Pressure channel stores **kPa** — `Pressure Front 50` divides
-> by 1000 for exactly that reason — so a strictly correct divide here would be `/10000`, putting
-> full scale at 0.05 and the 45–90 Pa measurands this project is built around at **0.045–0.090**.
-> Tried on the phone, and the readout is unusable at that magnitude. `/10` was taken instead: the
-> number on the gauge is then **pascals**, which is the unit every requirement in the plan is
-> written in — ±500 Pa range, 45–90 Pa measurands, the Cp arithmetic — so nothing has to be
-> converted in the head at the car.
+> **⚠ THE `/10000` IS CORRECT AND THE NUMBER ON THE GAUGE IS THEREFORE SMALL. DO NOT SHORTEN IT.**
+> RaceChrono's Pressure channel stores **kPa** — `Pressure Front 50` divides by 1000 for exactly
+> that reason — and decipascals reach kPa through ten thousand. Full scale is then 0.5 kPa and the
+> 45–90 Pa measurands this project is built around are 0.045–0.090, which a gauge set to bar
+> renders as near zero.
 >
-> **The divide was never about resolution, and that was measured before choosing.** RaceChrono
-> stores every sample as a **float64**: `Pressure Front 50`'s samples in the 2026-09-14 export come
-> back as `101.151`, `101.154`, `101.15000000000001`, which is an IEEE-754 double carrying full
-> precision, 8 bytes per sample. `/10000` would have cost **nothing** in the recording. The only
-> cost was the readout — and the readout is the primary check instrument, since the sentinel check
-> and every at-the-car verification are done by eye on the phone.
+> **The obvious shortcut does not work, and it was tried** (2026-09-19, withdrawn the same day).
+> `/10` looks like it puts pascals on the gauge. It does not: RaceChrono still believes the stored
+> number is kPa and applies **its own** unit conversion on top, so 500 Pa stored as "500 kPa"
+> displays as **5 bar**. That is wrong twice — wrong unit *and* wrong magnitude — where `/10000` is
+> merely small. **A divide that fights the app's unit handling produces a number that means
+> nothing.** Keep `/10000`.
 >
-> **So the cost paid is a unit-label mismatch, and the mitigation is that it is written down here.**
-> An exported column will say kPa and contain pascals. That is survivable only because it is
-> documented: `0x600`'s own `/1000` sat undocumented for months and this README records what that
-> cost. **The SD session file is the authority either way** — it carries raw counts, the returned
-> scale factor and full-resolution pascals, none of which pass through the phone.
+> **The divide has never been about resolution, and that was measured rather than assumed.**
+> RaceChrono stores every sample as a **float64**: `Pressure Front 50`'s samples in the 2026-09-14
+> export come back as `101.151`, `101.154`, `101.15000000000001` — an IEEE-754 double carrying full
+> precision, 8 bytes per sample. A double would need a divide around 10¹² before it noticed
+> anything. **`/10000` costs nothing in the recording**, which is the whole of what the logged and
+> exported data depends on.
+>
+> **What it does cost is the at-the-car eyeball**, and that cost is real: these six channels will
+> not be readable on a bar-scaled gauge. Two things soften it. **The sentinel check survives**,
+> because it turns on the *sign* — −0.0033 bar against +0.0033 bar — not the magnitude. And if
+> RaceChrono's pressure display unit can be set per gauge, setting these six to kPa or Pa makes
+> them readable with no change to the equation; the channel definition carries no unit field, so
+> the unit is an app setting and not something this README can fix. **The SD session file is the
+> authority regardless** — raw counts, the returned scale factor and full-resolution pascals, none
+> of which pass through the phone.
 
 **Signed — use `bytesToInt`.** A negative differential is the normal case on half these channels,
 depending only on which port the tube lands in, so an unsigned decode corrupts ordinary data rather
-than only the sentinel. **`-32768` is the no-trustworthy-reading marker** and decodes to **−3276.8**
-— 6.5× the ±500 Pa part's full range and therefore impossible, which is the property an invalid
+than only the sentinel. **`-32768` is the no-trustworthy-reading marker** and decodes to **−3.2768
+kPa** — 6.5× the ±500 Pa part's full range and therefore impossible, which is the property an invalid
 marker needs, because RaceChrono holds the last value it received indefinitely.
 
 > **⚠ ZERO IS A COMPLETELY PLAUSIBLE DIFFERENTIAL PRESSURE, WHICH MAKES THE SENTINEL MATTER MORE
@@ -925,7 +932,8 @@ either, because a cabin record reads exactly like a cavity one.
 typed into RaceChrono**, and until they are, `0x605`–`0x607` are never sent at all — which is
 exactly how `0x604` went unsent through two road tests. The slot map and the byte tables above are
 what to enter. Then **run the sentinel check with the sensors disconnected**, the only state it
-works in: every pressure channel must read **−3276.8**, not +3276.8. `Tools/rcz-channels.py` now
+works in: every pressure channel must read **negative**, −3.2768 kPa, not +3.2768. The *sign* is
+what the check turns on, so it survives the small magnitude. `Tools/rcz-channels.py` now
 flags that fault on `Pressure` slots as well as `Temperature` ones.
 
 **Needing code: nothing pressure-side.** The SDP810 reader and the mux driver are written, built
