@@ -471,6 +471,10 @@ Hardware/             box-2 hardware; nothing here is logger code
   logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
                               on every connection. Subordinate to the plan's Step 0b.
 
+pressure-worker-plan.md  the implementation plan for the sixth worker: the five SDP810s into
+                      the logged and broadcast data. Numbered steps, four owner decisions at
+                      step 1, and a Work Progress table to update as it is executed
+
 Tools/                offline diagnostics; nothing here runs on the box
   rcz-channels.py       decode a RaceChrono .rcz's channel slots and flag a mistyped
                         equation — the phone's channel list, audited without the phone
@@ -777,7 +781,9 @@ sealed, and the thermal envelope — want a **hot day**; the sealed configuratio
 data only. **Record where the box was mounted on every session.** Without it a run cannot serve
 either, because a cabin record reads exactly like a cavity one.
 
-**Needing code, no longer a part.** The SDP810 reader and the mux driver. All five are fitted and
+**Needing code, no longer a part.** The SDP810 reader and the mux driver, planned step by step in
+[`pressure-worker-plan.md`](pressure-worker-plan.md) — **four owner decisions at its step 1 gate
+the rest.** All five are fitted and
 read correctly by hand, so the protocol is settled: stop-continuous `0x3FF9`,
 identity `0x367C`/`0xE102`, then **`0x3615` started once** — never per sample — and a 9-byte read
 per cycle carrying differential pressure, temperature and the scale factor with a CRC on each word.
