@@ -20,6 +20,14 @@ that and says how they differ from the SD session files. Sessions are cited by `
 **the app is the authority**, and this file is stale from the moment a channel is edited.
 Re-export after any change.
 
+> **⚠ IT IS STALE NOW, AND DELIBERATELY SO.** The logger has published `0x605`, `0x606` and
+> `0x607` — the six pressure channels and their status fields — since 2026-09-19, and **none of
+> them is in this file, because none of them is on the phone yet.** Until they are entered, the
+> three packets are never sent at all: RaceChrono's subscription burst never asks for them, which
+> is exactly how `0x604` went unsent through two road tests. `../README.md` §"The slot map" and the
+> `0x605`–`0x607` sections are what to type. **Re-export and re-commit this file once they are in**,
+> and run the sentinel check with the sensors disconnected before trusting any of them.
+
 ## Restoring it
 
 RaceChrono imports a `.rcz`, which is a zip with the profile at the archive root:
@@ -37,7 +45,12 @@ from an export taken after this one.
 
 35 custom channels across ten packet IDs. Box 2's are `0x600`–`0x604` (23 channels; `../README.md`
 §"The slot map" is the human-readable version). Box 1's are `0x78`, `0x202`, `0x420`, `0x4FA` and
-`0x7F0`.
+`0x7F0`. **Box 2's `0x605`–`0x607` are missing** — see the warning above; adding them takes it to
+38 packets' worth across thirteen IDs, 14 channels more.
+
+**No ID in this file collides with `0x605`–`0x607`**, which is what was checked before those three
+were chosen: across both boxes the only IDs claimed are `0x78`, `0x202`, `0x420`, `0x4FA`,
+`0x600`–`0x604` and `0x7F0`.
 
 **Two things worth knowing before editing an equation by hand.**
 
@@ -46,7 +59,12 @@ from an export taken after this one.
    casing** — there is nothing to fix, and an edit is a chance to introduce the fault below.
 2. **`bytestoint` and `bytestouint` differ by one letter, and that letter is the signed/unsigned
    decision.** In lowercase, scanning for it by eye is unreliable. `../Tools/rcz-channels.py`
-   checks it from a recording instead.
+   checks it from a recording instead — on `Temperature` slots at +327.68 and, since 2026-09-19,
+   on `Pressure` slots at +3.2768. **The pressure channels need that check more than the thermal
+   ones did**: a negative differential is normal on half of them, depending only on which port the
+   tube lands in, so a wrong sign there corrupts ordinary data rather than only the marker.
+   `Pressure Front 50` is exempt and must stay `bytesToUint` — `0x600`'s enclosure pressure is
+   unsigned by design.
 
 **`A`–`H` (or `a`–`h`) in an equation are payload bytes 0–7.**
 

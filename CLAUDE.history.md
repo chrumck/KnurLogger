@@ -970,7 +970,8 @@ trusted the header would have recorded a ±125 Pa part as a ±500 Pa one. `CLAUD
 identify an SDP810 by product number and to retain the returned scale factor per sensor.
 
 **A harness bug worth recording because it mimics a hardware fault.** The first round-robin reissued
-`0x3615` every cycle and lost 145 of 456 transfers, all exhausting the full ten-attempt retry — which
+`0x3615` every cycle and lost **145 of its 150 start-continuous commands**, all exhausting the full
+ten-attempt retry — which
 reads exactly like a degraded bus. The arithmetic gave it away: 145 = 29 remaining cycles × 5
 sensors, so every start-continuous after the first was refused. **`0x3615` is NAK'd if the sensor is
 already in continuous mode, and a mux channel switch does not take it out of that mode.** Re-run
@@ -980,3 +981,73 @@ idle-bus refusal recovers on attempt two, and these exhausted all ten.
 **Open item 44 gained a device count and not an answer.** The round-robin boot was in the
 non-refusing mode, so 1 211 clean transfers say nothing about the deviation. The full-device-count
 test remains owed and can only be taken on a refusing boot.
+
+## 2026-09-19 — the sixth worker: the five SDP810s into the logged and broadcast data
+
+**Nothing in this entry is a live instruction.** The live versions are in `CLAUDE.md`, `README.md`,
+`build/KnurLogger.ini`'s comment block and `pressure-worker-plan.md`'s Work Progress table.
+
+`pressureSensors.cxx` was written against `pressure-worker-plan.md` and its eleven steps executed in
+order. **It produces the channel, not a measurement** — no wand, tube or filter exists, so every
+number it writes is of whatever air is at an open port. That distinction is now the easiest thing in
+the project to lose, because the session files are full of plausible pascals;
+`../ndLouvers/pressure-testing.md` §4 item 9 is where a future reader meets it.
+
+**Four owner decisions gated it and all four recommendations were taken** — decipascals on all six
+channels with `INT16_MIN`, a configurable rate shipped at 10 Hz, packets published before any role
+mapping exists, and IDs `0x605`–`0x607`. They are recorded in `../ndLouvers/CFD-Learning-Plan.md`
+Step 0b commissioning item 4a, which is where they belong: each changes what the data means, and this repository
+owns no measurement decision. The IDs were checked against the committed
+`RaceChrono/vehicleProfile.json` rather than asserted — across both boxes the only IDs claimed are
+`0x78`, `0x202`, `0x420`, `0x4FA`, `0x600`–`0x604` and `0x7F0`, and **box 1 uses no DIY channel
+slots at all**, so `Pressure Front 1`–`6`, `Digital Front 21`–`27` and `Temperature Front 21` are
+free.
+
+**The one thing the plan did not settle, and it had to be decided while writing the tables:
+the phone-side divide.** RaceChrono's Pressure channel stores kPa, so decipascals reach it through
+`/10000`. Taking that divide makes the channel *genuinely* kPa and keeps one rule — every Pressure
+channel this logger publishes is kPa after its divide — shared with `0x600`'s `/1000`. The cost is a
+small number on the gauge: 60 Pa reads 0.06 kPa. **The consequence the plan did not anticipate is
+that the sentinel is −3.2768 rather than the −327.68 its step 10 predicted.** The check is
+unaffected — still negative, still impossible at 6.5× the widest part's range — but anyone running
+that check from the plan's text alone would look for the wrong number. The alternative, `/10`, would
+have put pascals on a channel labelled kPa, which is the class of undocumented divide that
+`0x600`'s own `/1000` already demonstrated.
+
+**A latent gap in `Tools/rcz-channels.py` was found by writing the channels rather than by a
+fault.** The tool checked the unsigned-sentinel decode on `Temperature` slots only, so the six new
+`Pressure` channels — carrying the same sentinel through a different divide — would have gone
+unchecked by the one instrument that can audit the phone's list without the phone. It now checks
+both, and `Pressure Front 50` is deliberately exempt because `0x600`'s enclosure pressure is
+unsigned by design. **That check matters more on the pressure channels than it did on the thermal
+ones:** a negative differential is normal on half of them, depending only on which port the tube
+lands in, so a wrong sign corrupts ordinary data rather than only the marker — the `Temperature
+Front 2` fault was at least invisible only above 0 °C.
+
+**A figure that had been stated two ways in six files was settled** (owner): the `0x3615` re-arm
+harness lost **145 of its 150 start-continuous commands** — 30 cycles × 5 sensors — not "145 of 456
+transfers". Both sentences read as the same statistic and named different denominators. All six now
+name the denominator.
+
+**Measured, one hour on the bench at 10 Hz with all five sensors and the service stopped:** 34 537
+cycles at 9.594 Hz, valid mask 31 on every one, zero read errors, zero CRC failures, zero exhausted
+transfers, zero dropped records, worst inter-cycle gap 120 ms, 20.2 kB/s. The three 1 Hz workers
+were untouched — BME280 1 015/1 021 ms, 1-Wire 1 002/1 005, supply 1 017/1 024 — so a producer
+writing ten times the rate did not starve the `fsync` cadence.
+**"10 Hz" measured 9.594 Hz, and that is not lost samples.** Every worker schedules its next sample
+from the time the current one starts and pays the poll granularity on top; the 1 Hz workers have
+always run at 1 002–1 017 ms for the same reason. The cycle counter is exact across all 34 537.
+
+**Open item 44 gained a second device-count run and still no answer.** `i2cFirstAttemptFailures` was
+0 for the whole hour, so that boot was non-refusing, as every boot with all five fitted has been.
+What the run did add is that **a 10 Hz cycle leaves the bus idle ~85 ms between cycles**, well past
+the 10 ms threshold — so a faster sample rate is not a workaround for the deviation and must not be
+reached for as one.
+
+**The production `.ini` was the step most likely to break this in the car, and it was handled as
+such.** `deploy-logger.sh` only ever *creates* the `.ini`, so a new config key never reaches
+`~/bin/` by itself and the logger would have refused to start at the car on a missing
+`pressureChannelsEnabled`. The production copy was diffed against the template first — the two
+differed **only** in comment blocks and the new `[pressure]` section, no value line — then backed up
+to `KnurLogger.ini.bak-20260919`, replaced, and the four ROM ID bindings re-read afterwards to
+confirm nothing was lost.

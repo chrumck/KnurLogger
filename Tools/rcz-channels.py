@@ -10,7 +10,11 @@ So an export names every channel slot in force when it was recorded, which makes
 phone's channel list auditable without the phone. The values then say whether each
 equation was typed correctly: a thermal channel reading +327.68 instead of -327.68 is
 the -32768 invalid sentinel decoded unsigned, which is the one fault that stays
-invisible once probes are attached and reading above zero.
+invisible once probes are attached and reading above zero. The six pressure channels
+carry the same sentinel and are checked the same way, at +3.2768 -- and they need it
+more, because a wrong sign on a pressure channel corrupts ORDINARY data rather than only
+the marker: a negative differential is normal on half of them, depending only on which
+port the tube lands in.
 
 Only the four channel types box 2 uses are named here. Box 1's channels come back as
 bare type numbers, which is enough to tell them apart.
@@ -32,8 +36,19 @@ import zipfile
 from collections import defaultdict
 
 TYPE_BASES = {70537: "Digital", 70539: "Temperature", 70541: "Pressure", 70547: "Percent"}
-UNSIGNED_SENTINEL = 327.68
 SENTINEL_TOLERANCE = 0.01
+
+# What the -32768 invalid marker looks like once a channel of this type is decoded UNSIGNED. A
+# signed decode gives the same magnitude negative, so a positive hit here is the one fault that
+# stays invisible in normal data: above zero, both decodes agree exactly.
+#
+# Temperature channels divide by 100 and so land on +327.68; the six pressure channels carry
+# decipascals and divide by 10000 for kPa, landing on +3.2768. Both are impossible readings --
+# +327.68 C, and 3276.8 Pa against a part whose full range is 500 Pa.
+#
+# Pressure Front 50 is NOT in danger of this and must not be flagged: 0x600's enclosure pressure is
+# unsigned BY DESIGN and its marker is 4294967.295, which no signed decode produces.
+UNSIGNED_SENTINELS = {"Temperature": 327.68, "Pressure": 3.2768}
 
 
 def decodeChannelId(channelId):
@@ -81,12 +96,13 @@ def reportFragment(byDevice):
             span = "%.6g .. %.6g" % (min(finite), max(finite)) if finite else "no values"
             label = "%s Front %d" % (channelType, slot) if isKnown else "%s slot %d" % (channelType, slot)
             note = ""
+            sentinel = UNSIGNED_SENTINELS.get(channelType)
             if not finite:
                 note = "  <-- no value in ANY sample: out of range all session, or a bad equation"
-            elif channelType == "Temperature" and any(
-                abs(v - UNSIGNED_SENTINEL) < SENTINEL_TOLERANCE for v in finite
+            elif sentinel is not None and any(
+                abs(v - sentinel) < SENTINEL_TOLERANCE for v in finite
             ):
-                note = "  <-- UNSIGNED: reads +327.68, so bytesToUint where bytesToInt belongs"
+                note = "  <-- UNSIGNED: reads +%g, so bytesToUint where bytesToInt belongs" % sentinel
             print("   %-24s id=%-9d n=%-5d %s%s" % (label, channelId, len(values), span, note))
 
 

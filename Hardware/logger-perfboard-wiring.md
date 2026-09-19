@@ -567,6 +567,13 @@ and `0x03020A01`/60 on the other four confirms none of them is a mis-picked low-
 > remaining three as absent. Two rules follow for code: a bring-up scan enumerates only channels
 > whose resistors are in, and **the pressure worker must never sweep channels blindly** — it
 > iterates a configured list of populated channels, and an unconfigured channel is never selected.
+>
+> **THAT SECOND RULE IS NOW ENFORCED IN CODE** (2026-09-19). `pressureSensors.cxx`'s
+> `selectMuxChannel` refuses any channel outside `pressureChannelsEnabled` and logs the refusal as
+> a session event, and `config.cxx` **refuses to start at all** if that list names channel 5 —
+> naming it rather than calling it out of range, because it is a legitimate mux channel and the
+> only thing missing is `R13`/`R14`. **If those two resistors are ever fitted, this table and that
+> config guard both have to change**, and the guard's message says so.
 
 **Range belongs in this table because it is a hardware fact, not a scenario one.** Exactly one
 ±125 Pa part exists and **it sits at P2 as built** (see the warning above; P4 was the

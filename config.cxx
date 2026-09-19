@@ -20,6 +20,62 @@
             _key, appConfig._target, _min, _max);                                                   \
     }
 
+// A LIST of populated mux channels, never a count. A count says "channels 0..n-1", which is a claim
+// about which channels are SAFE, and addressing an unpopulated or faulty one hangs the entire main
+// bus - mux and BME280 with it - recoverable only by a ~RESET pulse on GPIO17. Hardware/
+// logger-perfboard-wiring.md 5 is the authority on which channels are populated.
+//
+// Channel 5 is rejected by name rather than by a range check, because "5 is out of range" would be
+// a lie: it is wired, it is a legitimate mux channel, and the only thing missing is its pull-up
+// pair. A reader who is told that will fit R13/R14 and change one line; one told it is out of range
+// will go looking for a bug.
+void loadPressureChannelsEnabled(GKeyFile* config) {
+    GError* error = NULL;
+    auto* raw = g_key_file_get_string(config, CONFIG_GROUP_PRESSURE,
+        CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, &error);
+    if (error != NULL) {
+        logErrorAndKill("Error getting config: '%s', error: %s, exiting...",
+            CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, error->message);
+    }
+
+    auto** entries = g_strsplit(g_strstrip(raw), ",", -1);
+
+    for (auto i = 0; entries[i] != NULL; i++) {
+        auto* entry = g_strstrip(entries[i]);
+        // An empty list is a legitimate state - a box with no sensors fitted - but a stray comma
+        // is not, because it is indistinguishable from a channel number someone meant to type.
+        if (strlen(entry) == 0) {
+            if (i == 0 && entries[1] == NULL) { continue; }
+            logErrorAndKill("Invalid config: '%s' has an empty entry at position %d, exiting...",
+                CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, i);
+        }
+
+        gchar* end = NULL;
+        auto channel = (gint)g_ascii_strtoll(entry, &end, 10);
+        if (end == entry || *end != '\0') {
+            logErrorAndKill("Invalid config: '%s' entry '%s' is not a number, exiting...",
+                CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, entry);
+        }
+
+        if (channel == MUX_MAX_CHANNEL) {
+            logErrorAndKill("Invalid config: '%s' names mux channel %d, whose pull-ups R13/R14 are"
+                " footprints only. Addressing an unpopulated channel hangs the whole main I2C bus."
+                " Fit them and amend Hardware/logger-perfboard-wiring.md before enabling it,"
+                " exiting...", CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, channel);
+        }
+
+        if (channel < 0 || channel > MUX_MAX_CHANNEL) {
+            logErrorAndKill("Invalid config: '%s' entry '%s' is not a mux channel, expected 0..%d,"
+                " exiting...", CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, entry, MUX_MAX_CHANNEL);
+        }
+
+        appConfig.pressureChannelsEnabled[channel] = TRUE;
+    }
+
+    g_strfreev(entries);
+    g_free(raw);
+}
+
 void loadConfig()
 {
     GKeyFile* config = g_key_file_new();
@@ -79,6 +135,13 @@ void loadConfig()
     // 1 Hz channels; a forced conversion costs ~9 ms, so this is nowhere near a limit.
     getConfigInteger(bme280IntervalMs, CONFIG_GROUP_SENSORS, CONFIG_KEY_BME280_INTERVAL_MS, 200, 60000);
     getConfigInteger(muxAddress, CONFIG_GROUP_SENSORS, CONFIG_KEY_MUX_ADDRESS, 0x08, 0x77);
+
+    // Step 0b item 4 targets 10 Hz. A five-sensor cycle costs 15.4 ms measured, so the constraint
+    // is session-file bytes and the fsync cadence rather than CPU; the bounds allow experiment,
+    // not a different design.
+    getConfigInteger(pressureIntervalMs, CONFIG_GROUP_PRESSURE, CONFIG_KEY_PRESSURE_INTERVAL_MS,
+        50, 60000);
+    loadPressureChannelsEnabled(config);
 
     appConfig.verboseMode = g_key_file_get_boolean(config, CONFIG_GROUP_DEBUG, CONFIG_KEY_VERBOSE_MODE, &error);
     if (error != NULL) {

@@ -67,6 +67,14 @@ namespace chr = std::chrono;
 #define CONFIG_KEY_BME280_INTERVAL_MS "bme280IntervalMs"
 #define CONFIG_KEY_MUX_ADDRESS "muxAddress"
 
+#define CONFIG_GROUP_PRESSURE "pressure"
+#define CONFIG_KEY_PRESSURE_INTERVAL_MS "pressureIntervalMs"
+// A LIST of populated mux channels, never a count. A count would say "channels 0..n-1", which is
+// a claim about which channels are safe to address - and addressing an unpopulated one hangs the
+// whole main bus (see the mux prohibition below). The list is what the sampling loop iterates, so
+// a channel that is not in it can never be selected by accident.
+#define CONFIG_KEY_PRESSURE_CHANNELS_ENABLED "pressureChannelsEnabled"
+
 #define CONFIG_GROUP_DEBUG "debug"
 #define CONFIG_KEY_VERBOSE_MODE "verboseMode"
 
@@ -98,6 +106,14 @@ namespace chr = std::chrono;
 #define PACKET_ID_TEMP 0x602
 #define PACKET_ID_THERMAL_STATUS 0x603
 #define PACKET_ID_SUPPLY 0x604
+// The three pressure frames, contiguous with the block above (owner decision, 2026-09-19, recorded
+// in ../ndLouvers/CFD-Learning-Plan.md Step 0b commissioning item 4a - "commissioning" matters,
+// since that plan also has a thermal item 4a and an open item 4a). Checked clear against the
+// committed RaceChrono/vehicleProfile.json: across both boxes the only IDs claimed are 0x78,
+// 0x202, 0x420, 0x4FA, 0x600-0x604 and 0x7F0.
+#define PACKET_ID_PRESSURE_A 0x605
+#define PACKET_ID_PRESSURE_B 0x606
+#define PACKET_ID_PRESSURE_STATUS 0x607
 
 // Signed 0.01 C/LSB, and INT16_MIN for a channel with no trustworthy reading. Deliberately absurd
 // after the divide (-327.68 C) rather than plausible: commissioning item 4 forbids presenting a
@@ -210,6 +226,81 @@ namespace chr = std::chrono;
 #define BME280_STATUS_BIT_TEMPERATURE_VALID 0x08
 #define BME280_STATUS_BIT_HUMIDITY_VALID 0x10
 
+// --- The five SDP810s, one per PCA9548A channel ------------------------------------------------
+//
+// Commands, frame layout and the CRC are transcribed from the Sensirion SDP8xx digital datasheet
+// and were confirmed against all five real parts on the bench, 2026-09-19
+// (../ndLouvers/pressure-testing.md 3.1).
+//
+// ALL FIVE ANSWER AT THE SAME FIXED ADDRESS AND CANNOT BE STRAPPED APART, which is why the mux is
+// mandatory rather than a convenience, and why every sample costs a channel select first.
+#define SDP810_ADDRESS 0x25
+
+// Averaged, temperature-compensated differential pressure. ISSUED ONCE PER SENSOR, NEVER PER
+// SAMPLE: the part NAKs it when it is already in continuous mode, and selecting a different mux
+// channel does NOT take it out of that mode. A bring-up harness that re-armed it every cycle lost
+// 145 of 150 transfers and looked exactly like a failing bus.
+#define SDP810_CMD_START_CONTINUOUS 0x3615
+#define SDP810_CMD_STOP_CONTINUOUS 0x3FF9
+#define SDP810_CMD_READ_PRODUCT_ID_1 0x367C
+#define SDP810_CMD_READ_PRODUCT_ID_2 0xE102
+
+// Expected values for a WARNING, never substitutes for what the part returns. The scale factor
+// arrives in every measurement frame and is retained per sensor; the +-125 Pa turning up on mux
+// channel 2 rather than the specified channel 4 was caught ONLY because the part was asked what it
+// was instead of being read off the board. Identify an SDP810 by its product number.
+#define SDP810_PRODUCT_500PA 0x03020A01
+#define SDP810_PRODUCT_125PA 0x03020B01
+#define SDP810_SCALE_500PA 60
+#define SDP810_SCALE_125PA 240
+
+// A reading outside the part's own range is invalid data rather than a clipped value
+// (commissioning item 4). Ranges are the datasheet's, selected by the product number read back at
+// boot; a part whose product number is unrecognised gets the wider bound, since refusing every
+// sample from an unexpected-but-working sensor would be worse than logging it with a warning.
+#define SDP810_RANGE_500PA_PA 500.0
+#define SDP810_RANGE_125PA_PA 125.0
+
+#define SDP810_MEASUREMENT_LENGTH 9
+#define SDP810_IDENTITY_LENGTH 18
+#define SDP810_CRC_POLYNOMIAL 0x31
+#define SDP810_CRC_INIT 0xFF
+#define SDP810_TEMPERATURE_DIVISOR 200
+
+// The datasheet's delay before the first measurement is available after 0x3615. 20 ms is ample and
+// is what bring-up used; it is paid once per sensor at start, never in the sampling loop.
+#define SDP810_START_SETTLE_US 20000
+
+// Signed 0.1 Pa/LSB - decipascals - on all six channels, with INT16_MIN for a channel with no
+// trustworthy reading (owner decision, 2026-09-19; ../ndLouvers/CFD-Learning-Plan.md Step 0b item
+// 4a). 0.01 Pa/LSB overflows at 327 Pa and so cannot carry a +-500 Pa channel, which would mean a
+// SECOND decode rule on a hand-typed channel list this code cannot check - the fault class that
+// hid bytesToUint on Temperature Front 2 for days. The resolution given up on the +-125 Pa part is
+// affordable precisely because the session file carries raw counts and the returned scale factor
+// at full resolution, so every past session can be reprocessed if this is ever revisited.
+//
+// -327.68 Pa is deliberately absurd rather than plausible, and the argument is STRONGER here than
+// for temperature: zero is a completely believable differential pressure, so a channel that has
+// never been read must not look like one reading nothing.
+#define PRESSURE_DECI_PA_INVALID INT16_MIN
+#define PRESSURE_DECI_PA_PER_PA 10.0
+
+// Writing 0x00 to the PCA9548A's control register connects no channel at all. The bus is left this
+// way at the end of every cycle and on shutdown, so no downstream segment is ever bridged onto the
+// main bus while nothing is reading it.
+#define MUX_CHANNEL_NONE 0x00
+#define MUX_MAX_CHANNEL 5
+
+// NEVER ADDRESS A CHANNEL THAT IS NOT IN THE CONFIGURED ENABLED LIST. An unpopulated or faulty
+// downstream channel hangs the ENTIRE main bus - mux and BME280 with it - and only a ~RESET pulse
+// on GPIO17 recovers it. Both bus lines read idle-high and i2cdetect still lists every device
+// while it is happening, so every cheap check says the bus is fine. CLAUDE.md has the diagnosis
+// and the two occurrences; Hardware/logger-perfboard-wiring.md 5 has which channels are populated.
+// Today channel 5 is the unpopulated one: its pull-ups are footprints only.
+//
+// This is why the config key is a LIST and why selectMuxChannel refuses anything outside it. A
+// sweep must be impossible to write by accident.
+
 #define I2C_BUS_PATH_FORMAT "/dev/i2c-{}"
 
 // THE FIRST TRANSFER AFTER AN IDLE BUS ALWAYS FAILS ON THIS BOARD, AND A RETRY ALWAYS FIXES IT.
@@ -271,6 +362,13 @@ typedef struct {
     gint bme280Address;
     gint bme280IntervalMs;
     gint muxAddress;
+
+    gint pressureIntervalMs;
+    // Indexed by mux channel, TRUE only for a channel the config named. Held as flags rather than
+    // as the parsed list because every consumer asks "may I select channel n" rather than "what is
+    // the n-th enabled channel", and an index-into-a-list is one off-by-one away from selecting a
+    // channel nobody enabled.
+    gboolean pressureChannelsEnabled[PRESSURE_CHANNEL_COUNT];
 
     gboolean verboseMode;
 } AppConfig;
@@ -441,6 +539,82 @@ typedef struct {
     std::atomic<bool> isRunning;
 } Bme280Data;
 
+// One SDP810 measurement frame, as read back and converted. Transient rather than state, but it
+// lands verbatim in the session record, so it is a data contract.
+typedef struct {
+    gboolean isPresent;
+    gboolean isValid;
+
+    gint16 rawDifferential;
+    // AS RETURNED BY THIS PART IN THIS FRAME, never the nominal 60. The +-125 Pa returns 240, and
+    // hard-coding either is how a channel silently reads four times the pressure it should.
+    guint16 scaleFactor;
+    gint16 rawTemperature;
+
+    // Full resolution, for the session file. pressureDeciPa is the lossy form that goes on the air.
+    gdouble pressurePa;
+    gint16 pressureDeciPa;
+    gint16 temperatureCentiC;
+
+    // All three words of the frame carry their own CRC and all three are checked. A CRC failure is
+    // INVALID DATA, never a carried-forward value.
+    gboolean crcOk;
+    const gchar* invalidReason;
+    // Set only by failures that say something about the BUS, so a reading rejected for being out
+    // of range is not confused with a transfer that did not complete. 0x607 keeps the two counts
+    // apart for the same reason: the thermal side learned the expensive way that one counter
+    // conflating "the bus retried" with "a sample was not trusted" hides both.
+    gboolean isReadError;
+    guint32 readMs;
+} SdpReading;
+
+typedef struct {
+    gint muxChannel;
+    gboolean isEnabled;
+    gboolean isPresent;
+
+    // Read once at boot and logged with the baseline: this is the per-session channel -> part
+    // provenance commissioning item 2 asks for, and the only place a later analysis can learn
+    // which physical sensor produced a channel.
+    guint32 productNumber;
+    guint64 serial;
+    guint16 expectedScale;
+
+    // Tracked per sensor because 0x3615 is NAK'd when the part is already continuous, and a mux
+    // channel change does not end that mode. Cleared when a read fails, so a sensor that browned
+    // out is re-armed on the next visit and one that did not is left alone.
+    gboolean isContinuousStarted;
+
+    guint32 readErrors;
+    guint32 crcFailures;
+    SdpReading lastReading;
+} PressureChannel;
+
+// No lock, for the same reason ThermalData and Bme280Data have none: every field is written and
+// read by the pressureSensors worker alone, and the only cross-thread boundary the data crosses is
+// the BLE packet, which carries its own mutex.
+typedef struct {
+    PressureChannel channels[PRESSURE_CHANNEL_COUNT];
+
+    gint fd;
+    guint32 sampleCycles;
+    guint32 readErrors;
+    guint32 crcFailures;
+    guint32 lastCycleMs;
+    guint enabledCount;
+    // Published on 0x607 byte 7 as a cheap liveness tell. Set to MUX_CHANNEL_NONE at the end of
+    // every cycle, so a value that sticks at a channel number is a cycle that never finished.
+    gint lastSelectedChannel;
+
+    // Rate limiters, so a permanent condition produces one record rather than one per cycle. At
+    // 10 Hz that is ten times the noise the 1 Hz workers could make, and the 1-Wire worker already
+    // buried two important messages under 863 identical warnings at 1 Hz.
+    gboolean isBusFailureReported;
+    gboolean isChannelRefusalReported;
+
+    std::atomic<bool> isRunning;
+} PressureData;
+
 typedef struct {
     std::string hwmonAlarmPath;
 
@@ -481,6 +655,9 @@ typedef struct {
     BlePacket temp;
     BlePacket thermalStatus;
     BlePacket supply;
+    BlePacket pressureA;
+    BlePacket pressureB;
+    BlePacket pressureStatus;
 
     std::atomic<bool> isNotifying;
     std::atomic<bool> isConnected;
@@ -507,6 +684,7 @@ typedef struct {
     ThermalData thermal;
     I2cBusData i2c;
     Bme280Data bme280;
+    PressureData pressure;
     SupplyData supply;
     BluetoothData bluetooth;
 } AppData;

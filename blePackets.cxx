@@ -55,6 +55,9 @@ BlePacket* getAllPackets(guint index) {
     case 2: return &appData.bluetooth.temp;
     case 3: return &appData.bluetooth.thermalStatus;
     case 4: return &appData.bluetooth.supply;
+    case 5: return &appData.bluetooth.pressureA;
+    case 6: return &appData.bluetooth.pressureB;
+    case 7: return &appData.bluetooth.pressureStatus;
     default: return NULL;
     }
 }
@@ -74,6 +77,12 @@ void initialiseBlePackets() {
     appData.bluetooth.thermalStatus.name = "thermalStatus";
     appData.bluetooth.supply.packetId = PACKET_ID_SUPPLY;
     appData.bluetooth.supply.name = "supply";
+    appData.bluetooth.pressureA.packetId = PACKET_ID_PRESSURE_A;
+    appData.bluetooth.pressureA.name = "pressureA";
+    appData.bluetooth.pressureB.packetId = PACKET_ID_PRESSURE_B;
+    appData.bluetooth.pressureB.name = "pressureB";
+    appData.bluetooth.pressureStatus.packetId = PACKET_ID_PRESSURE_STATUS;
+    appData.bluetooth.pressureStatus.name = "pressureStatus";
 
     forEachBlePacket(packet) {
         g_mutex_init(&packet->lock);
@@ -99,4 +108,25 @@ void initialiseBlePackets() {
         0xFF, 0xFF,
     };
     updateBlePacket(&appData.bluetooth.enclosure, enclosureData);
+
+    // THE SAME ARGUMENT AGAIN, AND IT IS STRONGER FOR PRESSURE THAN FOR ANYTHING ELSE HERE. Zero
+    // is a completely plausible differential pressure - it is what a healthy rig reads at rest -
+    // so a phone that connects before the first cycle would otherwise see six believable readings
+    // of nothing. All six channels go out as INT16_MIN, i.e. -3276.8 Pa, which is 6.5x the widest
+    // part's full range and therefore impossible.
+    guint8 pressureData[CAN_DATA_SIZE];
+    for (auto i = 0; i < 4; i++) {
+        pressureData[i * 2] = (guint8)((PRESSURE_DECI_PA_INVALID >> 8) & 0xFF);
+        pressureData[i * 2 + 1] = (guint8)(PRESSURE_DECI_PA_INVALID & 0xFF);
+    }
+    updateBlePacket(&appData.bluetooth.pressureA, pressureData);
+
+    // P4 and P5 as sentinels; the cycle counter and cycle time start at zero, which is honest -
+    // no cycle has run. A counter that never leaves zero is exactly what it is there to show.
+    guint8 pressureBData[CAN_DATA_SIZE] = {
+        (guint8)((PRESSURE_DECI_PA_INVALID >> 8) & 0xFF), (guint8)(PRESSURE_DECI_PA_INVALID & 0xFF),
+        (guint8)((PRESSURE_DECI_PA_INVALID >> 8) & 0xFF), (guint8)(PRESSURE_DECI_PA_INVALID & 0xFF),
+        0, 0, 0, 0,
+    };
+    updateBlePacket(&appData.bluetooth.pressureB, pressureBData);
 }

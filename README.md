@@ -8,7 +8,8 @@ It publishes differential pressure, temperature and enclosure conditions over Bl
 **primary data path**, and writes the raw readings and diagnostics to the SD card, which is the
 durable record and the only thing that can prove a sample was missing rather than held.
 
-**Status.** All five workers are written, the box has driven three times, and it has run **two
+**Status.** All six workers are written — the sixth, the five SDP810s, on 2026-09-19 — the box has
+driven three times, and it has run **two
 track days at Poznań (2026-09-13 and 2026-09-14)** — the first runs under sustained thermal load,
 and the first to exercise the loaded 1-Wire star hot, vibrating and for a useful duration.
 **The SD record of both days has now been read** (2026-09-18) and it is one continuous
@@ -115,6 +116,19 @@ measured**.
 corrected; `Hardware/logger-perfboard-wiring.md` §5 is the record.
 **Do not address mux channel 5: its pull-ups are not fitted and probing it hangs the whole bus.**
 
+**The pressure worker landed 2026-09-19 and it still measures nothing.** `pressureSensors.cxx`
+samples all five at 10 Hz and publishes `0x605`–`0x607`; `pressure-worker-plan.md` is the plan it
+was built from and carries what each step actually did. It reads product, serial and scale factor
+back at boot into a `pressureBaseline` record — the per-session channel→part provenance
+commissioning item 2 asks for, now produced automatically — and the five serials match build
+sheet §5. **Its three channel-health counters are separate on purpose**: transport errors, CRC
+failures and the enabled/valid masks answer different questions, and one counter conflating the
+first two is what misclassified a hot probe as a bus fault for two track days on the thermal side.
+**The role→channel mapping is untouched and still open** (`../ndLouvers/` open item 30a): the
+baseline record says so in a field of its own rather than leaving its absence to be inferred.
+**The phone's six pressure channels and their status fields are not entered yet** — until they
+are, the three packets are never sent at all.
+
 ---
 
 ## What this is for
@@ -131,10 +145,11 @@ Read, in this order, before changing anything here:
    before changing anything that touches `oneWireProbes.cxx` or `bme280Sensor.cxx`. It owns no
    requirement; Step 0b does.
 1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **Nothing in it is
-   built yet** (the SDP810s arrived 2026-09-17 but no wand is cut), but it is what the pressure
-   worker will have to
-   satisfy when there is one, and it records that the five SDP810s will share the I2C bus whose
-   first-transfer refusal is documented above.
+   built yet**: the SDP810s arrived 2026-09-17 and all five now read, but no wand is cut, no line
+   installed and no filter tested. **The pressure worker exists as of 2026-09-19 and satisfies
+   none of that file** — it produces the channel, not the measurement. Read it before reading any
+   pressure number as one, and note that the five SDP810s share the I2C bus whose first-transfer
+   refusal is documented above.
 1c. `one-wire-probes.md` — the 1-Wire subsystem's traps and standing requirements: the ROM-ID
    bindings, the `28-*` family filter, `therm_bulk_read`, the ~100 s tail a pulled probe leaves,
    the fake-sysfs harness, and the enrollment and offset requirements. **Read it before touching
@@ -181,7 +196,9 @@ so the OS pairing list will never show it.
 > subscription, so entering the logging regime means only the packet IDs you have defined channels
 > for get notified. Measured 2026-09-10 on the bench and again in the car on 2026-09-11, when
 > `0x604` took **zero** notifications because no channel was defined for it while the other four
-> ran at ~1 Hz. All five packets are defined as of 2026-09-11.
+> ran at ~1 Hz. The first five packets were defined on 2026-09-11; **`0x605`–`0x607` are published
+> by the logger as of 2026-09-19 and must still be entered on the phone**, and until they are they
+> are not sent at all.
 > In CAN-bus test mode RaceChrono asks for everything instead, which is why test mode shows
 > channels that logging mode does not.
 >
@@ -225,8 +242,22 @@ table is the readable view of it. Packet IDs are decimal, which is what the CAN-
 | 1540 | 3–4 | `Digital Front 14` | SoC core mV |
 | 1540 | 5–6 | **`Temperature Front 15`** | SoC temperature |
 | 1540 | 7 | `Digital Front 16` | **heartbeat** |
+| 1541 `0x605` | 0–1 | `Pressure Front 1` | `P0` |
+| 1541 | 2–3 | `Pressure Front 2` | `P1` |
+| 1541 | 4–5 | `Pressure Front 3` | `P2` |
+| 1541 | 6–7 | `Pressure Front 4` | `P3` |
+| 1542 `0x606` | 0–1 | `Pressure Front 5` | `P4` |
+| 1542 | 2–3 | `Pressure Front 6` | `P5` |
+| 1542 | 4–5 | `Digital Front 21` | sample cycles — free-running |
+| 1542 | 6–7 | `Digital Front 22` | last cycle, ms |
+| 1543 `0x607` | 0 | `Digital Front 23` | channels enabled, bitmask |
+| 1543 | 1 | `Digital Front 24` | valid-this-cycle mask |
+| 1543 | 2–3 | `Digital Front 25` | read errors |
+| 1543 | 4–5 | `Digital Front 26` | CRC failures |
+| 1543 | 6 | **`Temperature Front 21`** | sensor temperature, lowest enabled channel |
+| 1543 | 7 | `Digital Front 27` | mux channel selected |
 
-Three things this table is carrying rather than repeating:
+Four things this table is carrying rather than repeating:
 
 1. **`Temperature Front 15` is a Temperature slot on purpose.** It was a Digital one until
    2026-09-11. It is the only `0x604` field with decimals; the rest are integers, and **SoC core
@@ -235,7 +266,11 @@ Three things this table is carrying rather than repeating:
 2. **Changing a slot's type changes its identity.** `Digital Front 15` and `Temperature Front 15`
    are different channels with different ids, so a retyped field leaves the old slot behind unless
    it is deleted — still subscribed, still decoding the same bytes under the old name.
-3. **`0x601` was renumbered from 50–53 to 51–55 on 2026-09-11**, when byte 6–7 was added. **Any
+3. **The six pressure channels are `Pressure Front 1`–`6` and their status fields are `Digital
+   Front 21`–`27` plus `Temperature Front 21`** — chosen to sit clear of every slot above, so no
+   existing channel is disturbed and a `.rcz` from before 2026-09-19 can be told apart from one
+   after it by their presence alone.
+4. **`0x601` was renumbered from 50–53 to 51–55 on 2026-09-11**, when byte 6–7 was added. **Any
    recording made before that carries the old slot numbers**, so a session and this table can
    disagree without either being wrong. `Tools/rcz-channels.py` prints what a given recording
    actually used — **and a session that was paused and resumed carries one fragment per stretch**,
@@ -442,6 +477,97 @@ item 5a asked to be logged. **It is not the only counter with that property**: `
 bytes 4–5 advance every cycle regardless of what their sensors report, and the second road test's
 zero-drop measurement was made off those two.
 
+### `0x605` and `0x606` — the six pressure channels
+
+**Nothing on these channels is a pressure measurement.** They carry what the five SDP810s report
+with every port open to whatever air is around them; the pneumatic rig — wands, tubing, filters,
+drainage — is unbuilt, and `../ndLouvers/pressure-testing.md` §2 is the qualification none of this
+discharges. What exists is the channel a measurement will one day travel down.
+
+| Packet | Bytes | Channel | Equation | Invalid |
+|---|---|---|---|---|
+| 1541 `0x605` | 0–1 | `P0` | `bytesToInt(raw, 0, 2) / 10000` | `-32768` → **−3.2768 kPa** |
+| 1541 | 2–3 | `P1` | `bytesToInt(raw, 2, 2) / 10000` | as above |
+| 1541 | 4–5 | `P2` | `bytesToInt(raw, 4, 2) / 10000` | as above |
+| 1541 | 6–7 | `P3` | `bytesToInt(raw, 6, 2) / 10000` | as above |
+| 1542 `0x606` | 0–1 | `P4` | `bytesToInt(raw, 0, 2) / 10000` | as above |
+| 1542 | 2–3 | `P5` | `bytesToInt(raw, 2, 2) / 10000` | as above |
+| 1542 | 4–5 | sample cycles | `bytesToUint(raw, 4, 2)` | free-running, wraps at 65535 |
+| 1542 | 6–7 | last cycle, ms | `bytesToUint(raw, 6, 2)` | **~16** for five sensors |
+
+**The wire carries signed decipascals — 0.1 Pa/LSB — on all six channels** (owner decision,
+2026-09-19; `../ndLouvers/CFD-Learning-Plan.md` Step 0b commissioning item 4a). `int16` at 0.01 Pa/LSB overflows
+at 327 Pa and cannot carry a ±500 Pa channel, so centipascals would have meant **two decode rules**
+on a list nothing in this code can check — which is exactly how `bytesToUint` survived on
+`Temperature Front 2`. One rule covers all six instead. The resolution thrown away on the ±125 Pa
+part is affordable **because the session file carries raw counts and the returned scale factor at
+full resolution**, so any session can be reprocessed; only a `.rcz` cannot, which is the asymmetry
+that governs everything on this link.
+
+> **⚠ THE `/10000` MAKES THE CHANNEL GENUINELY kPa, AND THE NUMBER ON THE GAUGE IS THEREFORE
+> SMALL.** RaceChrono's Pressure channel stores kPa, and decipascals reach kPa through 10 000 —
+> so a 60 Pa differential displays as **0.06 kPa**, and the 45–90 Pa measurands this project is
+> built around land at 0.045–0.090. That is the same rule `0x600` follows through its own `/1000`,
+> which is the point: **every Pressure channel this logger publishes is kPa after its divide**, and
+> a second convention is what this README keeps warning about. Nothing is lost to it — RaceChrono
+> stores a float, so 0.1 Pa survives as 0.0001 kPa — but **do not "fix" a small reading by dropping
+> zeros from the divide**, which would leave a channel labelled kPa carrying pascals.
+
+**Signed — use `bytesToInt`.** A negative differential is the normal case on half these channels,
+depending only on which port the tube lands in, so an unsigned decode corrupts ordinary data rather
+than only the sentinel. **`-32768` is the no-trustworthy-reading marker** and decodes to −3.2768 kPa
+— 6.5× the ±500 Pa part's full range and therefore impossible, which is the property an invalid
+marker needs, because RaceChrono holds the last value it received indefinitely.
+
+> **⚠ ZERO IS A COMPLETELY PLAUSIBLE DIFFERENTIAL PRESSURE, WHICH MAKES THE SENTINEL MATTER MORE
+> HERE THAN ON THE THERMAL CHANNELS.** All six are published as `-32768` before the worker has read
+> anything, so a phone that connects first sees six unmistakable non-readings rather than six
+> believable readings of nothing. A thermal channel reading 0 °C at least looks like weather; a
+> pressure channel reading 0 Pa looks like a correct answer.
+
+**`0x606` bytes 4–5 advance every cycle whatever the sensors report**, which is what separates a
+dead worker from five steady pressures — and five steady zeroes is the resting state of a healthy
+rig, so this counter is more necessary here than on `0x601` or `0x603`. At 10 Hz it wraps every
+**1.8 h** rather than the 18.2 h those two take at 1 Hz.
+
+**Channel names are positional and mean nothing.** `P0`–`P5` are fixed by mux position. **The
+role→channel mapping is deliberately undecided** — `../ndLouvers/` open item 30a — and these
+channels are published before it exists on purpose, so the phone-side definitions can be built and
+verified **before** the rig does, which is the only way to stop open item 47 repeating on the
+pressure side. Recording which *part* sits on which channel (the `pressureBaseline` record, and
+`Hardware/logger-perfboard-wiring.md` §5) is not deciding which *role* it serves.
+
+### `0x607` — pressure channel health
+
+| Bytes | Content | Equation | Expected with five sensors |
+|---|---|---|---|
+| 0 | channels enabled, bitmask, bit *n* = `P<n>` | `bytesToUint(raw, 0, 1)` | **31** — channels 0–4 |
+| 1 | valid-this-cycle bitmask, bit *n* = `P<n>` | `bytesToUint(raw, 1, 1)` | **31**, and staying there |
+| 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0** |
+| 4–5 | cumulative CRC failures, saturating | `bytesToUint(raw, 4, 2)` | **0** |
+| 6 | sensor temperature, lowest enabled channel, °C | `bytesToInt(raw, 6, 1)` | bench ambient |
+| 7 | mux channel currently selected | `bytesToUint(raw, 7, 1)` | **0** — deselected between cycles |
+
+**Byte 1 is how an invalid channel is seen from the phone without decoding the sentinel**, exactly
+as `0x603` byte 1 works for the probes. Byte 0 beside it separates "that channel is switched off in
+the config" from "that channel failed": a bit in 0 and not in 1 is a sensor that did not read.
+
+> **⚠ BYTES 2–3 AND BYTES 4–5 ARE TWO COUNTERS ON PURPOSE, AND COLLAPSING THEM WOULD REPEAT A FAULT
+> THIS PROJECT HAS ALREADY PAID FOR.** Read errors count *transfers that did not complete*; CRC
+> failures count *frames that arrived and could not be trusted*. They send a reader to different
+> parts of the box — the bus and the mux for one, the sensor and its wiring for the other. On the
+> thermal side one counter conflating the two is what left a probe sitting at 85.000 °C
+> misclassified as a bus fault across two track days.
+
+**Byte 7 is a cheap liveness tell and it should read 0.** The worker deselects the mux at the end of
+every cycle, so a value stuck on a channel number is a cycle that never finished — which is also the
+state in which a faulty downstream segment is bridged onto the main bus.
+
+**Byte 6 is the lowest enabled channel's sensor temperature only**, and it is a diagnostic for the
+part rather than a measurement of anything: the SDP810's compensation spans −20…85 °C and this says
+whether it is inside it. Per-sensor temperature at full resolution is in the session file; there is
+no room for five of them here, and no consumer for them on the phone.
+
 ## Layout
 
 Single translation unit: every `.cxx` is `#include`-d into `main.cxx`, in the order below, and only
@@ -457,8 +583,9 @@ sessionWriter.cxx     append-only NDJSON, record queue, ~1 s fsync cadence
 blePackets.cxx        RaceChrono packet wire format — before every producer
 supplyMonitor.cxx     vcgencmd + rpi_volt hwmon at 1 Hz, sticky-bit transitions
 oneWireProbes.cxx     DS18B20 enrollment, the bindings in the .ini, 0x602 and 0x603
-i2cBus.cxx            I2C_RDWR transport with the mandatory retry — the mux will share it
+i2cBus.cxx            I2C_RDWR transport with the mandatory retry — the mux shares it
 bme280Sensor.cxx      BME280 forced-mode reads, compensation, 0x600 and 0x601
+pressureSensors.cxx   PCA9548A channel select, five SDP810s, 0x605, 0x606 and 0x607
 raceChronoBle.cxx     bluez_inc: adapter, advertisement, GATT, notify timers
 bluez_inc/            submodule, github.com/weliem/bluez_inc
 
@@ -781,21 +908,27 @@ sealed, and the thermal envelope — want a **hot day**; the sealed configuratio
 data only. **Record where the box was mounted on every session.** Without it a run cannot serve
 either, because a cabin record reads exactly like a cavity one.
 
-**Needing code, no longer a part.** The SDP810 reader and the mux driver, planned step by step in
-[`pressure-worker-plan.md`](pressure-worker-plan.md) — **four owner decisions at its step 1 gate
-the rest.** All five are fitted and
-read correctly by hand, so the protocol is settled: stop-continuous `0x3FF9`,
-identity `0x367C`/`0xE102`, then **`0x3615` started once** — never per sample — and a 9-byte read
-per cycle carrying differential pressure, temperature and the scale factor with a CRC on each word.
-**`0x3615` is NAK'd if the sensor is already in continuous mode**, measured 2026-09-19 when a test
-harness reissued it every cycle and lost 145 of 150 transfers to it, so the worker must track
-per-sensor state rather than re-arming defensively. Selecting a different mux channel does **not**
-take a sensor out of continuous mode.
-Retain the returned scale factor per sensor rather than hard-coding 60, since the ±125 Pa part
-returns 240. A mux channel switch plus a sensor read are two transfers that must not be interleaved
-with anything else on the bus, and the `i2cBus.cxx` retry covers both. **Iterate a configured list
-of populated channels — never sweep**, because addressing a channel whose pull-ups are not fitted
-hangs the bus (`CLAUDE.md`).
+**Needing the phone, not code.** **The six pressure channels and their status fields have to be
+typed into RaceChrono**, and until they are, `0x605`–`0x607` are never sent at all — which is
+exactly how `0x604` went unsent through two road tests. The slot map and the byte tables above are
+what to enter. Then **run the sentinel check with the sensors disconnected**, the only state it
+works in: every pressure channel must read **−3.2768**, not +3.2768. `Tools/rcz-channels.py` now
+flags that fault on `Pressure` slots as well as `Temperature` ones.
+
+**Needing code: nothing pressure-side.** The SDP810 reader and the mux driver are written, built
+and bench-run — [`pressure-worker-plan.md`](pressure-worker-plan.md) carries what each step did.
+The protocol, settled by hand on 2026-09-19 and unchanged by the implementation: stop-continuous
+`0x3FF9`, identity `0x367C`/`0xE102`, then **`0x3615` started once** — never per sample — and a
+9-byte read per cycle carrying differential pressure, temperature and the scale factor with a CRC
+on each word. **`0x3615` is NAK'd if the sensor is already in continuous mode**, measured when a
+test harness reissued it every cycle and lost **145 of its 150 start-continuous commands** —
+30 cycles × 5 sensors, so every re-arm after the first was refused — so the worker tracks per-sensor
+state and re-arms only after a failed read; selecting a different mux channel does **not** take a
+sensor out of continuous mode. The returned scale factor is retained per sensor rather than 60
+hard-coded, since the ±125 Pa part returns 240. **The worker iterates a configured list of
+populated channels and refuses anything outside it** — it does not sweep, because addressing a
+channel whose pull-ups are not fitted hangs the whole bus (`CLAUDE.md`), and it refuses to start at
+all if the list names channel 5.
 
 **Not outstanding, and not to be reopened.** The installed BLE link (commissioning item 5a,
 closed 2026-09-15 on the third drive), the sample rate (plan open item 43), the thermal cold-soak

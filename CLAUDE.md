@@ -175,9 +175,28 @@ narrative in this file.
   factor per sensor; never hard-code 60.**
 - **`0x3615` IS NAK'D IF THE SENSOR IS ALREADY IN CONTINUOUS MODE** (measured 2026-09-19). Start
   continuous measurement **once** per sensor and then only read; a harness that re-armed it every
-  cycle lost 145 of 150 transfers and looked exactly like a failing bus. **Selecting a different mux
-  channel does not take a sensor out of continuous mode**, so the worker must track per-sensor state
-  rather than re-arming defensively on each visit.
+  cycle lost **145 of its 150 start-continuous commands** and looked exactly like a failing bus —
+  150 being 30 cycles × 5 sensors, so **the denominator is the COMMANDS, not the run's transfers**
+  (owner, 2026-09-19, settling a figure six documents had stated two ways).
+  **Selecting a different mux channel does not take a sensor out of continuous mode**, so the worker
+  must track per-sensor state rather than re-arming defensively on each visit.
+  **`pressureSensors.cxx` does this, and the shape is worth knowing before changing it**
+  (2026-09-19): `isContinuousStarted` is set when a read succeeds and cleared when one fails, so a
+  sensor that browned out is re-armed on the next visit and one that did not is left alone. The
+  re-arm costs `SDP810_START_SETTLE_US` and is paid only on that path. **Do not "simplify" it into
+  an unconditional re-arm**, and do not treat a NAK there as a fault — it is the expected answer
+  from a part that never lost the mode.
+- **A 10 Hz PRESSURE CYCLE DOES NOT KEEP THE I2C BUS WARM** (2026-09-19). A five-sensor cycle costs
+  16–18 ms, so at a 100 ms period the bus is **idle for ~85 ms between cycles** — well past the
+  10 ms that triggers the first-transfer refusal. So on a refusing boot the pressure worker meets it
+  **every cycle**, exactly as a 1 Hz sampler does, and the retry is as load-bearing at 10 Hz as at
+  1 Hz. A faster sample rate is not a workaround for the deviation and must not be reached for as
+  one. `../ndLouvers/` open item 44.
+- **READ THE MUX CONTROL REGISTER BACK AFTER WRITING IT.** `selectMuxChannel` writes `1 << n` and
+  then reads the register and compares. This is not belt-and-braces: **a write that appears to
+  succeed onto a faulty segment is exactly the failure that hangs the bus**, and the mux answers
+  from the main side, so it still replies while the segment it just connected is dragging the
+  downstream lines together. The read-back is where that is caught, and it costs one transfer.
 - **A SKIPPED BME280 MEASUREMENT DOES NOT MOVE THE READ-ERROR COUNTER, AND THAT IS CORRECT.**
   Measured once in the field, 2026-09-14. All three `0x600` values go to their sentinels in the
   same cycle — a skipped temperature invalidates pressure and humidity through the shared `t_fine`
@@ -387,6 +406,12 @@ python3 Tools/rcz-channels.py session.rcz
    tool flags a `Temperature` slot carrying **+327.68**, which is the `−32768` sentinel decoded
    unsigned. It also flags a channel whose samples are all `NaN` — a defined channel that never
    produced a value, which is what two of KnurDash's turned out to be.
+   **It checks `Pressure` slots the same way since 2026-09-19, at +3.2768**, the same sentinel
+   through the pressure channels' `/10000`. That check matters *more* than the thermal one: a
+   negative differential is normal on half the pressure channels, depending only on which port the
+   tube lands in, so an unsigned decode there corrupts **ordinary data** rather than only the
+   marker. **`Pressure Front 50` is deliberately exempt** — `0x600`'s enclosure pressure is
+   unsigned by design and its marker is 4294967.295, which no signed decode produces.
 2. **The slot numbers in an old export are not the slot numbers in force now.** `0x601`'s five
    were renumbered from 50–53 to 51–55 on 2026-09-11. A disagreement between a recording and
    `README.md`'s slot map means the list changed, not that either is wrong.
@@ -493,9 +518,11 @@ The platform has already been the culprit once and the logger looked guilty (his
      bypassed rather than passed. A crank brownout shows up as a latched undervoltage bit, or as
      the session file splitting with a fresh `session` record if the Pi rebooted.
   4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V, plausibly 330–430 mA once
-     BLE and five workers are counted — ~3.3–5 Ah over a 12 h day
+     BLE and the workers are counted — ~3.3–5 Ah over a 12 h day
      against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
      in, i.e. a flat battery.** Estimated, not measured; plan item 5.3 still owes the real figure.
+     **That estimate predates the five SDP810s, which were drawing nothing in every session on
+     record**, and it predates the sixth worker. Neither has been measured.
   **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is the fuse
   being pulled, or a cranking dip. Repeated hard cuts are the durability risk worth knowing: one
   costs at most the last second, but doing it daily for a season is the classic route to a corrupt

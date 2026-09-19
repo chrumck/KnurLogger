@@ -53,8 +53,10 @@ Four behaviours that will bite an implementation that does not expect them:
 
 1. **`0x3615` is NAK'd if the sensor is already in continuous mode**, and selecting a different mux
    channel does **not** take it out of that mode. Start it once per sensor and track per-sensor
-   state. A harness that re-armed it every cycle lost 145 of 456 transfers and looked exactly like
-   a degraded bus.
+   state. A harness that re-armed it every cycle lost **145 of its 150 start-continuous commands**
+   — 30 cycles × 5 sensors — and looked exactly like a degraded bus. (Owner, 2026-09-19: the
+   denominator is the commands. An earlier "145 of 456" here counted the run's transfers instead
+   and read as the same statistic.)
 2. **Addressing an unpopulated or faulty mux channel hangs the entire main bus** — mux and BME280
    included — and only a `~RESET` pulse on GPIO17 recovers it. Both bus lines read idle-high and
    `i2cdetect` still lists every device while this is happening.
@@ -284,8 +286,10 @@ existing comment on the thermal channels gives the reason and it applies with mo
 cycle would otherwise see six believable readings of nothing. This is the one place where the
 pressure channels are more dangerous than the thermal ones.
 
-**Acceptance:** with the sensors physically unplugged, all six channels decode as −327.68 Pa on the
-phone, and `0x607` byte 1 reads 0.
+**Acceptance:** with the sensors physically unplugged, all six channels decode as the sentinel on
+the phone and `0x607` byte 1 reads 0. **The number is −3.2768 kPa, not the −327.68 written here
+before the wire format was settled** — step 3 took a `/10000` divide so the channel is genuinely
+kPa. Still negative, still impossible; only the digits differ.
 
 ---
 
@@ -334,7 +338,8 @@ it has already cost this project three faults and five sessions of a CAN byte.
 
 1. Enter the channels from step 3's table into RaceChrono.
 2. **Run the sentinel check with the sensors disconnected**, which is the only state it works in:
-   every pressure channel must read **−327.68**, not +327.68. A positive reading means
+   every pressure channel must read **−3.2768**, not +3.2768 (this said −327.68 until step 3 fixed
+   the divide at `/10000`; see the Work Progress row). A positive reading means
    `bytesToUint` where `bytesToInt` belongs — the exact fault found on `Temperature Front 2`.
 3. **Verify the free-running counter** on `0x606` bytes 4–5 advances by exactly 1 per sample.
 4. Re-export the vehicle profile to `RaceChrono/vehicleProfile.json` and commit it.
@@ -389,18 +394,26 @@ planned.
 
 | Step | Status | What was done |
 |---|---|---|
-| 1 — Owner decisions | not started | Four decisions outstanding: wire scaling, sample rate, publish-before-roles, packet IDs |
-| 2 — Data contracts | not started | |
-| 3 — Wire format on paper | not started | |
-| 4 — Mux and SDP810 transport | not started | |
-| 5 — Identity and baseline record | not started | |
-| 6 — Sampling loop | not started | |
-| 7 — Sentinel initialisation | not started | |
-| 8 — Config and enabled list | not started | |
-| 9 — Measure cost, decide rate | not started | |
-| 10 — Phone channels and verification | not started | |
-| 11 — Doc sync and commit | not started | |
+| 1 — Owner decisions | **done** 2026-09-19 | All four put to the owner as choices with recommendations; **all four recommendations taken**. Recorded in `../ndLouvers/CFD-Learning-Plan.md` Step 0b commissioning item 4a. Decipascals on all six channels with `INT16_MIN` sentinel; configurable rate shipped at 10 Hz, subject to step 9; packets published before any role mapping; IDs `0x605`/`0x606`/`0x607`, checked clear against the committed `RaceChrono/vehicleProfile.json` (the only IDs either box claims are `0x78`, `0x202`, `0x420`, `0x4FA`, `0x600`–`0x604`, `0x7F0`). The role→channel mapping is untouched and still open — `../ndLouvers/` open item 30a |
+| 2 — Data contracts | **done** 2026-09-19 | `dataContracts.hpp`: the three packet IDs, the SDP810 command/product/scale/CRC/length constants, `SDP810_START_SETTLE_US`, `PRESSURE_DECI_PA_INVALID`, per-product range bounds, `MUX_CHANNEL_NONE`/`MUX_MAX_CHANNEL`, the mux-prohibition comment block, the `[pressure]` config keys, and `SdpReading`/`PressureChannel`/`PressureData`. `PRESSURE_CHANNEL_COUNT` left at 6 with `isEnabled` carrying which are real. Built on the box, logger ran unchanged. **One deviation from the plan's field list:** `crcFailures` was added to `PressureChannel` and `PressureData`, because step 3's `0x607` needs a CRC counter separate from the transport one and the plan's struct list did not carry it |
+| 3 — Wire format on paper | **done** 2026-09-19 | `README.md`: slot-map rows and two new sections written **before** the packer. Layout as the plan proposed. Slots are `Pressure Front 1`–`6`, `Digital Front 21`–`27` and `Temperature Front 21`, all clear of every slot already in use. **One decision the plan left implicit:** the phone-side equation is `/10000`, which makes the channel **genuinely kPa** — RaceChrono's Pressure channel stores kPa and decipascals reach it through 10 000. That keeps one rule, "every Pressure channel this logger publishes is kPa after its divide", shared with `0x600`'s `/1000`. The cost is a small number on the gauge: 60 Pa shows as 0.06 kPa. The sentinel then reads **−3.2768**, not the −327.68 step 10 predicted — still negative, still impossible (6.5× the widest part's range), so the signed-vs-unsigned check is unaffected |
+| 4 — Mux and SDP810 transport | **done** 2026-09-19 | New `pressureSensors.cxx`, included in `main.cxx` after `i2cBus.cxx` and before `raceChronoBle.cxx`, in no CMake target. `selectMuxChannel` refuses any channel outside the configured list and logs the refusal as an event; it writes then **reads the control register back and verifies it**. `deselectMux`, `sdpCrc8`, `sendSdpCommand`, `readSdpFrame`, `parseSdpMeasurement` all straight through `transferI2c` with **no second retry layer**. **One deviation:** `parseSdpMeasurement` takes the part's range as an argument — the plan asked the same function to set `outOfRange`, which it cannot do without knowing the part. It also rejects a zero scale factor, which passes CRC and would otherwise divide by zero |
+| 5 — Identity and baseline record | **done** 2026-09-19 | `initialisePressureSensors()` opens its own fd, and per enabled channel selects, stop-continues (NAK tolerated), reads identity, verifies all six CRCs, records product and serial, and warns on an unknown product or a scale factor disagreeing with it. **Warns, never refuses.** `writePressureBaseline()` carries bus, mux and sensor addresses, the enabled list and per channel the mux position, product, serial, scale and range, plus a `roleMappingNote` stating the role map is deliberately absent. **Acceptance met:** a bench run's `pressureBaseline` carries all five serials and they match build sheet §5 exactly, including the ±125 Pa's `0x00000000978B88F8` on `P2` at 240 counts/Pa |
+| 6 — Sampling loop | **done** 2026-09-19 | `pressureSensorsLoop` follows `bme280SensorLoop`'s shape. `0x3615` once per sensor; re-issued only when `isContinuousStarted` is false, which a failed read clears — never unconditionally. Every failure path writes an explicit `invalidReason` (`disabled`, `busUnavailable`, `muxSelectFailed`, `notStarted`, `readFailed`, `crc`, `scaleFactorZero`, `outOfRange`, `notPresent`); **no carried-forward values.** One `pressure` record per cycle with raw counts, returned scale factor, full-resolution pascals, the decipascals sent, sensor temperature, CRC result, validity and reason, plus the three `i2c*` counters. Worker added to `producersRunning` and the joins. **Acceptance met on a 25 s bench run:** 239 cycles, enabled mask 31 and valid mask **31 on every cycle**, counter +1 exactly, 0 read errors, 0 CRC failures, 0 exhausted transfers, `muxSelected` 0 throughout. Cycle cost 16–18 ms, matching bring-up's 15.4 ms |
+| 7 — Sentinel initialisation | **done** 2026-09-19 | `initialiseBlePackets()` publishes all six channels as `INT16_MIN` before the worker reads anything, with the reason stated: zero is a plausible differential pressure where 0 °C at least looks like weather. `getAllPackets()` extended to 8 so `forEachBlePacket` covers the three. `0x607` is left at its zero default deliberately — zero **is** the correct enabled/valid mask before the first cycle |
+| 8 — Config and enabled list | **done** 2026-09-19 | `config.cxx` parses `pressureIntervalMs` (50–60000) and `pressureChannelsEnabled` as a comma-separated list. `[pressure]` added to `build/KnurLogger.ini` with the comment block explaining why the list is a list. **Item 3 discharged:** the production `~/bin/KnurLogger.ini` was backed up to `KnurLogger.ini.bak-20260919` and replaced with the template — a diff first confirmed the two differed **only** in comment blocks and the new section, so no offset or binding was at risk, and the four ROM IDs were re-read afterwards. **Acceptance met — six guards tested on the box and all six refuse to start:** channel 5 named (by name, not as a range error), missing interval, interval out of range, non-numeric entry, stray comma, missing list. Starts cleanly on `0,1,2,3,4` |
+| 9 — Measure cost, decide rate | **done** 2026-09-19 | One hour on the bench at 10 Hz, all five sensors, service stopped. **34 537 cycles at 9.594 Hz**, cycle counter exact `+1`, valid mask 31 on every one, **0 read errors, 0 CRC failures, 0 exhausted transfers, 0 dropped records**, worst inter-cycle gap 120 ms with nothing over 250 ms, cycle cost 18 ms typical / 23 ms p99. **20.2 kB/s → ~873 MB for a 12 h day against 108 GB free**, i.e. 0.8 % and ~120 such days before the card fills, against the 1457 B/s 1 Hz baseline. `i2cExhausted` 0; SoC 50.6–57.0 °C open-air; live, sticky and `rpi_volt` comparator 0 throughout. **Item 3 met: the fsync cadence is not starved** — the three 1 Hz workers were untouched (BME280 1015/1021 ms, 1-Wire 1002/1005, supply 1017/1024) and the largest gap between any two records of any kind was 445 ms. **Owner accepted 10 Hz on these numbers**, recorded in Step 0b commissioning item 4a.2. **One finding the plan did not predict: the configured interval is a floor, so "10 Hz" is 9.594 Hz** — every worker schedules from the cycle's start and pays the poll granularity, which is why the 1 Hz workers have always run at 1002–1017 ms. Not lost samples; the counter is exact. Recorded in Step 0b item 4 and `pressure-testing.md` §3.2 |
+| 10 — Phone channels and verification | **blocked — owner and phone** | Items 1–5 all need the phone, and item 2 additionally needs the sensors physically disconnected, which cannot be done from here. What is ready: the slot map and byte tables in `README.md`, and `Tools/rcz-channels.py` **extended to flag the unsigned sentinel on `Pressure` slots as well as `Temperature` ones** — it did not, which would have left the six new channels unaudited by the one instrument that can check the phone's list without the phone. `Pressure Front 50` is exempt, `0x600` being unsigned by design. **Correction to item 2 of this step: the sentinel reads −3.2768, not −327.68**, because the equation is `/10000` for genuine kPa (step 3). Still negative, still impossible, so the check is unaffected — but the number to look for is different. **Until the channels are entered, `0x605`–`0x607` are never sent at all** |
+| 11 — Doc sync and commit | **done** 2026-09-19 | Sync pass run across both repositories. `README.md`: status, hardware and layout blocks, the two new packet sections, the slot map, "Next" and "what is testable". `CLAUDE.md`: the re-arm shape, the mux control read-back, and **a 10 Hz cycle not keeping the bus warm**; the battery-drain estimate flagged as predating both the SDP810s' load and the sixth worker. `CLAUDE.history.md`: a dated entry. `RaceChrono/README.md`: the profile is now knowingly stale and says so. `Hardware/logger-perfboard-wiring.md` §5: the build did not change, but the "never sweep" rule is now enforced in code and the note says where. `../ndLouvers/`: Step 0b items 2, 4, 4a and the status block; `CLAUDE.md` trap 1; `pressure-testing.md` §3 preamble, §3.1, new §3.2 and §4 item 9. **Mechanical drift fixed:** "all five workers" → six, "ONE is fitted to mux channel 0" → all five, "refused every time" → bimodal per boot, "the pressure worker will use" → does. **One contradiction surfaced rather than resolved, and the owner settled it:** the `0x3615` harness figure was "145 of 456 transfers" in two files and "145 of 150" in four; the answer is **150 start-continuous commands**, and all six now name the denominator |
 
-**Blockers:** step 1's decisions gate steps 2–8. Nothing here is blocked on hardware — all five
-sensors read correctly as of 2026-09-19 — and nothing here is blocked on the pneumatic rig, which
-this plan does not touch.
+**Blockers:** none remaining in this repository. **Step 10 is the only outstanding step and it is
+owner-and-phone work** — the six pressure channels and their status fields have to be typed into
+RaceChrono, and until they are the three packets are never sent at all. The sentinel check within it
+additionally needs the sensors physically disconnected, which is the only state it works in.
+
+**What this plan deliberately did not do, so that nobody reads its completion as more than it is.**
+It produced no pressure measurement and discharged no part of `../ndLouvers/pressure-testing.md` §2.
+It did not decide the role→channel mapping (open item 30a) and the `pressureBaseline` record states
+that absence in a field of its own. It did not add the `~RESET`-on-exhaustion recovery from risk 1,
+which the plan itself says needs its own owner decision. And it did not answer open item 44: every
+boot it ran on was in the non-refusing mode.
