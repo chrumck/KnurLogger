@@ -1004,15 +1004,43 @@ slots at all**, so `Pressure Front 1`–`6`, `Digital Front 21`–`27` and `Temp
 free.
 
 **The one thing the plan did not settle, and it had to be decided while writing the tables:
-the phone-side divide.** RaceChrono's Pressure channel stores kPa, so decipascals reach it through
-`/10000`. Taking that divide makes the channel *genuinely* kPa and keeps one rule — every Pressure
-channel this logger publishes is kPa after its divide — shared with `0x600`'s `/1000`. The cost is a
-small number on the gauge: 60 Pa reads 0.06 kPa. **The consequence the plan did not anticipate is
-that the sentinel is −3.2768 rather than the −327.68 its step 10 predicted.** The check is
-unaffected — still negative, still impossible at 6.5× the widest part's range — but anyone running
-that check from the plan's text alone would look for the wrong number. The alternative, `/10`, would
-have put pascals on a channel labelled kPa, which is the class of undocumented divide that
-`0x600`'s own `/1000` already demonstrated.
+the phone-side divide. It was chosen one way, tried on the phone, and reversed the same day.**
+
+**First answer, `/10000`.** RaceChrono's Pressure channel stores kPa, so decipascals reach it
+through ten thousand. That makes the channel *genuinely* kPa and keeps one rule — every Pressure
+channel this logger publishes is kPa after its divide — shared with `0x600`'s `/1000`. The
+alternative, `/10`, puts pascals on a channel labelled kPa, which is the class of undocumented
+divide `0x600`'s own `/1000` already demonstrated. The argument was sound and it lost to a
+measurement.
+
+**What reversed it: the readout.** Entered on the phone, `/10000` puts full scale at 0.05 and the
+45–90 Pa measurands this project exists to resolve at **0.045–0.090**, which the gauge renders as
+practically zero. **The phone is the primary check instrument** — the sentinel check, the
+at-the-car confirmation that a channel is alive, and any eyeball comparison are all done on that
+readout — so a channel nobody can read defeats the purpose of publishing it early. Owner's call,
+2026-09-19: **`/10`**, which puts pascals on the gauge, the unit every requirement in the plan is
+written in.
+
+**Resolution was never the question, and that was settled with data rather than assumed.** The
+worry was that dividing by ten thousand would quantise the recording. It does not: RaceChrono
+stores every sample as a **float64**. `Pressure Front 50` has run `/1000` in production since
+2026-09-11, and its samples in the 2026-09-14 track export come back as `101.151`, `101.154`,
+**`101.15000000000001`** — 8 bytes each, full IEEE-754 precision. A double would need a divide
+around 10¹² before it noticed. So `/10000` cost **nothing** in the `.rcz` and everything on the
+gauge, which is what made the trade one-sided once it was looked at.
+
+**What the reversal costs, and why it is affordable:** an exported column says kPa and contains
+pascals. That is survivable only because it is written down in `README.md`'s packet tables — the
+undocumented version of exactly this is what `0x600` demonstrated. **The SD session file is
+unaffected either way**, carrying raw counts, the returned scale factor and full-resolution pascals,
+none of which pass through the phone.
+
+**One thing the reversal had to drag with it, and it would have failed silently.**
+`Tools/rcz-channels.py` hunts the unsigned-decode sentinel by its *value*, so the pressure entry
+moved from `+3.2768` to `+3276.8`. Had it been missed, the tool would have gone on reporting every
+pressure channel as healthy while checking for a number that can no longer occur. The plan's
+step 7 and step 10 carried the figure too. **Any future change to that divide has to move all
+three**, and the file now says so at the constant.
 
 **A latent gap in `Tools/rcz-channels.py` was found by writing the channels rather than by a
 fault.** The tool checked the unsigned-sentinel decode on `Temperature` slots only, so the six new

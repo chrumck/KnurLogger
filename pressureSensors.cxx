@@ -327,8 +327,10 @@ void writePressureBaseline() {
         getPressureChannelsJson(),
         "continuous differential pressure, temperature compensated, averaged (0x3615), started"
             " once per sensor; each cycle is a mux select plus a 9-byte read",
-        "0.1 Pa/LSB signed on the BLE path, INT16_MIN for no trustworthy reading; raw counts and"
-            " the returned scale factor are in every sample record at full resolution",
+        "0.1 Pa/LSB signed on the BLE path, INT16_MIN for no trustworthy reading; the phone divides"
+            " by 10, so a RaceChrono pressure column is labelled kPa and contains PASCALS and its"
+            " invalid marker is -3276.8; raw counts and the returned scale factor are in every"
+            " sample record here at full resolution and are unaffected by any of that",
         // The same shape as thermalBaseline's note, and for the same reason: recording which PART
         // is on which channel is not deciding which ROLE it serves.
         "the pressure role -> channel mapping is DELIBERATELY NOT RECORDED HERE because it is not"
