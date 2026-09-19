@@ -98,18 +98,22 @@ neither BLE load nor the sealed enclosure.
 **The host setup under `SystemSetup/` has been applied** and the box is key-only over SSH, on
 kernel `6.18.39` / `bluez 5.82-1.1+rpt2` — the upgrade is what made BLE advertising work at all
 (`CLAUDE.history.md` §1.2; the symptom points at the logger and the cause is not in it).
-**The perfboard's sensor zone is assembled**, with the five SDP810s delivered 2026-09-17 and
-**the first fitted to mux channel 0 and reading correctly** (2026-09-18), so an empty I2C
+**The perfboard's sensor zone is assembled and ALL FIVE SDP810s are fitted and reading**
+(2026-09-19), so an empty I2C
 scan is no longer the correct result: the BME280 answers at **`0x77`**, now its specified address,
 the **PCA9548A** mux answers at `0x70` since its `~RESET` was resoldered from header pin 9 to
-pin 11, **`0x25` answers behind mux channel 0**, and the 1-Wire phantoms have stopped.
+pin 11, **`0x25` answers behind each of mux channels 0–4**, and the 1-Wire phantoms have stopped.
 `CLAUDE.md` has the facts to code against; `CLAUDE.history.md` has the diagnoses behind them.
 
-**`P0` is a bench bring-up, not a measurement** — product `0x03020A01` (SDP810-500Pa), serial
-`0x000000009B994E22`, CRC clean, the nominal 60 counts/Pa scale factor returned, and −0.029 Pa mean
-with sd 0.010 Pa on open ports. There is no wand, tube or filter, so nothing has been measured.
-**Do not address mux channels 1–5: their pull-ups are not fitted and probing one hangs the whole
-bus** — `CLAUDE.md` and `Hardware/logger-perfboard-wiring.md` §5.
+**All five are a bench bring-up, not a measurement.** Every product number, serial and scale factor
+was read back over I2C — five distinct serials, CRC clean on identity and measurement, zeros within
+±0.06 Pa on open ports against a 0.1 Pa zero-accuracy spec. A round-robin of all five at 1 Hz ran
+**1 211 transfers with zero refusals, zero exhausted retries and zero CRC failures**, a full
+five-sensor cycle taking **15.4 ms**. There is still no wand, tube or filter, so **nothing has been
+measured**.
+**The ±125 Pa is on channel `P2`, not the specified `P4`** — the board won and the documents were
+corrected; `Hardware/logger-perfboard-wiring.md` §5 is the record.
+**Do not address mux channel 5: its pull-ups are not fitted and probing it hangs the whole bus.**
 
 ---
 
@@ -147,7 +151,7 @@ Read, in this order, before changing anything here:
 
 | Part | Interface | Channels |
 |---|---|---|
-| 5 × Sensirion SDP810 (4 × ±500 Pa, 1 × ±125 Pa) | I2C `0x25` behind a PCA9548A mux at `0x70` | `P0`–`P5` |
+| 5 × Sensirion SDP810 (4 × ±500 Pa on `P0`/`P1`/`P3`/`P4`, 1 × ±125 Pa on **`P2`**) | I2C `0x25` behind a PCA9548A mux at `0x70` | `P0`–`P5` |
 | 4 × DS18B20 | 1-Wire on GPIO4, addressed by 64-bit ROM ID | `temp0`–`temp3` |
 | BME280 | I2C `0x77` on the main bus (amended from `0x76`, 2026-09-09) | enclosure pressure, cavity temperature, humidity |
 
@@ -773,10 +777,14 @@ sealed, and the thermal envelope — want a **hot day**; the sealed configuratio
 data only. **Record where the box was mounted on every session.** Without it a run cannot serve
 either, because a cabin record reads exactly like a cavity one.
 
-**Needing code, no longer a part.** The SDP810 reader and the mux driver. One sensor is fitted on
-channel 0 and reads correctly by hand, so the protocol is settled: stop-continuous `0x3FF9`,
+**Needing code, no longer a part.** The SDP810 reader and the mux driver. All five are fitted and
+read correctly by hand, so the protocol is settled: stop-continuous `0x3FF9`,
 identity `0x367C`/`0xE102`, then **`0x3615` started once** — never per sample — and a 9-byte read
 per cycle carrying differential pressure, temperature and the scale factor with a CRC on each word.
+**`0x3615` is NAK'd if the sensor is already in continuous mode**, measured 2026-09-19 when a test
+harness reissued it every cycle and lost 145 of 150 transfers to it, so the worker must track
+per-sensor state rather than re-arming defensively. Selecting a different mux channel does **not**
+take a sensor out of continuous mode.
 Retain the returned scale factor per sensor rather than hard-coding 60, since the ±125 Pa part
 returns 240. A mux channel switch plus a sensor read are two transfers that must not be interleaved
 with anything else on the bus, and the `i2cBus.cxx` retry covers both. **Iterate a configured list
@@ -791,10 +799,11 @@ staying 0.0 **is the result** — do not "fix" it.
 
 **What is testable on the box today:** the build, config loading, the session writer and its fsync
 cadence, the supply-telemetry worker, a BLE advertiser against a phone, the BME280 at `0x77`, the
-mux at `0x70`, **one real SDP810 at `0x25` behind mux channel 0**, and — via the fake-sysfs harness
-above — every branch of the 1-Wire worker except a real reading, real bus timing and
-`therm_bulk_read`. **What is not:** anything needing more than one SDP810 or a populated mux
-channel other than 0, anything needing a pneumatic input, and a real DS18B20, the four being
+mux at `0x70`, **all five real SDP810s at `0x25` behind mux channels 0–4**, and — via the fake-sysfs
+harness above — every branch of the 1-Wire worker except a real reading, real bus timing and
+`therm_bulk_read`. **A whole pressure worker is now bench-testable end to end.** **What is not:**
+anything needing a pneumatic input or a populated channel 5, anything that has to meet the
+idle-bus refusal on demand (it is bimodal per boot), and a real DS18B20, the four being
 installed on the car.
 
 **Where the rest lives.** `SystemSetup/pi-headless-setup.md` §Work Progress is the authority on

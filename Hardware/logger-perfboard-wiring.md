@@ -11,14 +11,15 @@ been **powered and it powers the Pi**. **No measurement has been taken anywhere 
 §10 step 2 (dummy load) and step 3 (crank transient) were bypassed. Step 4 is **partly met**: the
 Pi has been logged into and reports `throttled=0x0` at idle (2026-09-09), which is the Pi's own
 opinion of its rail and not a meter on it — step 2 stands, and so does the warm full-load re-read.
-**The sensor zone is now assembled** (owner, 2026-09-09), and **the five SDP810s were delivered
-2026-09-17; the first is fitted to mux channel 0 and reads correctly** (2026-09-18 — §5 has its
-product number and serial). Its first bus scan raised three things and **§2 owns all of them**:
+**The sensor zone is now assembled** (owner, 2026-09-09), and **all five SDP810s are fitted and
+read correctly** (2026-09-19 — §5 has every product number, serial and scale factor, read back
+over I2C). A round-robin of all five at 1 Hz ran 1 211 transfers with **zero refusals, zero
+exhausted retries and zero CRC failures**, a full five-sensor cycle taking 15.4 ms. Its first bus scan raised three things and **§2 owns all of them**:
 the BME280 answers at `0x77`, which the owner has **accepted as the specified address**; the mux is
 a **PCA9548A** rather than a TCA9548A, which is harmless; and the mux was **held in reset by a
 mis-soldered `~RESET`**, since resoldered and answering at `0x70`. Figures marked *(verify)* are
 from datasheets or general practice and must be confirmed against the parts in hand.
-**Four mux channels are still empty and their pull-up pairs are not fitted — do not address them**
+**Only channel 5 is now empty, and its `R13`/`R14` are footprints only — do not address it**
 (§5's warning; it hangs the whole bus).
 
 **The HW-384 replaced the MP1584 and absorbed most of the discrete protection chain** (plan
@@ -173,9 +174,9 @@ graph TD
 
     MUX -->|"ch0 + own pull-ups"| P0["SDP810 P0 +/-500 Pa"]
     MUX -->|"ch1 + own pull-ups"| P1["SDP810 P1 +/-500 Pa"]
-    MUX -->|"ch2 + own pull-ups"| P2["SDP810 P2 +/-500 Pa"]
+    MUX -->|"ch2 + own pull-ups"| P2["SDP810 P2 +/-125 Pa"]
     MUX -->|"ch3 + own pull-ups"| P3["SDP810 P3 +/-500 Pa"]
-    MUX -->|"ch4 + own pull-ups"| P4["SDP810 P4 +/-125 Pa"]
+    MUX -->|"ch4 + own pull-ups"| P4["SDP810 P4 +/-500 Pa"]
 
     OW --> D1["DS18B20 temp0"]
     OW --> D2["DS18B20 temp1"]
@@ -223,8 +224,8 @@ liability.
 | `PI1` | Raspberry Pi 4B — the 40-pin header and the USB-C inlet | — |
 | `U2` | **PCA9548A** mux `0x70` — board marked PCA9548A, a functional equivalent of the TCA9548A the parts list names (§2 note 4) | Sensor |
 | `U3` | BME280 `0x77` | Sensor |
-| `U4`–`U7` | SDP810 ±500 Pa — the sensors that plug into `J7`–`J10`, channels **P0–P3** | Off-board |
-| `U8` | SDP810 **±125 Pa** — plugs into `J11`, channel **P4** | Off-board |
+| `U4`–`U7` | SDP810 ±500 Pa — the four ±500 Pa sensors. **As plugged in 2026-09-19 they occupy `J7`, `J8`, `J10` and `J11`, i.e. channels P0, P1, P3 and P4** | Off-board |
+| `U8` | SDP810 **±125 Pa** — **plugged into `J9`, channel P2, as built 2026-09-19** (the build specified `J11`/P4; it is connectorised, so its position is a plug choice and §5 is the record) | Off-board |
 | `R1`–`R10` | 4.7 kΩ channel pull-ups, one pair per populated mux channel | Sensor |
 | `R11` | 2.2 kΩ 1-Wire pull-up | Sensor |
 | `R12` | 10 kΩ mux `~RESET` pull-up | Sensor |
@@ -292,9 +293,9 @@ flowchart LR
 
     U2 -->|"SD0 / SC0"| K0{{"SDA_CH0 / SCL_CH0<br/>R1 + R2 shunt 4k7 to +3V3"}} --> U4["J7 header -> U4<br/>SDP810 +/-500 Pa, channel P0<br/>C7"]
     U2 -->|"SD1 / SC1"| K1{{"SDA_CH1 / SCL_CH1<br/>R3 + R4 shunt 4k7 to +3V3"}} --> U5["J8 header -> U5<br/>SDP810 +/-500 Pa, channel P1<br/>C8"]
-    U2 -->|"SD2 / SC2"| K2{{"SDA_CH2 / SCL_CH2<br/>R5 + R6 shunt 4k7 to +3V3"}} --> U6["J9 header -> U6<br/>SDP810 +/-500 Pa, channel P2<br/>C9"]
+    U2 -->|"SD2 / SC2"| K2{{"SDA_CH2 / SCL_CH2<br/>R5 + R6 shunt 4k7 to +3V3"}} --> U6["J9 header -> U8<br/>SDP810 +/-125 Pa, channel P2<br/>C9"]
     U2 -->|"SD3 / SC3"| K3{{"SDA_CH3 / SCL_CH3<br/>R7 + R8 shunt 4k7 to +3V3"}} --> U7["J10 header -> U7<br/>SDP810 +/-500 Pa, channel P3<br/>C10"]
-    U2 -->|"SD4 / SC4"| K4{{"SDA_CH4 / SCL_CH4<br/>R9 + R10 shunt 4k7 to +3V3"}} --> U8["J11 header -> U8<br/>SDP810 +/-125 Pa, channel P4<br/>C11"]
+    U2 -->|"SD4 / SC4"| K4{{"SDA_CH4 / SCL_CH4<br/>R9 + R10 shunt 4k7 to +3V3"}} --> U8["J11 header -> U7<br/>SDP810 +/-500 Pa, channel P4<br/>C11"]
     U2 -->|"SD5 / SC5"| K5{{"SDA_CH5 / SCL_CH5<br/>R13 + R14 footprints, NOT FITTED"}} --> J12["J12 — channel P5<br/>header wired in full, no sensor"]
 
     H7 -->|OW_DATA| OW{{"1-Wire node<br/>R11 2k2 to +3V3"}}
@@ -346,7 +347,7 @@ wired nodes.
 | 19 | `SCL_CH2` | `U2.SC2`, `R6.b`, `J9.SCL` | |
 | 20 | `SDA_CH3` | `U2.SD3`, `R7.b`, `J10.SDA` | |
 | 21 | `SCL_CH3` | `U2.SC3`, `R8.b`, `J10.SCL` | |
-| 22 | `SDA_CH4` | `U2.SD4`, `R9.b`, `J11.SDA` | `J11` is the ±125 Pa position |
+| 22 | `SDA_CH4` | `U2.SD4`, `R9.b`, `J11.SDA` | Specified as the ±125 Pa position; **as built that part is in `J9`/P2** (§5) — copper unchanged, plug moved |
 | 23 | `SCL_CH4` | `U2.SC4`, `R10.b`, `J11.SCL` | |
 | 24 | `SDA_CH5` | `U2.SD5`, `J12.SDA`, `R13.b` *(footprint)* | Reserved — §3a.6 |
 | 25 | `SCL_CH5` | `U2.SC5`, `J12.SCL`, `R14.b` *(footprint)* | Reserved — §3a.6 |
@@ -514,35 +515,62 @@ final, record it per session in that session's file, and log it at boot alongsid
 serials (plan commissioning item 2). Reassigning a channel is then a tube move plus one line in
 the session mapping — never a relabelled board.
 
-| Mux ch | Channel | Sensor fitted | Product / serial, as read | Tube tails |
-|---|---|---|---|---|
-| SD0/SC0 | **P0** | SDP810 ±500 Pa — **FITTED 2026-09-18** | `0x03020A01` / **`0x000000009B994E22`** | `P0+` / `P0−` |
-| SD1/SC1 | **P1** | SDP810 ±500 Pa — not fitted | record at build | `P1+` / `P1−` |
-| SD2/SC2 | **P2** | SDP810 ±500 Pa — not fitted | record at build | `P2+` / `P2−` |
-| SD3/SC3 | **P3** | SDP810 ±500 Pa — not fitted | record at build | `P3+` / `P3−` |
-| SD4/SC4 | **P4** | SDP810 **±125 Pa** — not fitted; **connectorised, not soldered** | record at build | `P4+` / `P4−` |
-| SD5/SC5 | **P5** | Unpopulated. Reserved position, wired for a sixth sensor. `R13`/`R14` are footprints only. | — | — |
-| SD6–7 | — | Not used. Leave unpopulated. | | |
+**ALL FIVE ARE FITTED AND READ CORRECTLY as of 2026-09-19.** Every product number, serial and
+scale factor below was read back over I2C, not taken from a label. Five distinct serials.
 
-**Read the product number, do not trust the bag.** P0's was read back over I2C on 2026-09-18
-(`0x367C`, `0xE102`, 18 bytes, CRC clean) and `0x03020A01` is the SDP810-500Pa signature;
-`0x03020B01` would be the ±125 Pa part, which is the substitution this column exists to catch. The
-sensor also returned its **60 counts/Pa** scale factor, matching the plan's nominal — read it and
-retain it per sensor rather than hard-coding one, since the ±125 Pa part returns 240.
+| Mux ch | Channel | Sensor fitted | Product / serial, as read | Scale | Tube tails |
+|---|---|---|---|---|---|
+| SD0/SC0 | **P0** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E22` | 60 | `P0+` / `P0−` |
+| SD1/SC1 | **P1** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E19` | 60 | `P1+` / `P1−` |
+| SD2/SC2 | **P2** | SDP810 **±125 Pa** — **connectorised, not soldered** | `0x03020B01` / `0x00000000978B88F8` | **240** | `P2+` / `P2−` |
+| SD3/SC3 | **P3** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E18` | 60 | `P3+` / `P3−` |
+| SD4/SC4 | **P4** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E24` | 60 | `P4+` / `P4−` |
+| SD5/SC5 | **P5** | Unpopulated. Reserved position, wired for a sixth sensor. `R13`/`R14` are footprints only. | — | — | — |
+| SD6–7 | — | Not used. Leave unpopulated. | | | |
 
-> **⚠ NEVER ADDRESS A MUX CHANNEL WHOSE PULL-UP PAIR IS NOT FITTED — IT HANGS THE WHOLE BUS.**
-> Measured the hard way on 2026-09-18: with P0 working, a probe of **channel 1** (empty, `R3`/`R4`
-> not yet fitted) NAK'd, and every subsequent transfer on the **main** bus then failed with
-> `ETIMEDOUT` — the mux, the BME280, everything. `i2cdetect` still listed `0x70` and `0x77`, and
-> `SDA`/`SCL` both measured idle-high, so nothing looked wrong. **A `~RESET` pulse on GPIO17
-> recovered it** (`pinctrl set 17 op dl`, pause, `pinctrl set 17 op dh`). This is §1's "misbehaves
-> as you switch" warning arriving in practice. Two rules follow: a bring-up scan must enumerate
-> only channels whose resistors are in, and **the pressure worker must never sweep channels
-> blindly** — it iterates a configured list of populated channels, and an unconfigured channel is
-> never selected.
+> **⚠ THE ±125 Pa IS ON P2, NOT P4 — THE BUILD SPECIFIED P4 AND THE BOARD DISAGREES.** Every
+> version of this document before 2026-09-19 put it at `J11`/P4, and §3, §3a.1, §3a.3 and net list
+> row 22 have been corrected to match the board. **The board is right and the document was
+> updated**, because the part is connectorised: which header it sits in is a plug choice, not
+> copper, so no net changed and nothing needs unsoldering. **This table is the record.** Anything
+> that still says "the ±125 Pa sits at P4" is stale — and the plan's phase table, which allocates
+> the low range by *role*, was reconciled at the same time.
+
+**Read the product number, do not trust the bag or the header.** The ±125 Pa was identified as
+being on channel 2 by the part itself — `0x03020B01` and a 240 counts/Pa scale factor — before
+anyone looked at the board. That check is the reason the position discrepancy was caught at all,
+and `0x03020A01`/60 on the other four confirms none of them is a mis-picked low-range part.
+**Retain the returned scale factor per sensor; never hard-code 60.**
+
+> **⚠ A FAULTY DOWNSTREAM CHANNEL TAKES THE WHOLE MAIN BUS WITH IT, AND IT LOOKS FINE AT IDLE.**
+> Seen twice, and the second time it was a real fault. Opening a bad channel makes every subsequent
+> transfer on the **main** bus fail with `ETIMEDOUT` — the mux, the BME280, everything — and
+> **a `~RESET` pulse on GPIO17 is the recovery** (`pinctrl set 17 op dl`, pause,
+> `pinctrl set 17 op dh`), which is what `R12` and net list row 12 are for.
+>
+> 1. **2026-09-18, channel 1 empty with `R3`/`R4` unfitted.** Probing an unpopulated channel hung
+>    the bus. **Never address a channel whose pull-up pair is not fitted** — today that means
+>    channel 5 alone.
+> 2. **2026-09-19, channel 1 populated: `SD1` and `SC1` were shorted together at the mux** (owner
+>    found and fixed it). Same symptom exactly.
+>
+> **Both cases are invisible to every cheap check.** `i2cdetect` still listed `0x70` and `0x77`,
+> because quick-write probes to those addresses still got ACKs; and `pinctrl get 2`/`get 3` showed
+> `SDA` and `SCL` **both idle-high** with the bad channel open, so the usual stuck-low signature was
+> absent. That combination — clean scan, both lines high, every transfer failing — is the
+> fingerprint of a downstream segment shorting the two lines *to each other*: at idle both are
+> pulled up and look right, and the fault only appears once `SCL` toggles and drags `SDA` with it.
+> **Check continuity `SDA_CH<n>` ↔ `SCL_CH<n>` before suspecting the sensor.**
+>
+> **Isolate channels with a reset between each when probing**, or one bad channel masks every
+> channel after it — the first sweep on 2026-09-19 stopped dead at channel 1 and reported the
+> remaining three as absent. Two rules follow for code: a bring-up scan enumerates only channels
+> whose resistors are in, and **the pressure worker must never sweep channels blindly** — it
+> iterates a configured list of populated channels, and an unconfigured channel is never selected.
 
 **Range belongs in this table because it is a hardware fact, not a scenario one.** Exactly one
-±125 Pa part exists and it sits at P4. That constrains which roles P4 can serve without
+±125 Pa part exists and **it sits at P2 as built** (see the warning above; P4 was the
+specification). That constrains which roles P2 can serve without
 unsoldering, and nothing else — if a later scheme wants the low range at another location, move
 the *tubes*, not the sensor.
 
@@ -618,7 +646,7 @@ above, and the discarded set is superseded. See `../CLAUDE.history.md` §1.11.
 > pull-up at `R11` carries the loaded 4 × 5 m star as built.
 
 All four are electrically and mechanically identical, so any channel can serve any role — the
-constraint that applies to P4's ±125 Pa range has no thermal equivalent.
+constraint that applies to P2's ±125 Pa range has no thermal equivalent.
 
 ---
 
@@ -716,11 +744,11 @@ pins soldered in; `C12` 100 µF output electrolytic. Not powered or measured.
 **On hand** *(per the plan's inventory — verify condition)*: Pi 4B, microSD, BME280, PCA9548A,
 4 × DS18B20 with 5 m cable. **MP1584 module — superseded by the HW-384, now an unused spare.**
 
-**Delivered 2026-09-17**: 4 × SDP810-500Pa, 1 × SDP810-125Pa. **One ±500 Pa is fitted to mux
-channel 0 and reads correctly** (2026-09-18, §5 has its serial); the other four are not fitted.
-Fit `F1` and `TVS1` and bench the supply into a dummy load **before connecting them** (plan risk
-14; §10 steps 2–3 were bypassed, not passed — and the channel-0 sensor went on ahead of them,
-so that precondition is now bypassed for it too).
+**Delivered 2026-09-17**: 4 × SDP810-500Pa, 1 × SDP810-125Pa. **All five are fitted and read
+correctly** (2026-09-19, §5 has the serials). `F1` and `TVS1` are **still not fitted** and the
+supply has still not been benched into a dummy load, so **plan risk 14's precondition was bypassed
+for all five, not just the first** — §10 steps 2–4 remain owed and are now owed against a board
+that carries every sensor the rig has.
 
 > **⚠ The single SDP810-125Pa must be CONNECTORISED, not hard-soldered** (plan open item 38,
 > closed rev 67e). It is time-shared between two duties in different measurement phases —

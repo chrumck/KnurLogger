@@ -926,3 +926,57 @@ with both lines high and a clean `i2cdetect`**, so neither is evidence against i
 sweep after recovery showed 2 of 12 BME280 reads failing, which looked like the idle-bus fault
 returning and was not — it was the bus settling. Re-measuring properly gave 0 failures in 450
 reads.
+
+## 2026-09-19 — all five sensors on the mux, and a short that looked like an idle-clean bus
+
+**Nothing in this entry is a live instruction.** The live versions are in `CLAUDE.md`, `README.md`
+and `Hardware/logger-perfboard-wiring.md` §5.
+
+All five SDP810s are fitted and read correctly — five distinct serials, CRC clean on identity and
+measurement, nominal 60 and 240 counts/Pa scale factors returned, zeros within ±0.06 Pa on open
+ports, and a 120-cycle round-robin of all five at 1 Hz giving **1 211 transfers with zero refusals,
+zero exhausted retries and zero CRC failures**, a full five-sensor cycle costing 15.4 ms. That is
+identity and liveness on bare sensors; nothing pneumatic exists, so nothing has been measured.
+
+**Channel 1 was a real fault: `SD1` shorted to `SC1` at the mux** (owner found and fixed it).
+Opening the channel took the entire main bus down — mux and BME280 alike, `ETIMEDOUT` on every
+transfer — recoverable only by a `~RESET` pulse on GPIO17.
+
+**The diagnosis is the part worth keeping, because every cheap check cleared the board.**
+`i2cdetect` still listed `0x70` and `0x77`, since quick-write probes to those addresses still got
+ACKs; and `pinctrl get 2`/`get 3` showed `SDA` and `SCL` **both idle-high** with the channel open,
+so the stuck-low signature everyone reaches for was absent. Clean scan, both lines high, every
+transfer failing is not a contradiction — it is the specific fingerprint of the two lines shorted
+**to each other** on a downstream segment, because at idle both are simply pulled up and only the
+first `SCL` edge reveals it. The hypothesis was put that way before the owner opened the board, and
+continuity `SDA_CH<n>` ↔ `SCL_CH<n>` is the one-line check it implies.
+
+**The second lesson is procedural: probe mux channels with a reset between each.** The first sweep
+ran channels in order, hit channel 1, and reported channels 2, 3 and 4 as absent — three healthy
+sensors written off by one bad channel earlier in the loop. Re-running with a `~RESET` pulse before
+every channel found all four and localised the fault in one pass. Any bring-up scan should be
+written that way.
+
+**This is the second time the same symptom has appeared on the same channel** — 2026-09-18 with the
+channel empty and `R3`/`R4` unfitted, 2026-09-19 with it populated and shorted. Different causes,
+identical presentation, and `CLAUDE.md` now carries them as one trap because the recovery and the
+diagnostic are the same.
+
+**The ±125 Pa turned out to be on `P2`, not the specified `P4`.** The board won and the documents
+were corrected; the part is connectorised so no copper changed and nothing was unsoldered. What
+matters here is *how* it was caught: **the part identified itself** by returning product
+`0x03020B01` and a 240 counts/Pa scale factor. Nobody read it off the board, and a reader that
+trusted the header would have recorded a ±125 Pa part as a ±500 Pa one. `CLAUDE.md` now says to
+identify an SDP810 by product number and to retain the returned scale factor per sensor.
+
+**A harness bug worth recording because it mimics a hardware fault.** The first round-robin reissued
+`0x3615` every cycle and lost 145 of 456 transfers, all exhausting the full ten-attempt retry — which
+reads exactly like a degraded bus. The arithmetic gave it away: 145 = 29 remaining cycles × 5
+sensors, so every start-continuous after the first was refused. **`0x3615` is NAK'd if the sensor is
+already in continuous mode, and a mux channel switch does not take it out of that mode.** Re-run
+correctly, the same test produced zero failures. Recovered-versus-exhausted was the tell: the
+idle-bus refusal recovers on attempt two, and these exhausted all ten.
+
+**Open item 44 gained a device count and not an answer.** The round-robin boot was in the
+non-refusing mode, so 1 211 clean transfers say nothing about the deviation. The full-device-count
+test remains owed and can only be taken on a refusing boot.

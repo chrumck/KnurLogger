@@ -59,10 +59,11 @@ narrative in this file.
 
 ## Hardware facts that surprise people
 
-- **The sensor zone is ASSEMBLED** (owner, 2026-09-09), and **the five SDP810s were delivered
-  2026-09-17; the first is fitted to mux channel 0 and reads correctly** — one per mux channel, each channel needing its own
+- **The sensor zone is ASSEMBLED** (owner, 2026-09-09), and **all five SDP810s are fitted and read
+  correctly** (2026-09-19) — one per mux channel, each channel needing its own
   pull-ups, and the single ±125 Pa **connectorised rather than hard-soldered** (plan open
-  item 38). **An empty I2C scan is therefore no longer the correct
+  item 38). **The ±125 Pa is on `P2`, not the specified `P4`** — the board won and the build sheet
+  was corrected; §5 there is the record and carries all five serials. **An empty I2C scan is therefore no longer the correct
   result**, and neither is zero `28-*` devices (history §2.6 for what the acceptance criteria used
   to say). Three facts from the assembled board matter before writing any bus code:
   1. **The BME280 is at `0x77`, and that is the specified address** (owner decision, 2026-09-09,
@@ -146,19 +147,37 @@ narrative in this file.
      no added pull-up (net list rows 10 and 11) and the BME280 breakout's own pull-ups are what
      the bus relies on. **Do not treat the retry as the answer to the physical question**; it is
      what makes the channel work while that question is open (`../ndLouvers/` open item 44).
-- **NEVER ADDRESS A MUX CHANNEL WHOSE PULL-UP PAIR IS NOT FITTED — IT HANGS THE WHOLE BUS**
-  (measured 2026-09-18). With `P0` working on channel 0, one probe of empty channel 1 NAK'd and
-  every subsequent transfer on the **main** bus failed with `ETIMEDOUT` — mux and BME280 alike. The
-  symptoms are deceptive: `i2cdetect` still listed `0x70` and `0x77`, and `pinctrl get 2`/`3`
-  showed `SDA` and `SCL` both idle-high, so nothing read as stuck. **Recovery is a `~RESET` pulse
-  on GPIO17** — `pinctrl set 17 op dl`, pause, `pinctrl set 17 op dh` — which is what `R12` and
-  net list row 12 are for. Four of the five channels are still empty and their `R1`–`R10` pairs are
-  not fitted, and `P5`'s `R13`/`R14` are footprints only. **The pressure worker must iterate a
-  configured list of populated channels and never sweep**, and a bring-up scan must do the same.
-  Build sheet §5.
+- **A FAULTY DOWNSTREAM MUX CHANNEL HANGS THE WHOLE MAIN BUS, AND IT LOOKS PERFECT AT IDLE.**
+  Hit twice on channel 1: **2026-09-18** with the channel empty and `R3`/`R4` unfitted, and
+  **2026-09-19** with it populated and **`SD1` shorted to `SC1` at the mux** (owner found and fixed
+  it). Identical symptom both times — every subsequent transfer on the **main** bus fails with
+  `ETIMEDOUT`, mux and BME280 alike.
+  1. **Every cheap check says the bus is fine.** `i2cdetect` still lists `0x70` and `0x77`, because
+     quick-write probes still get ACKs; and `pinctrl get 2`/`3` show `SDA` and `SCL` **both
+     idle-high**, so the stuck-low signature is absent. **Clean scan + both lines high + every
+     transfer failing is the fingerprint of the two lines shorted to each other downstream** — at
+     idle both are pulled up and look right, and it only bites once `SCL` toggles and drags `SDA`.
+     **Check continuity `SDA_CH<n>` ↔ `SCL_CH<n>` before suspecting the sensor.**
+  2. **Recovery is a `~RESET` pulse on GPIO17** — `pinctrl set 17 op dl`, pause,
+     `pinctrl set 17 op dh` — which is what `R12` and net list row 12 are for.
+  3. **Reset between channels when probing, or one bad channel masks every channel after it.** The
+     first sweep on 2026-09-19 stopped at channel 1 and reported the remaining three as absent;
+     isolating each channel behind a reset found all four of them healthy.
+  4. **Only channel 5 is unpopulated now**, and its `R13`/`R14` are footprints only, so it is the
+     one channel never to address. **The pressure worker must iterate a configured list of
+     populated channels and never sweep**, and a bring-up scan must do the same. Build sheet §5.
 - **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The mux
   is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups downstream, so
   every populated channel has its own pair.
+  **Identify a sensor by its product number, never by which header it is in** — `0x03020A01` is the
+  ±500 Pa part and returns 60 counts/Pa, `0x03020B01` is the ±125 Pa and returns 240. That check is
+  what caught the ±125 Pa being on `P2` rather than the specified `P4`. **Retain the returned scale
+  factor per sensor; never hard-code 60.**
+- **`0x3615` IS NAK'D IF THE SENSOR IS ALREADY IN CONTINUOUS MODE** (measured 2026-09-19). Start
+  continuous measurement **once** per sensor and then only read; a harness that re-armed it every
+  cycle lost 145 of 150 transfers and looked exactly like a failing bus. **Selecting a different mux
+  channel does not take a sensor out of continuous mode**, so the worker must track per-sensor state
+  rather than re-arming defensively on each visit.
 - **A SKIPPED BME280 MEASUREMENT DOES NOT MOVE THE READ-ERROR COUNTER, AND THAT IS CORRECT.**
   Measured once in the field, 2026-09-14. All three `0x600` values go to their sentinels in the
   same cycle — a skipped temperature invalidates pressure and humidity through the shared `t_fine`
