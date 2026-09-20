@@ -118,8 +118,19 @@ pin 11, **`0x25` answers behind each of mux channels 0–4**, and the 1-Wire pha
 was read back over I2C — five distinct serials, CRC clean on identity and measurement, zeros within
 ±0.06 Pa on open ports against a 0.1 Pa zero-accuracy spec. A round-robin of all five at 1 Hz ran
 **1 211 transfers with zero refusals, zero exhausted retries and zero CRC failures**, a full
-five-sensor cycle taking **15.4 ms**. There is still no wand, tube or filter, so **nothing has been
-measured**.
+five-sensor cycle taking **15.4 ms**. At that date there was no wand, tube or filter, so nothing
+had been measured.
+**That changed on 2026-09-20: `P0` ran 53 minutes against the printed calibration bell** through
+two fabricated wands and two filtered 1.5 m lines — 30 511 cycles at 9.589 Hz, **zero read errors,
+zero CRC failures, zero I2C first-attempt failures**, and the four unconnected channels holding
+±0.07 Pa throughout. **It is a bring-up of the reference, not a qualification of a channel**, and it
+discharges nothing in `../ndLouvers/pressure-testing.md` §2 — that file's §3.3 is the record and
+says so at length. The installed rig on the car is still unbuilt.
+**Two follow-up sessions the same evening** (§3.4): §2.3's leak test found **no leak at all** — zero
+sinking in 10 minutes with the full line and no sensor — so the entire 0.32 mL/s bleed is the
+sensor's own bypass and the tubing's viscous loss becomes a first-order error term. The attempt to
+measure that loss by adding 8.6 m of tube **failed**, because the bare bell lolled and had to be
+corrected, and each correction is a positive transient. **No number from §3.4b is a result.**
 **The ±125 Pa is on channel `P2`, not the specified `P4`** — the board won and the documents were
 corrected; `Hardware/logger-perfboard-wiring.md` §5 is the record.
 **Do not address mux channel 5: its pull-ups are not fitted and probing it hangs the whole bus.**
@@ -155,12 +166,14 @@ Read, in this order, before changing anything here:
    cavity BME280, the cold-soak method, clock alignment and every recorded thermal result. Read it
    before changing anything that touches `oneWireProbes.cxx` or `bme280Sensor.cxx`. It owns no
    requirement; Step 0b does.
-1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **Nothing in it is
-   built yet**: the SDP810s arrived 2026-09-17 and all five now read, but no wand is cut, no line
-   installed and no filter tested. **The pressure worker exists as of 2026-09-19 and satisfies
-   none of that file** — it produces the channel, not the measurement. Read it before reading any
-   pressure number as one, and note that the five SDP810s share the I2C bus whose first-transfer
-   refusal is documented above.
+1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **The installed rig
+   is still unbuilt**: no line is on the car, no wand is sited, no hole-plane coordinate recorded,
+   no filter characterised and no ladder run. **What exists is bench hardware** — two wands, two
+   filtered lines and the calibration bell — which delivered pressure to `P0` on 2026-09-20 (§3.3).
+   **The pressure worker exists as of 2026-09-19 and satisfies none of that file** — it produces
+   the channel, not the measurement — and §3.3 qualifies no channel either. Read it before reading
+   any pressure number as one, and note that the five SDP810s share the I2C bus whose
+   first-transfer refusal is documented above.
 1c. `one-wire-probes.md` — the 1-Wire subsystem's traps and standing requirements: the ROM-ID
    bindings, the `28-*` family filter, `therm_bulk_read`, the ~100 s tail a pulled probe leaves,
    the fake-sysfs harness, and the enrollment and offset requirements. **Read it before touching

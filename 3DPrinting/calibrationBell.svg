@@ -304,5 +304,5 @@
 <text x="774" y="1061.6" class="xs">Changing washers means lifting the bell out and re-settling. That is the price of having no bearings, and it is the only thing rev B did better.</text>
 <rect x="1182" y="1130" width="472" height="46" fill="none" stroke="#111" stroke-width="1.4"/>
 <text x="1196" y="1150" class="s b">ndLouvers &#183; Step 0b pressure qualification &#183; reference source</text>
-<text x="1196" y="1166" class="xs">KnurLogger/3DPrinting/calibrationBell.svg &#183; rev F &#183; 2026-09-20 &#183; <tspan class="b">OPTION NOT YET ADOPTED</tspan></text>
+<text x="1196" y="1166" class="xs">KnurLogger/3DPrinting/calibrationBell.svg &#183; rev F &#183; 2026-09-20 &#183; <tspan class="b">ADOPTED &#8212; BUT NOT THE BELL THAT EXISTS: see calibrationBell.md &#167;As built</tspan></text>
 </svg>

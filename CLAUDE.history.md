@@ -1175,3 +1175,60 @@ reference route for the pressure ladder (`../ndLouvers/pressure-testing.md` §2.
 changed nothing about what this repository may decide** — the file owns the fixture's geometry and
 constants and owns no measurement decision, exactly as the build sheet does. **Adopted is not
 built:** no bell exists and nothing has been weighed.
+
+### The bell was built, and three of `calibrationBell.md`'s conclusions did not survive it (2026-09-20)
+
+**Nothing here is a live instruction.** `calibrationBell.md` §"As built" owns the fixture's current
+constants; `../ndLouvers/pressure-testing.md` §3.3 owns the session; open items 55 and 56 in the
+plan own what is undecided.
+
+A bell was printed from `calibrationBell.stl` and ran 53 minutes against logger channel `P0`.
+Three statements this repository had been carrying were superseded by it.
+
+1. **"Adopted is not built: no bell exists and nothing has been weighed."** A bell exists, weighs
+   79 g, and delivered 26–32 Pa. `CLAUDE.md` said the same thing and has been corrected.
+2. **The nominal constants.** `calibrationBell.stl` is a **bare** bell — ID 150.00, wall 0.90, no
+   collar, no ribs, **no graduations**, no rod, no pan — not the rev F the file and drawing
+   describe (ID 148.4, wall 0.80). **`k_d` nominal 0.2122 against 0.2627 as built, 23 %.** The
+   session measured **0.2615 ± 0.013**, 0.1σ from the as-built figure and 1.9σ from the drawing's,
+   which also showed the printed wall came out at 1.00 against 0.90 in its own STL: **a thin wall
+   does not print to nominal, and `k_d` is proportional to it.** The drawing is not withdrawn — it
+   describes a rev F bell nobody has printed — and the file's own "measure the finished part" rule
+   is what caught this.
+3. **"Bare, +0.041 N·m/rad, stable."** The bare bell capsized twice at 49–50 mm immersion and
+   lolled 5–8° at 59–64 mm, which puts `GM` at ≈ −0.1 mm there and ≈ −6 mm at the capsize. The
+   table's probable error is that it takes the righting couple about the **lid plane** instead of
+   the **centre of buoyancy**, worth ~50 mm of righting arm the bell does not have — and the
+   paragraph directly above it already says a constant-pressure source has almost no tilt
+   stiffness, so the prose and the table disagree and the bench agrees with the prose. **The model
+   was deliberately NOT re-derived and the table was NOT rewritten**: that is the owner's call,
+   recorded as plan open item 55. What went into the live file is the operating consequence, **do
+   not run this bell bare**, and a warning that the loaded rows are unverified too.
+
+Also added to the fixture's error budget, which had carried none of them: the **wetted-bell film**
+(2.5 g, 1.2–1.4 Pa, decaying ~80 s after any handling — the owner diagnosed it, and the file's
+before-and-after weighing cannot see it because the film is on the outside), the **skirt meniscus
+force** (0 to ±3.9 Pa, hysteretic, unmeasured), and **tilt** (0.44 Pa at 10°, and silent in the
+record). The measured make-up demand, **0.32 mL/s at ~28 Pa**, went into the operating sequence
+against the file's unmeasured "order 1 mL/s at 500 Pa" — which the session showed cannot be scaled
+from it in either direction, because the loss did not fall as the pressure fell.
+
+The drawing's footer still read **OPTION NOT YET ADOPTED** four revisions after adoption; it now
+names the as-built section instead.
+
+### The bell's bleed turns out to be all sensor, and the line-loss test fails (2026-09-20)
+
+**Nothing here is a live instruction.** `../ndLouvers/pressure-testing.md` §3.4 owns both sessions.
+
+`calibrationBell.md`'s supply estimate — "of order 1 mL/s at 500 Pa" — is **superseded by ~5.5 mL/s**.
+A leak test with the bell's full line, wand and filter connected but the sensor removed showed
+**zero sinking in 10 minutes**, so the whole 0.32 mL/s bleed is the sensor's own bypass and the
+circuit resistance is a measured **8.75 × 10⁷ Pa·s/m³** — 6× below the U-tube figure the old estimate
+came from, which was taken at ten times full scale where the internal channel's flow is not laminar.
+**The consequence for this fixture is that the bell lasts about four minutes per charge at 500 Pa**,
+and the operating sequence now carries both figures.
+
+The follow-up — 8.6 m of added tube, to measure how much of the reading the tubing costs — **failed**,
+because the bare bell lolled and had to be corrected, and each correction is a positive transient.
+**No number from §3.4b belongs in this file.** What it did strengthen is the case already recorded
+here: the bare bell is not usable, and open item 55 has gone from a risk to a blocker.

@@ -1,11 +1,23 @@
 # Liquid-sealed pressure bell — printed reference source
 
-**Status: ADOPTED as the reference route** (owner decision, 2026-09-20). Step 0b's pressure
-qualification will use this bell rather than the water manometer, which is now the documented
-fallback (`../../ndLouvers/pressure-testing.md` §2.2 carries the decision and the reasoning).
-**Adopted is not built:** no bell exists, nothing has been weighed, and no pressure has been
-delivered by one. This is still a fabrication package — it closes no open item and produces no
-calibration — but it is now **the** fabrication package rather than one candidate among several.
+**Status: ADOPTED, BUILT, AND PROVEN TO DELIVER** (owner decision 2026-09-20; first session the
+same day). Step 0b's pressure qualification will use this bell rather than the water manometer,
+which is now the documented fallback (`../../ndLouvers/pressure-testing.md` §2.2 carries the
+decision and the reasoning).
+
+**A bell exists, it is weighed at 79 g, and it ran 53 minutes on `P0` at 26–32 Pa**
+(`../../ndLouvers/pressure-testing.md` §3.3). The force balance holds: the measured `k_d` is
+**0.2615 ± 0.013 Pa/mm** against **0.2627** computed from the as-built geometry — 0.5 %.
+**It still produces no calibration and closes no open item**: one channel, one source, no ladder,
+no repeats, no independent reference. What it produced was the fixture's own constants and four
+error terms this file did not carry.
+
+> **⚠ THE BELL THAT EXISTS IS NOT THE BELL DRAWN BELOW.** It was printed from
+> `calibrationBell.stl`, which is a **bare** bell — plain skirt, plain lid, small central boss,
+> **no collar, no ribs, no graduations, no rod and no pan** — with an **ID of 150.00 and a wall of
+> 0.90** against rev F's ID 148.4 / wall 0.80. **Every nominal constant in this file is therefore
+> wrong for it**, `k_d` by 23 %. Use §"As built" below, and read the rev F constants as what a rev F
+> bell would give.
 
 > **⚠ LIVING IN THIS REPOSITORY CHANGES NOTHING ABOUT WHAT IT MAY DECIDE.** `CLAUDE.md` here is
 > explicit that this repository owns software, host configuration and box-2 hardware, and **owns
@@ -25,6 +37,48 @@ way, and what it can and cannot do.
 
 Printed parts live beside them: `calibrationBell.stl`, `calibrationBellPan.stl`,
 `calibrationBell.3mf` and `pipeStand.stl`.
+
+## As built — the bell that exists, 2026-09-20
+
+**These supersede every nominal figure in this file and on the drawing, for this part.** Geometry
+read directly from `calibrationBell.stl`; wall and ID confirmed on the printed part with calipers;
+`k_d` confirmed independently from the pressure record.
+
+| | STL | printed, measured | rev F nominal |
+|---|---|---|---|
+| OD | 151.80 | 152 | 150.0 |
+| **ID** | **150.00** | **150.0 ± 0.2** | 148.4 |
+| **wall** | 0.90 | **1.00** | 0.80 |
+| skirt, lid to rim | 113.5 | — | 115 |
+| CG above the rim | **71.65** | — | — |
+| features | plain skirt, ~0.9 lid, Ø10 × 7 boss | as STL | collar, 6 ribs, Ø16 × 25 tapped hub |
+| graduations | **none** | **none** | every 5, zero at the rim |
+| mass | 80.7 g at 1.24 | **79 g** weighed, **78 g** slicer | 88 g rod-less |
+
+| constant | **as built** | rev F rod-less nominal |
+|---|---|---|
+| `A_eff` | **17 671 mm²** | 17 296 mm² |
+| `A_wall` | **474 mm²** | 375 mm² |
+| **`k_m`** | **0.5550 Pa/g** | 0.5670 Pa/g |
+| **`k_d`** | **0.2627 Pa/mm** | 0.2122 Pa/mm |
+| `k_d`, measured | **0.2615 ± 0.013 Pa/mm** | — |
+| `ΔP/Δm` at constant volume | **0.5405 Pa/g** (`g/A_o`) | — |
+
+1. **The print over-extruded ~0.1 mm on the wall, outward.** ID still 150.00, OD 151.80 → 152, so
+   `A_eff` and `k_m` are unaffected and only `k_d` moves. Inverting the measured slope gives
+   `A_wall` = 472 mm², a 0.995 mm wall — **0.1σ from the caliper and 1.9σ from the STL**. The
+   printed part, not the model, is the authority, which is what §"Measure the finished part" says.
+2. **Three independent mass figures agree to 2.5 g** — 80.7 g from STL volume at 1.24, 78 g from
+   the slicer, 79 g on the scale. The slicer's does not come from the scale, so **this bounds the
+   scale's span error at about ±1 g = ±0.55 Pa** at the bare-bell working point.
+3. **No graduations were printed**, so `d` is read by eye against a plain skirt. §3.3c measured that
+   as **±1 mm of scatter plus a ~1.7 mm systematic**, against the ±1 mm this file's budget assumes.
+   **Print the graduations, or set `d` against the grounded position**, which is the only repeatable
+   datum this bell currently has.
+4. **A consistent −0.42 ± 0.19 Pa residual remains** after all of the above. It is exactly
+   equivalent to reading `d` 1.6 mm shallow, to 0.75 g of mass, or to a skirt meniscus force at a
+   contact angle near 97°, and **those three cannot be separated by any bare-bell run.** The
+   add-mass test in §"Use it differentially" is what separates them.
 
 > **⚠ REVS A–E ARE SUPERSEDED. DO NOT BUILD ANY OF THEM.**
 > **Rev A** floated the bell free with the masses on a tray on top. It capsizes — confirmed on the
@@ -49,6 +103,12 @@ gives a 23 s time constant, and §2.5 asks for a 20 s plateau.
 A bell does not fight the bleed. It is a **constant-pressure source**: as gas escapes the bell
 sinks, and the pressure — weight over area — does not change. The supply only has to replace what
 the sensor drinks, of order 1 mL/s at 500 Pa.
+**That estimate is superseded: the measured figure is ~5.5 mL/s at 500 Pa**
+(`../../ndLouvers/pressure-testing.md` §3.4a, 2026-09-20). The circuit resistance was measured at
+**8.75 × 10⁷ Pa·s/m³**, 6× below the U-tube figure the 1 mL/s came from — that observation was taken
+at ten times full scale, where the flow in the sensor's internal channel is not laminar. **At 500 Pa
+the bell therefore sinks ~18 mm/min and lasts about four minutes per charge**, and the supply has to
+keep up with 5.5 mL/s.
 
 Its accuracy comes from **mass and diameter**, both measurable at home to better than 0.2 %, rather
 than from a liquid column read against a ruler. That is the other half of the U-tube's problem:
@@ -82,6 +142,23 @@ With 1308 g aboard, rev A's combined CG had to sit within **1.4 mm** of the lid 
 achievable. **Rev F's stability rises with load instead of falling**, because the stabilising mass
 and the applied mass are the same object.
 
+> **⚠ THE +0.041 N·m/rad "BARE, STABLE" ROW IS CONTRADICTED BY THE BENCH** (2026-09-20,
+> `../../ndLouvers/pressure-testing.md` §3.3e). A bare bell on this geometry **capsized twice at an
+> immersion of 49–50 mm and settled at a 5–8° angle of loll at 59–64 mm.** A 5–8° loll on the
+> wall-sided relation `tan θ = √(−2·GM/BM)` with `BM` ≈ 16 mm puts `GM` at **≈ −0.1 mm** — neutral,
+> not stable — and the capsize at 49 mm requires **`GM` ≈ −6 mm**. The bare bell reaches neutral
+> only at an immersion near **60 mm** and improves from there.
+>
+> **The likely cause of the error is the reference plane, and the correction is an owner decision,
+> not an edit I have made.** The table above takes the righting couple about the **lid plane**
+> (`+W·ℓ`, ℓ = the CG below the lid). A metacentric treatment takes it about the **centre of
+> buoyancy**, which on this bell sits **7–14 mm below the water** rather than 45–67 mm above it at
+> the lid — roughly 50 mm of righting arm the bell does not have. The paragraph immediately above
+> this table already says the right thing in words: *"the same property leaves it almost no
+> stiffness in tilt."* **The prose and the table disagree, and the bench agrees with the prose.**
+> Until the model is re-derived, treat the load rows as unverified too, and **do not run this bell
+> bare** — §"What it can and cannot reach" carries the working consequence.
+
 **Do not "improve" this with a fixed ballast.** Stabilising weight below the lid and the pressure
 floor are the *same quantity*. A fixed ballast hung deep enough to give the full-load stiffness
 would need ~333 g of apparent weight at 150 mm, which puts **~190 Pa on the floor** at Ø150 —
@@ -97,6 +174,8 @@ stability, which is exactly what hanging it does.
 - `k_m = g / A_eff` — nominal **0.5672 Pa/g**
 - `k_d = ρ·g·(A_wall + A_rod) / A_eff` — nominal **0.2155 Pa/mm**
 
+**Those two numbers are rev F NOMINAL and are not the bell that exists** — see §"As built", where
+`k_m` is 0.5550 and `k_d` is 0.2627. The formula itself is unchanged; only the constants move.
 Nominal `ID 148.4` with an M3 rod → `A_eff = 17 289 mm²`, `A_wall = 375 mm²`, water at 20 °C.
 **A thread has two areas and they go in different places:** the **major** diameter (7.07 mm²) is
 what the bore removes from the lid; the **pitch** diameter (5.62 mm²) is what displaces water at
@@ -149,6 +228,21 @@ rather than a determination.
 One weighing per material, once ever. After that the arithmetic above is exact, because apparent
 weights add and each ratio applies to any subset. The caliper route is the one to avoid.
 
+### Use it differentially — the one check that removes the degeneracy
+
+`P = k_m·m_app − k_d·d` has three unknowns that all enter as a single constant: the tare mass, the
+`d` datum and the skirt meniscus force. **No absolute reading can separate them**, and 2026-09-20
+left a −0.42 ± 0.19 Pa residual that is equally well explained by any of the three.
+
+**Adding a known mass does separate them.** At constant trapped volume the bell sinks until the
+extra displacement carries the extra weight, and the algebra collapses to
+
+    ΔP = Δm·g / A_o  =  0.5405 Pa/g   (as built, A_o = 18 146 mm²)
+
+exact, with `d`, the tare and the meniscus all cancelling from the difference. **Only the scale's
+span survives**, which is the one term this file already says is the reference. Do this first with
+the reference weights, before any absolute ladder point is taken seriously.
+
 **[`calibrationBellWeighing.svg`](calibrationBellWeighing.svg) is the rig**, and the trick that makes it
 easy is that **you never weigh the object in water — you weigh the water.** Tare a dish on the
 scale, lower the load in from a stand that rests on the bench, and the scale reads the displaced
@@ -190,6 +284,27 @@ Budget at 500 Pa (`m_app` ≈ 906 g), RSS:
 | area, ID to ±0.15 mm | 0.85 Pa | 0.85 Pa | 0.85 Pa |
 | `d` to ±1 mm | 0.22 Pa | 0.22 Pa | 0.22 Pa |
 | **total** | **2.85 Pa = 0.57 %** | **1.32 Pa = 0.26 %** | **1.02 Pa = 0.20 %** |
+
+> **⚠ FOUR TERMS MEASURED ON 2026-09-20 ARE MISSING FROM THAT TABLE, AND AT THE BOTTOM OF THE RANGE
+> THEY DOMINATE IT.** `../../ndLouvers/pressure-testing.md` §3.3 owns the evidence.
+>
+> | term | size | at 500 Pa | at 43 Pa |
+> |---|---|---|---|
+> | **wetted-bell film** after any handling, decaying ~80 s | 2.5 g = **1.4 Pa** | 0.28 % | **3.3 %** |
+> | **skirt meniscus force**, contact angle unknown | 0 to **±3.9 Pa** | 0.78 % | **9 %** |
+> | **tilt**, `P → Mg/(A_eff·cos θ)`, 10° | **0.44 Pa** | 0.09 % | 1.0 % |
+> | **`d` read by eye, no graduations** | ±1 mm scatter **+1.7 mm systematic** | 0.15 % | 1.0 % |
+>
+> **The film is the one that bites in practice** — five replications in one session, and the
+> before-and-after weighing in §"Measure the finished part" **cannot see it**, because that check is
+> for ingress *into* the bell while the film is on the outside, present when you read and gone when
+> you weigh. **Charge through the standpipe so the bell never leaves the water**, and if it must be
+> handled, wait two minutes.
+> **The meniscus term is a band, not a bias** — contact-angle hysteresis means it is not repeatable
+> between settlings, and its sign follows whether the skirt is wetting or not. It is unmeasured.
+> **The tilt term is silent**: the 65 s of record before an observed 5–8° loll was as quiet as any
+> settled stretch, so **no past reading can be audited for it**. Look at the bell before every
+> reading and record that you did.
 
 Three things fall out of that table:
 
@@ -247,7 +362,8 @@ water temperature, so carry it.
 ## Measure the finished part
 
 Print shrinkage does not matter, because nothing here is made *to* the drawing — it is measured
-after printing and the constants recomputed.
+after printing and the constants recomputed. **§"As built" is that measurement for the bell that
+exists, and it is what caught a 23 % error in `k_d`.** Repeat all of it for any new print.
 
 1. Two **perpendicular** inside diameters at the rim: `A_eff = π·d₁·d₂/4 − π·d_rod²/4`. The first
    term is exact for an ellipse, so ovality costs nothing as long as both are measured.
@@ -267,6 +383,20 @@ after printing and the constants recomputed.
 
 Against the SDP810's own **3 % of reading** span accuracy that is roughly a tenfold margin, which
 is what makes the exercise worth doing at all.
+
+> **⚠ THE BARE BELL HAS NO USABLE RANGE, AND THE FLOOR IS NOT WHAT LIMITS IT.** Measured
+> 2026-09-20: it lolls below an immersion of ~60 mm and grounds at 68 mm in the tub as filled, so
+> the whole bare working window is **immersion 60–68 mm, P ≈ 27.1 → 26.1 Pa — about 1 Pa wide.**
+> The 36.3 Pa "rod-less floor" below is a mass-over-area figure and **is not reachable**: the bell
+> tips over before it gets there. **Hang load.** 50 g of washers 150 mm below the lid takes `GM`
+> from ≈0 to **+28 mm** at a working point of ~52 Pa — the fixture is sound, the bare configuration
+> is the broken one, and note 2's "bare is safe / treat the bare point as the only rod-less one" is
+> the opposite of what this bell can do.
+> **Two other limits came out of the same session.** The tub held ~68 mm of water against the
+> **≥180 mm** specified, which is what sets the grounding limit and denies the bell the only depths
+> at which it is stable. And **lifting the bell put −367 Pa on the line** — harmless to the part
+> (P_max 1 bar) but **3× full scale for a ±125 Pa sensor**, so never have one connected to a bell
+> that is being lifted, recharged or straightened.
 
 **The 42.8 Pa floor is the lid, hub, rod and pan, not the skirt.** PLA is only 1.24× the density of water,
 so submerged PLA is nearly weightless and a taller skirt costs almost nothing. Below the floor,
@@ -309,6 +439,11 @@ holds air stubbornly once it starts dry, so tap the rod once under water and it 
 | 3 Pan | flat | trivial |
 
 Wall 0.80 on the skirt is two perimeters at a 0.4 nozzle, no top/bottom layers, no infill.
+**The bell that exists came out at 1.00**, against 0.90 in its own STL and 0.80 here — so **a thin
+wall does not print to its nominal, and `k_d` is proportional to it.** Measure it; do not assume it.
+**Print the graduations.** The existing bell has none, so its immersion depth is read by eye against
+a plain skirt, which measured ±1 mm of scatter plus a ~1.7 mm systematic — the single largest
+avoidable term in §"As built" item 4.
 
 **Airtightness is not an accuracy requirement.** A pinhole costs supply flow, not pressure — the
 pressure is set by weight over area whatever leaks. Do glue the skirt-to-collar joint, because a
@@ -328,14 +463,26 @@ since rev B needed the load centred to 1 mm to keep bearing friction down.
    stiffness to the weight and the error is silent.
 2. **Keep `d` greater than `h = P/ρg`**, 51 mm at 500 Pa. Below that the bell blows out under its
    own rim and the pressure is capped by immersion depth instead of mass.
-3. **Keep the sensor at the height of the bell's water line**, or correct at **0.0118 Pa/mm** of air
-   column. 100 mm is 1.2 Pa, which is 1 % of a 125 Pa point. This applies to every version of this
-   rig and was missing from revs A and B.
+3. **Keep the sensor at the height of the bell's water line**, or correct at **0.0118 Pa/mm** of
+   air column. 100 mm is 1.2 Pa, which is 1 % of a 125 Pa point. This applies to every version of
+   this rig and was missing from revs A and B.
+   > **⚠ THIS CORRECTION MAY DOUBLE-COUNT, AND IT HAS NOT BEEN RE-DERIVED** (plan open item 56). 0.0118 Pa/mm is exactly
+   > `ρ_air·g`, i.e. the full uncancelled air column. But **both sensor ports are at the sensor** —
+   > one fed by an air-filled tube from the bell, the other open to room air — and the two columns
+   > have the same density, so to first order they cancel and the residual is `Δρ·g·Δz`, of order
+   > 0.2 Pa/m for a few kelvin of tube-to-room temperature difference. If that is right the term is
+   > ~50× smaller than stated. **It is quoted as 1 % of a 125 Pa point, so it is worth settling
+   > before it stays in the budget.** Left as written pending an owner decision; it is conservative
+   > either way.
 
 ## The rod-less point, and what it is actually worth
 
 Unscrewing the rod and fitting an M3×6 grub screw in its place gives a **second configuration**
 with its own constants, because removing the rod changes `A_eff` *and* `k_d` together:
+
+**All four constants in the table below are rev F NOMINAL**, and the bell that exists is rod-less
+with `k_m` **0.5550** and `k_d` **0.2627** — see §"As built". The rod-less *row* is the closest
+match to it and is still 23 % out on `k_d`.
 
 | | `k_m` | `k_d` | tare | floor |
 |---|---|---|---|---|
@@ -366,12 +513,31 @@ budget is `K = 0.0104 + 9.807×10⁻⁶·(3076 − 15·m)` with `m` in grams sit
 The bench has already shown that this margin cannot be felt until it goes, so treat the **bare**
 reading as the only rod-less one.
 
+> **⚠ THE BENCH HAS NOW SHOWN SOMETHING WORSE, AND IT INVERTS THE ADVICE ABOVE.** On 2026-09-20 a
+> **bare, unloaded, rod-less** bell capsized twice and lolled 5–8° with nothing at all on the lid
+> (`../../ndLouvers/pressure-testing.md` §3.3e, plan open item 55). The `0 g → +0.041 N·m/rad` row
+> is the same figure the main stability table gives, and **it is contradicted by the same
+> measurement** — so this table cannot be trusted either, and **"treat the bare reading as the only
+> rod-less one" is the opposite of what this bell can do: the bare reading is the one that cannot
+> be taken.** The model check this section describes is still worth having; it needs a bell that
+> stays upright, which means hanging load.
+
 ## Operating sequence
 
-1. Feed air through the standpipe from a syringe or a pump with a bleed.
+1. Feed air through the standpipe from a syringe or a pump with a bleed. **Never lift the bell to
+   recharge it** — that is what leaves the 1.4 Pa film, and the standpipe exists to avoid it.
+   Measured demand: **0.32 mL/s at ~28 Pa, rising to ~5.5 mL/s at 500 Pa** (2026-09-20). **A leak
+   test with the sensor removed showed zero sinking in 10 minutes**, so essentially all of it is the
+   sensor's bypass rather than a leak in the bell or its lines. Unsupplied, the bell sags
+   **0.19–0.3 Pa/min** at 28 Pa, which is **0.7–1.0 mm/min of sinking**.
 2. **Nothing has to be pumped to a commanded pressure.** Read `m_app` and `d` at the moment the
    sensor is read, and record where it landed — §2.4's ladder values are targets to land near.
-3. Tap the bell before every reading to free seal stiction.
+   **Within 30 s**: at 0.8 mm/min a two-minute gap is 1.6 mm = 0.4 Pa.
+2a. **Look at the bell and record that it is upright.** A 5–8° lean is invisible in the data and
+   worth a few tenths of a pascal; see the tilt row in the budget.
+2b. **After any contact, wait two minutes** for the film to drain before pairing anything.
+3. Tap the bell before every reading to free seal stiction. **This counts as contact** — it costs
+   you the two minutes in 2b, and on a bare bell at low immersion it can put it over.
 4. Changing washers means lifting the bell out and re-settling. That is the price of having no
    bearings, and it is the one thing rev B did better.
 5. Dry the parts after use, and re-measure the ID if they have soaked for hours. PLA is hygroscopic

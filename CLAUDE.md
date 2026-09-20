@@ -32,8 +32,20 @@ narrative in this file.
   2026-09-20), and the same rule applies to it as to the build sheet: living here lets it own the
   fixture's geometry and constants, and lets it own no measurement decision. **Adoption did not
   move that boundary** — what accuracy is demanded of it still belongs to `../ndLouvers/` Step 0b
-  and `pressure-testing.md` §2.2. **Adopted is not built:** no bell exists and nothing has been
-  weighed. **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
+  and `pressure-testing.md` §2.2. **IT IS NOW BUILT AND HAS DELIVERED PRESSURE** (2026-09-20) —
+  79 g, 53 minutes on `P0` at 26–32 Pa, `k_d` measured to 0.5 % of the as-built figure
+  (`../ndLouvers/pressure-testing.md` §3.3). **Two traps came out of that and both live in
+  `calibrationBell.md` §"As built":** the bell that exists is **not** the rev F bell drawn — ID
+  150.00 and wall 0.90 against 148.4/0.80, so **every nominal constant in that file is wrong for
+  it, `k_d` by 23 %** — and the **bare bell is metacentrically unstable** across its whole
+  reachable depth range, having capsized twice and lolled once on the bench, which contradicts that
+  file's own "+0.041 N·m/rad, bare, stable" row.
+  **A third trap came the same evening:** a leak test with the full line but no sensor showed **zero
+  sinking in 10 minutes**, so the whole bleed is the sensor's own bypass, the circuit resistance is
+  **8.75 × 10⁷ Pa·s/m³** and that file's "order 1 mL/s at 500 Pa" is really **~5.5 mL/s**. The
+  attempt to measure the tubing's share of the loss **failed** because the bare bell had to be
+  corrected mid-run — **no number from `../ndLouvers/pressure-testing.md` §3.4b is a result.**
+  **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
   pair that used to be in `ndLouvers/3DPrinting`** — those were deleted rather than moved,
   because they were older files under colliding names; git history still has them.
 - **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
