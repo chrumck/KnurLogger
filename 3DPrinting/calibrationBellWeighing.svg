@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 1070" width="1480" height="1070" font-family="Helvetica,Arial,sans-serif">
+<defs>
+<pattern id="bench" width="9" height="9" patternTransform="rotate(45)"
+         patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="0" y2="9" stroke="#8b929a" stroke-width="1.4"/></pattern>
+<style>
+ .o{fill:none;stroke:#111;stroke-width:1.9;stroke-linejoin:round}
+ .e{fill:none;stroke:#111;stroke-width:0.8}
+ .w{fill:#bcd9f0;stroke:#3a7fb5;stroke-width:1.2}
+ .met{fill:#7d858e;stroke:#111;stroke-width:1}
+ .pla{fill:#3d4248;stroke:#111;stroke-width:1}
+ .cal{fill:#fff;stroke:#111;stroke-width:1.6}
+ .pan{fill:none;stroke:#aab1ba;stroke-width:1}
+ text{fill:#111;font-size:13.5px}
+ .s{font-size:12.5px} .xs{font-size:11.5px} .b{font-weight:700}
+ .h1{font-size:18px;font-weight:700;letter-spacing:.4px}
+ .h2{font-size:15px;font-weight:700}
+ .num{font-size:12px;font-weight:700;text-anchor:middle}
+</style></defs>
+<rect width="1480" height="1070" fill="#ffffff"/>
+<rect x="10" y="10" width="1460" height="1050" fill="none" stroke="#111" stroke-width="2"/>
+<text x="30" y="44" class="h1">HYDROSTATIC WEIGHING &#8212; you never weigh the object in water, you weigh the WATER</text>
+<text x="30" y="65" class="s">The buoyant force on a submerged object has an equal and opposite reaction on the liquid, so the scale under the dish reads it directly. No below-balance hook and no special balance. Two ways to hold the load; the method below is the same for both.</text>
+<line x1="30" y1="78" x2="1450" y2="78" stroke="#111" stroke-width="1"/>
+<rect class="pan" x="20" y="96" width="470" height="516"/>
+<text x="250" y="122" text-anchor="middle" class="h2">A &#8212; ON A THREAD</text>
+<text x="250" y="142" text-anchor="middle" class="xs">0.3 mm fishing line, laced straight through the washer bores</text>
+<rect x="30" y="500" width="440" height="16" fill="url(#bench)" stroke="#111" stroke-width="1.6"/>
+<rect class="o" x="150" y="444" width="210" height="56" rx="5" fill="#eef0f2"/>
+<rect x="166" y="453" width="72" height="24" fill="#1d2b1d" stroke="#111"/>
+<text x="202" y="471" text-anchor="middle" fill="#7dfb7d" font-size="14" font-family="monospace">117.3</text>
+<path class="o" d="M175,338 L175,444 L335,444 L335,338"/>
+<rect class="w" x="177" y="356" width="156" height="86"/>
+<rect class="o" x="410" y="176" width="22" height="324" fill="#eef0f2"/>
+<rect class="o" x="370" y="484" width="90" height="16" fill="#dfe3e7"/>
+<rect class="o" x="225" y="176" width="207" height="16" fill="#eef0f2"/>
+<line x1="245" y1="192" x2="245" y2="434" stroke="#111" stroke-width="1"/>
+<rect class="met" x="205" y="386" width="80" height="9"/>
+<rect class="met" x="205" y="396" width="80" height="9"/>
+<rect class="met" x="205" y="406" width="80" height="9"/>
+<rect class="met" x="205" y="416" width="80" height="9"/>
+<rect class="pla" x="199" y="428" width="92" height="7"/>
+<path class="e" d="M237,356 L254,356" stroke-width="2.2"/>
+<circle class="cal" cx="478" cy="484" r="11"/>
+<text x="478" y="488" class="num" font-size="12">1</text>
+<circle class="cal" cx="280" cy="300" r="11"/>
+<text x="280" y="304" class="num" font-size="12">2</text>
+<circle class="cal" cx="352" cy="400" r="11"/>
+<text x="352" y="404" class="num" font-size="12">3</text>
+<circle class="cal" cx="352" cy="432" r="11"/>
+<text x="352" y="436" class="num" font-size="12">4</text>
+<circle class="cal" cx="142" cy="352" r="11"/>
+<text x="142" y="356" class="num" font-size="12">5</text>
+<circle class="cal" cx="126" cy="472" r="11"/>
+<text x="126" y="476" class="num" font-size="12">6</text>
+<path class="e" d="M467,484 L460,484 M273,310 L256,352 M341,400 L286,400 M341,432 L292,432 M153,352 L175,352 M137,472 L164,472"/>
+<rect class="pan" x="510" y="96" width="470" height="516"/>
+<text x="740" y="122" text-anchor="middle" class="h2">B &#8212; ON THE BELL&#8217;S OWN ROD</text>
+<text x="740" y="142" text-anchor="middle" class="xs">rigid, cannot swing, and the pan is already on it</text>
+<rect x="520" y="500" width="440" height="16" fill="url(#bench)" stroke="#111" stroke-width="1.6"/>
+<rect class="o" x="640" y="444" width="210" height="56" rx="5" fill="#eef0f2"/>
+<rect x="656" y="453" width="72" height="24" fill="#1d2b1d" stroke="#111"/>
+<text x="692" y="471" text-anchor="middle" fill="#7dfb7d" font-size="14" font-family="monospace">117.3</text>
+<path class="o" d="M665,362 L665,444 L825,444 L825,362"/>
+<rect class="w" x="667" y="380" width="156" height="62"/>
+<rect class="o" x="900" y="176" width="22" height="324" fill="#eef0f2"/>
+<rect class="o" x="860" y="484" width="90" height="16" fill="#dfe3e7"/>
+<rect class="o" x="715" y="176" width="207" height="16" fill="#eef0f2"/>
+<rect class="o" x="716" y="156" width="38" height="36" fill="#dfe3e7"/>
+<rect class="met" x="729" y="164" width="12" height="270"/>
+<rect class="met" x="695" y="386" width="80" height="9"/>
+<rect class="met" x="695" y="396" width="80" height="9"/>
+<rect class="met" x="695" y="406" width="80" height="9"/>
+<rect class="met" x="695" y="416" width="80" height="9"/>
+<rect class="pla" x="689" y="428" width="92" height="7"/>
+<path class="e" d="M727,380 L744,380" stroke-width="2.2"/>
+<circle class="cal" cx="968" cy="484" r="11"/>
+<text x="968" y="488" class="num" font-size="12">1</text>
+<circle class="cal" cx="770" cy="324" r="11"/>
+<text x="770" y="328" class="num" font-size="12">2</text>
+<circle class="cal" cx="842" cy="400" r="11"/>
+<text x="842" y="404" class="num" font-size="12">3</text>
+<circle class="cal" cx="842" cy="432" r="11"/>
+<text x="842" y="436" class="num" font-size="12">4</text>
+<circle class="cal" cx="632" cy="376" r="11"/>
+<text x="632" y="380" class="num" font-size="12">5</text>
+<circle class="cal" cx="616" cy="472" r="11"/>
+<text x="616" y="476" class="num" font-size="12">6</text>
+<path class="e" d="M957,484 L950,484 M763,334 L746,376 M831,400 L776,400 M831,432 L782,432 M643,376 L665,376 M627,472 L654,472"/>
+<text x="30" y="634" class="h2">THE CALLOUTS, SAME ON BOTH</text>
+<circle class="cal" cx="42" cy="652" r="9"/>
+<text x="42" y="656" class="num" font-size="11">1</text>
+<text x="60" y="656" class="xs">The stand rests on the BENCH &#8212; never on the scale, the dish, or the bench surface the scale sits on. If it touches, you are weighing the stand.</text>
+<circle class="cal" cx="42" cy="670" r="9"/>
+<text x="42" y="674" class="num" font-size="11">2</text>
+<text x="60" y="674" class="xs">A mark at the waterline &#8212; scribed on the rod, taped on the line. <tspan class="b">The blank reading uses the SAME mark.</tspan></text>
+<circle class="cal" cx="42" cy="688" r="9"/>
+<text x="42" y="692" class="num" font-size="11">3</text>
+<text x="60" y="692" class="xs">The stack FULLY under, touching nothing: not the bottom, not the walls, not the rim.</text>
+<circle class="cal" cx="42" cy="706" r="9"/>
+<text x="42" y="710" class="num" font-size="11">4</text>
+<text x="60" y="710" class="xs">The PLA pan goes in too. Measure it rather than assuming it &#8212; note 7.</text>
+<circle class="cal" cx="42" cy="724" r="9"/>
+<text x="42" y="728" class="num" font-size="11">5</text>
+<text x="60" y="728" class="xs">A SHALLOW dish, not a tall beaker: less thread or rod under water, so the blank stays a small correction, and less chance of fouling a wall.</text>
+<circle class="cal" cx="42" cy="742" r="9"/>
+<text x="42" y="746" class="num" font-size="11">6</text>
+<text x="60" y="746" class="xs">Tared to zero BEFORE anything goes in, so the reading is displacement and nothing else.</text>
+<rect class="pan" x="988" y="96" width="452" height="516"/>
+<text x="1000" y="126" class="h1">THE METHOD</text>
+<text x="1000" y="156" class="s b">1.</text>
+<text x="1022" y="156" class="s"><tspan class="b">Weigh the load dry</tspan> &#8212; washers, pan, nut: everything that hangs permanently submerged. That is m_dry.</text>
+<text x="1000" y="186" class="s b">2.</text>
+<text x="1022" y="186" class="s"><tspan class="b">Dish of water on the scale. TARE to zero.</tspan></text>
+<text x="1000" y="216" class="s b">3.</text>
+<text x="1022" y="216" class="s"><tspan class="b">BLANK:</tspan> lower the bare thread (or the bare rod) to the mark. Read B.</text>
+<text x="1000" y="246" class="s b">4.</text>
+<text x="1022" y="246" class="s"><tspan class="b">Re-tare</tspan>, fit the load, lower to the SAME mark. Read L.</text>
+<text x="1000" y="276" class="s b">5.</text>
+<text x="1022" y="276" class="s"><tspan class="b">m_disp = L &#8722; B</tspan>, and <tspan class="b">m_app = m_dry &#8722; m_disp</tspan>.</text>
+<rect x="1000" y="304" width="424" height="118" fill="#f4f6f8" stroke="#111" stroke-width="1.4"/>
+<text x="1014" y="326" class="h2">Take the blank only if the scale can see it</text>
+<text x="1014" y="348" class="xs">Thread, 0.3 mm line: B &#8776; 0.014 g = 0.008 Pa. Rod, &#216;3: B &#8776; 0.10 g</text>
+<text x="1014" y="364" class="xs">= 0.06 Pa. <tspan class="b">On a 1 g scale both are invisible &#8212; skip it.</tspan> Take it</text>
+<text x="1014" y="380" class="xs">only at 0.1 g or finer, where it also cancels a hook, a bag or a</text>
+<text x="1014" y="396" class="xs">soaked knot. At 1 g a CARRIER still matters, though: a wire hook or</text>
+<text x="1014" y="412" class="xs">a mesh bag displaces grams. Lace the washers onto the line.</text>
+<text x="1000" y="454" class="h2">WHICH ONE</text>
+<text x="1000" y="476" class="xs"><tspan class="b">Thread</tspan> if you want the smallest correction: a thin line is nearly</text>
+<text x="1000" y="492" class="xs">invisible to the scale, and the washers lace onto it through their own</text>
+<text x="1000" y="508" class="xs">&#216;13 bores, so there is no carrier to account for.</text>
+<text x="1000" y="524" class="xs"><tspan class="b">Rod</tspan> if you want the load to sit still. It cannot swing into a wall,</text>
+<text x="1000" y="540" class="xs">the pan is already fitted, and the depth mark is easy to hit twice.</text>
+<text x="1000" y="556" class="xs">Its larger blank is exactly cancelled, so the choice is ergonomics.</text>
+<text x="30" y="782" class="h2">WHAT TO WATCH</text>
+<text x="30" y="804" class="s b">1.</text>
+<text x="52" y="804" class="xs">The stand must be mechanically separate from the scale. This is the one mistake that ruins the reading without looking wrong.</text>
+<text x="30" y="821" class="s b">2.</text>
+<text x="52" y="821" class="xs">Contact with the dish transfers weight &#8212; bottom, walls and rim all count. A thread lets the load swing, so let it settle and watch the load, not the display.</text>
+<text x="30" y="838" class="s b">3.</text>
+<text x="52" y="838" class="xs"><tspan class="b">Lace the washers on the line itself; do not use a hook or a mesh bag.</tspan> A carrier is a second material with its own displacement, and you would</text>
+<text x="30" y="855" class="s b"></text>
+<text x="52" y="855" class="xs">end up measuring the ratio of washers-plus-carrier, which is not a thing you need. If you must use one, blank it with the carrier fitted and empty.</text>
+<text x="30" y="872" class="s b">4.</text>
+<text x="52" y="872" class="xs"><tspan class="b">THE SCALE IS THE REFERENCE, AND ITS SPAN MATTERS MORE THAN ITS RESOLUTION.</tspan> P scales with the scale&#8217;s gain, so an unchecked span goes</text>
+<text x="30" y="889" class="s b"></text>
+<text x="52" y="889" class="xs">straight through: 0.57 % of reading at 500 Pa unchecked, against 0.26 % checked to &#177;0.1 %, and 0.20 % on a 0.1 g scale. Buy one calibration</text>
+<text x="30" y="906" class="s b"></text>
+<text x="52" y="906" class="xs">weight, not a better scale, and check it near the working mass. Even unchecked, this is 5&#215; better than the part&#8217;s own 3 % span spec.</text>
+<text x="30" y="923" class="s b">5.</text>
+<text x="52" y="923" class="xs">Leave no VISIBLE bubble. At 1 g resolution twenty 3 mm bubbles come to 0.17 Pa and are invisible, but a single 1 cm&#179; one is a whole division.</text>
+<text x="30" y="940" class="s b">6.</text>
+<text x="52" y="940" class="xs">Re-tare between the blank and the load: water evaporates and scales drift.</text>
+<text x="30" y="957" class="s b">7.</text>
+<text x="52" y="957" class="xs"><tspan class="b">PRINT THE PAN SOLID.</tspan> A 1 cm&#179; internal void is 1 g of buoyancy = 0.57 Pa, and a void that slowly floods moves the tare with nothing to show it.</text>
+<text x="30" y="974" class="s b"></text>
+<text x="52" y="974" class="xs">On a 1 g scale, DO NOT weigh the pan&#8217;s displacement: 16 g read to &#177;1 g is &#177;0.57 Pa and it is a CONSTANT offset. Compute it as m_dry/1.24</text>
+<text x="30" y="991" class="s b"></text>
+<text x="52" y="991" class="xs">instead &#8212; PLA density is good to ~3 %, so &#177;0.27 Pa, twice as good. And weigh 24 washers rather than 12 for the ratio: it halves that term.</text>
+<text x="30" y="1008" class="s b">8.</text>
+<text x="52" y="1008" class="xs">Record the water temperature: it moves m_disp by 0.04 % over 10&#8211;30 &#176;C, which is negligible, but &#167;2.2 asks for it anyway.</text>
+<rect x="1000" y="1000" width="424" height="44" fill="none" stroke="#111" stroke-width="1.4"/>
+<text x="1014" y="1020" class="s b">ndLouvers &#183; pressure bell &#183; apparent-mass calibration</text>
+<text x="1014" y="1036" class="xs">KnurLogger/3DPrinting/calibrationBellWeighing.svg &#183; 2026-09-20</text>
+</svg>

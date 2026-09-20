@@ -25,6 +25,16 @@ narrative in this file.
   changed nothing about what it may decide**: it is still subordinate to Step 0b, and a
   disagreement between the two is still resolved in the plan. Owning the build sheet is not owning
   a measurement decision.
+- **`3DPrinting/` holds every printed part for both boxes** (moved here from `ndLouvers`
+  2026-09-20, which now has none). Enclosure, DS18B20 stalks, boom tip, and the
+  **calibration bell** for the pressure ladder — `calibrationBell.md` with `calibrationBell.svg`
+  and `calibrationBellWeighing.svg`. **The bell is an OPTION that has not been adopted**, and
+  the same rule applies to it as to the build sheet: living here lets it own the fixture's
+  geometry and constants, and lets it own no measurement decision. Whether that reference is
+  used at all, and what accuracy is demanded of it, stay with `../ndLouvers/` Step 0b and
+  `pressure-testing.md` §2.2. **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
+  pair that used to be in `ndLouvers/3DPrinting`** — those were deleted rather than moved,
+  because they were older files under colliding names; git history still has them.
 - **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
   sit alongside this one. Relative links between them work on disk and break on a git host. Do not
   "fix" them by copying content across; a duplicated requirement is a requirement that will drift.
@@ -186,6 +196,19 @@ narrative in this file.
   re-arm costs `SDP810_START_SETTLE_US` and is paid only on that path. **Do not "simplify" it into
   an unconditional re-arm**, and do not treat a NAK there as a fault — it is the expected answer
   from a part that never lost the mode.
+- **`0x3615`'s "AVERAGING" IS NOT AN AVERAGE OF THE READ INTERVAL, AND THE DATASHEET'S "PREVENTS
+  ALIASING" IS ABOUT A FASTER READER THAN THIS ONE** (datasheet §5.2, read 2026-09-19). `average
+  till read` returns the arithmetic mean of every internal sample since the last read **only for
+  reads faster than 25 ms**. Past that it switches to exponential smoothing, `S_n = α·x_n +
+  (1−α)·S_n−1` with **α = 0.05** applied to the ~2000 Hz internal samples — a **10 ms** time
+  constant. At the worker's 100 ms period each sample therefore describes the **preceding ~10 ms**,
+  not the preceding 100 ms, and the 90 ms in between is not represented in the record at all.
+  1. **This is a measurement property, not a defect, and the decision is not this repository's.**
+     `../ndLouvers/` open item 54 owns it. Do not change the read rate or add software averaging to
+     "fix" it without that decision.
+  2. **Do not conflate it with the bus-warmth item above.** Reading faster would incidentally keep
+     the bus warm, and that must never become the argument for doing it — open item 44 is a hardware
+     question and reaching for a faster rate would bury it. They are separate items on purpose.
 - **A 10 Hz PRESSURE CYCLE DOES NOT KEEP THE I2C BUS WARM** (2026-09-19). A five-sensor cycle costs
   16–18 ms, so at a 100 ms period the bus is **idle for ~85 ms between cycles** — well past the
   10 ms that triggers the first-transfer refusal. So on a refusing boot the pressure worker meets it
