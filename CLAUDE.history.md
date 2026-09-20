@@ -1115,3 +1115,63 @@ hand would have passed review unseen — the one fault class that file exists to
 `(pid, channelId)` is the check. **Sorting the array was considered and rejected**: the committed
 file is the export verbatim minus `localUuid`, and re-import has never been tested against any other
 shape, so normalising it would trade a reviewable diff for an untested restore path.
+
+## 2026-09-20 — the box is accepted as operational, and the bring-up programme is retired unperformed
+
+**Owner decision, taken in `../ndLouvers/` and recorded here because it retires work this
+repository's build sheet was carrying.** `../ndLouvers/CFD-Learning-Plan.md` risk 14, Step 0b
+item 5 and open item 1a-ii own it; `CFD-Learning-Plan.history.md` §1 item 39f holds the full
+reasoning for each retired check.
+
+**What was retired.** Build-sheet §10 **steps 2, 3, 5 and 6** are closed **unperformed** — the
+dummy-load bench with a meter at `TP2`, the crank-transient watch, and the mux/BME280/DS18B20
+bring-up checks. `TVS1` (load-dump clamp) will **not be fitted** and has left §9's bill of
+materials, along with `C1`. **`F1` is NOT among the retirements — it is FITTED**, at the car's
+fuse box (see below). Plan item 5.3's continuous-draw measurement is
+dropped, so the ~275 mA / 3.3–5 Ah estimate in `CLAUDE.md` is now permanent and must be labelled
+as an estimate wherever it is quoted.
+
+**The grounds.** This is a test-and-research installation rather than a production one, and the
+board has since run a **38.09-hour continuous session** and two track days with the Pi and all
+five SDP810s fitted and reading correctly. **The accepted consequence is explicit: a supply fault
+destroys the whole rig.**
+
+**Three things to know before "fixing" any of this.**
+
+1. **The BYPASSED markers in §10 are now a record, not a task list.** They were live work through
+   rev 104 and read exactly the same; only the banner above them says otherwise. An agent
+   scheduling step 2 because it is marked bypassed would be re-opening a closed decision.
+2. **`F1` IS FITTED AND WAS NEVER RETIRED — at the car's fuse box**, upstream of any cable routed
+   to the logger, which is the source-end position it always specified (owner, correcting the same
+   day, 2026-09-20). **An earlier draft of this entry listed it among the retirements and stated
+   the feed run was permanently unfused; both are withdrawn as factually wrong.** The argument it
+   satisfies: the module's onboard 1.5 A fuse protects everything downstream of itself and nothing
+   upstream, so without `F1` the cabin-to-cavity feed run would be unfused over its whole length
+   against a chafe-to-chassis short — a **fire** risk rather than a hardware-loss one, which is why
+   it was argued separately from `TVS1` and called non-negotiable. **So when the entry above says
+   a supply fault destroys the whole rig, that means a fault inside the rig: the feed run itself
+   is protected.**
+3. **One thing §10 steps 5–6 carried is NOT retired.** Open item 44's full-device-count test is a
+   hardware question about the idle-bus refusal, not a bring-up step, and it still wants a
+   **refusing boot** — every run with all five sensors fitted has landed on a non-refusing one.
+   Keep logging `i2cFirstAttemptFailures` with every pressure session and state the mode, or a
+   transfer-error investigation has no way back to whether the bus was refusing.
+
+**Open item 48 closed with them, as permanently unanswerable.** The `0x604` byte 1 sticky-5 latch
+is still real and still dated to the first 13.2 s of boot on 2 of 10 boots; what closed is the
+margin figure behind it, since `TP2` will never be read. **What would reopen it is behavioural:**
+the live throttle bits or the `rpi_volt` comparator moving *during* a run, rather than latching at
+boot. Nothing has ever done that across 38 hours including all track running.
+
+**Open item 52 was dropped the same day**, so the `T_aft` band-edge question is settled by
+acceptance rather than by measurement: the probe runs to 101.25 °C, its accuracy above 85 °C will
+not be bounded and the probe assembly's own temperature rating will not be checked. **Treat every
+`T_aft` sample above 85 °C as an indication rather than a measurement, permanently, and do not
+open a task to characterise it.** `one-wire-probes.md`'s `powerOnDefault` requirement is
+unaffected — open item 53 is a software-behaviour question and stays open.
+
+**And `3DPrinting/calibrationBell.md` is now ADOPTED rather than an option.** The bell is the
+reference route for the pressure ladder (`../ndLouvers/pressure-testing.md` §2.2). **Adoption
+changed nothing about what this repository may decide** — the file owns the fixture's geometry and
+constants and owns no measurement decision, exactly as the build sheet does. **Adopted is not
+built:** no bell exists and nothing has been weighed.

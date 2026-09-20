@@ -7,10 +7,12 @@ disagreement back to the plan rather than resolving it at the bench.
 **Status: power zone built and powered; the Pi runs on it; nothing measured.** The supply is
 soldered — an **HW-384 buck module** (`U1`) with its USB-A port removed and pins fitted, plus a
 100 µF output electrolytic (`C12`) — per the owner, 2026-09-07, who judges it sufficient. It has
-been **powered and it powers the Pi**. **No measurement has been taken anywhere on the board:**
-§10 step 2 (dummy load) and step 3 (crank transient) were bypassed. Step 4 is **partly met**: the
-Pi has been logged into and reports `throttled=0x0` at idle (2026-09-09), which is the Pi's own
-opinion of its rail and not a meter on it — step 2 stands, and so does the warm full-load re-read.
+been **powered and it powers the Pi**. **No measurement has ever been taken anywhere on the board, and none ever will be:**
+§10 step 2 (dummy load) and step 3 (crank transient) were bypassed in 2026-09-07 and **CLOSED
+UNPERFORMED on 2026-09-20** with the rest of the qualification programme (plan risk 14). The only
+rail evidence there is, or will be, is the Pi's own opinion of it: `throttled=0x0` at idle
+(2026-09-09). **One part of that programme was completed rather than retired: `F1` is fitted at
+the car's fuse box**, so the feed run is protected.
 **The sensor zone is now assembled** (owner, 2026-09-09), and **all five SDP810s are fitted and
 read correctly** (2026-09-19 — §5 has every product number, serial and scale factor, read back
 over I2C). A round-robin of all five at 1 Hz ran 1 211 transfers with **zero refusals, zero
@@ -25,11 +27,14 @@ from datasheets or general practice and must be confirmed against the parts in h
 **The HW-384 replaced the MP1584 and absorbed most of the discrete protection chain** (plan
 commissioning item 5): onboard reverse-polarity protection, a 1.5 A input fuse and a 300 W TVS on
 the 5 V output retire `RP1`, `D2`, `F2`, `L1`, `C3` and `C4`, and the fixed 4.8–5.2 V output
-retires the trim-pot procedure entirely. Three things are **not** retired: `F1` at the source end
-(safety — the onboard fuse protects nothing upstream of itself; **an external input fuse will be
-fitted**, owner 2026-09-07), `TVS1` against load dump (the module states no absolute-maximum
-input, and the owner has accepted that exposure), and every measurement in §10 steps 2–4 — which
-were bypassed, not passed.
+retires the trim-pot procedure entirely. **Since 2026-09-20 most of the remainder is retired
+too:** `TVS1` against load dump and every measurement in §10 steps 2–3 are **closed unperformed**
+by owner decision (plan risk 14), so the input has **no clamp against load dump** and that exposure
+is accepted permanently. **`F1` is the exception and it is FITTED** — at the **car's fuse box**,
+upstream of any cable routed to the logger, which is the source-end position it always specified.
+**So the feed run is protected over its whole length**, and the fire-risk argument that made `F1`
+a different case from `TVS1` is satisfied rather than waived. Step 4's logged telemetry stands and
+is now the only rail check.
 
 ---
 
@@ -154,7 +159,7 @@ net list and the pre-power checks — and §4 is a subset of it for the Pi heade
 graph TD
     subgraph PWR["Power — keep physically separate, item 5.5"]
         V12["12 V CONSTANT, not accessory<br/>via existing grommet, item 1e"]
-        FUSE["F1 fuse at source<br/>STILL REQUIRED"]
+        FUSE["F1 fuse at source<br/>FITTED - car fuse box"]
         PROT["TVS1 24-26 V<br/>NOT FITTED - owner decision"]
         BUCK["U1 HW-384 buck - BUILT<br/>fixed 4.8-5.2 V, nothing to set<br/>onboard rev-pol + 1.5 A fuse + out TVS"]
         CAP["C12 100 uF output - BUILT"]
@@ -208,7 +213,7 @@ liability.
 | Ref | Part | Zone |
 |---|---|---|
 | `J2` | 12 V input, 2-pin polarised, from the cabin feed (item 1e) | Power |
-| `F1` | Fuse + holder, **at the source end**, sized to the feed — **decided and outstanding**: an external input fuse will be fitted (owner, 2026-09-07). The module's onboard 1.5 A fuse protects nothing upstream of itself | Power (in cabin) |
+| `F1` | Fuse + holder, **at the source end**, sized to the feed — **FITTED, at the car's fuse box** (owner, confirmed 2026-09-20; plan item 5.2). The module's onboard 1.5 A fuse protects nothing upstream of itself, which is why this one exists; with it at the fuse box the whole cabin-to-cavity run sits behind it | Power (car fuse box) |
 | `RP1` | **Retired** — reverse-polarity protection is onboard `U1` | — |
 | `TVS1` | Transient clamp, ~24–26 V standoff — **not fitted, owner decision** (§3a.5 item 8) | Power |
 | `C1` | Input bulk electrolytic, ≥35 V rated — **optional, not fitted**, pairs with `TVS1` | Power |
@@ -238,7 +243,8 @@ liability.
 | `J12` | 4-pin SDP810 header, P5, unpopulated | Sensor |
 | `TP1`–`TP5` | Test points: `V12_PROT`, `V5_RAW`, `V5_RAW` again (`TP3` — `V5_FILT` is retired, §3a.4 row 7), `+3V3`, `GND` | Both |
 
-`TP1`–`TP3` are not garnish: §10 steps 2 and 3 qualify the supply into a dummy load and through a
+`TP1`–`TP3` were not garnish — **§10 steps 2 and 3 are retired unperformed (2026-09-20), so the
+pads are now unused.** They were to qualify the supply into a dummy load and through a
 crank event before the Pi exists on this board, and they are where the meter goes.
 
 ### 3a.2 Power chain
@@ -246,7 +252,7 @@ crank event before the Pi exists on this board, and they are where the meter goe
 ```mermaid
 flowchart LR
     SRC["Constant 12 V, not accessory<br/>as built 2026-09-10; cranking dips lower"]
-    SRC -->|V12_RAW| F1["F1<br/>external input fuse<br/>at the SOURCE end<br/>DECIDED - not yet fitted"]
+    SRC -->|V12_RAW| F1["F1<br/>external input fuse<br/>at the car fuse box<br/>FITTED"]
     F1 --> JP{{"V12_PROT — TP1"}}
     JP --- TVS1["TVS1<br/>24-26 V standoff<br/>to GND_PWR<br/>NOT FITTED - owner decision"]
     JP --- C1["C1 bulk 35 V<br/>to GND_PWR<br/>optional, not fitted"]
@@ -326,8 +332,9 @@ wired nodes.
 
 | # | Net | Nodes | Notes |
 |---|---|---|---|
-| 1 | `V12_RAW` | `J2.+12V`, `F1.a` | 2-core from the cabin, item 1e. `F1` is an **external input fuse, decided but not yet fitted** — until it is, `J2.+12V` runs straight to row 3 |
+| 1 | `V12_RAW` | `J2.+12V`, `F1.a` | 2-core from the cabin, item 1e. **`F1` is FITTED at the car's fuse box** (2026-09-20), upstream of this whole run, so everything from the tap onward sits behind it |
 | 2 | `V12_FUSED` | **Retired** | `RP1` is onboard `U1`, so no node remains between `F1` and `U1.IN+`. Merged into row 3 |
+
 | 3 | `V12_PROT` | `F1.b`, `TVS1.a`, `C1.+`, `U1.IN+`, `TP1.1` | **`TVS1` and `C1` are not fitted** (§3a.5 item 8). As built this net is `J2.+12V` → `U1.IN+` plus `TP1` |
 | 4 | `GND_PWR` | `J2.GND`, `TVS1.k`, `C1.-`, `U1.IN-`, `U1.OUT-`, `C12.-`, `J1.GND` | Power-zone pour |
 | 5 | `V5_RAW` | `U1.OUT+`, `C12.+`, `J1.VBUS`, `TP2.1`, `TP3.1` | **The whole output side is one node now.** `U1`'s output is fixed, so there is no pot to set — the meter still goes here, to *record* the output against the Pi's 4.63 V flag (plan item 5.4) |
@@ -413,13 +420,15 @@ this, something is wired wrong; do not simply accept it.
    above 24 V. `TVS1` (~24–26 V standoff, e.g. SMBJ24A or P6KE24A), optionally with `C1`, is the
    one part still worth adding; it is a single component across `V12_PROT` and `GND_PWR`. The
    owner has accepted the supply as built without it, so this is recorded as **exposure, not a
-   blocker** — plan item 5.1 owns the decision.
+   blocker** — plan item 5.1 owns the decision, closed 2026-09-20: `TVS1` will not be fitted.
 
-   **`F1` is a different argument and it is not optional — and it is settled.** The onboard fuse
-   protects everything downstream of itself and nothing upstream, so the whole run from the tap
-   to the wheel-well cavity would be unfused. That is a fire risk in a car, not a hardware-loss
-   risk, which is why it was never negotiable. **An external input fuse will be fitted** (owner,
-   2026-09-07); it is an outstanding part, not an open question (plan item 5.2).
+   **`F1` is a different argument, and it is SATISFIED rather than accepted.** The onboard fuse
+   protects everything downstream of itself and nothing upstream, so without `F1` the whole run
+   from the tap to the wheel-well cavity would be unfused — a **fire risk in a car**, not a
+   hardware-loss risk, which is why it was argued separately from `TVS1` and called
+   non-negotiable. **It is FITTED, at the car's fuse box** (owner, confirmed 2026-09-20; plan item
+   5.2), upstream of any cable routed to the logger. **Do not read the 2026-09-20 retirements as
+   covering it** — `TVS1` was accepted as exposure, `F1` was installed.
 9. **Wire sizes.** `V12_RAW` from the cabin and the `J1` pigtail carry the whole logger current —
    0.5 mm² / 20 AWG minimum, and the pigtail is the one to be fussy about. **This matters more
    now, not less:** the old 5.1 V trim existed to cover pigtail drop, and a fixed-output module
@@ -724,7 +733,8 @@ Use parasitic-power mode for the DS18B20s under no circumstances: the plan speci
 
 Three zones, driven by plan items 5.5 and 1b:
 
-1. **Power zone** — `J2`, `F1`'s cable, `U1` and `C12`, plus `TVS1`/`C1` if fitted.
+1. **Power zone** — `J2`, the fused feed cable from `F1` at the car's fuse box, `U1` and `C12`.
+   `TVS1`/`C1` are not fitted and will not be.
    Put this at one end with its own ground pour, `GND_PWR`. **That pour's only tie to the sensor
    side is `J1`'s ground conductor, through the Pi** (§3a.4) — do not add a board-level link
    between the two pours. Item 5.4: the victims of buck noise are the I2C bus and the 1-Wire
@@ -752,10 +762,11 @@ pins soldered in; `C12` 100 µF output electrolytic. Not powered or measured.
 4 × DS18B20 with 5 m cable. **MP1584 module — superseded by the HW-384, now an unused spare.**
 
 **Delivered 2026-09-17**: 4 × SDP810-500Pa, 1 × SDP810-125Pa. **All five are fitted and read
-correctly** (2026-09-19, §5 has the serials). `F1` and `TVS1` are **still not fitted** and the
-supply has still not been benched into a dummy load, so **plan risk 14's precondition was bypassed
-for all five, not just the first** — §10 steps 2–4 remain owed and are now owed against a board
-that carries every sensor the rig has.
+correctly** (2026-09-19, §5 has the serials). `TVS1` was never fitted and the supply was never
+benched into a dummy load, so **plan risk 14's precondition was bypassed for all five, not just
+the first** — and on **2026-09-20 the owner retired it rather than repaying it**, so §10 steps 2–3
+are closed unperformed. **`F1` is fitted**, at the car's fuse box. Nothing on the supply side
+remains to buy.
 
 > **⚠ The single SDP810-125Pa must be CONNECTORISED, not hard-soldered** (plan open item 38,
 > closed rev 67e). It is time-shared between two duties in different measurement phases —
@@ -774,15 +785,19 @@ decoupling.
 
 | Item | Ref | For | Status |
 |---|---|---|---|
-| Fuse + holder, sized to the feed | `F1` | Source-side protection, item 5.2 | **Decided, outstanding.** An external input fuse will be fitted (owner, 2026-09-07) |
-| TVS, ~24–26 V standoff (SMBJ24A / P6KE24A) | `TVS1` | Load-dump clamp, item 5.1 | **Owner decision.** The one gap the module leaves; accepted as exposure for now |
-| Bulk input capacitance, ≥35 V | `C1` | Item 5.1 | Optional partner to `TVS1` |
 | USB-C power pigtail | `J1` | Item 5.4 feed path | **In use** (owner, 2026-09-07) |
 | Perfboard, headers, 3-core cable for probe runs | `J2`–`J12` | Assembly | |
 | Resistors: 10 × 4.7 kΩ, 1 × 2.2 kΩ, 1 × 10 kΩ | `R1`–`R12` | §6 | |
 | Spare resistors: 2 × 4.7 kΩ, 1 × 2.2 kΩ, 4 × ~100 Ω | `R13`–`R15`, 1-Wire series | Contingency stock, not fitted — §3a.5 items 5 and 6, §3a.6 | |
 | Capacitors: 7 × 100 nF, 1 × 10 µF | `C5`–`C11`, `C13` | §6 — sensor zone only now | |
-| Test-point pins or pads, 5 | `TP1`–`TP5` | §3a.7 and §10 steps 2–3 | |
+| Test-point pins or pads, 5 | `TP1`–`TP5` | §3a.7 only — §10 steps 2–3 are retired, so `TP1`–`TP3` have no remaining consumer | |
+
+**Fitted, not to buy:** `F1`, the source-side fuse — **at the car's fuse box** (owner, confirmed
+2026-09-20), upstream of any cable routed to the logger.
+
+**Retired unperformed — do not buy** *(owner, 2026-09-20; plan risk 14)*: `TVS1` load-dump clamp
+and its optional partner `C1`. **The argument for them is not withdrawn and is kept in §3a.5
+item 8**; the input has no clamp against load dump and that exposure is accepted.
 
 ---
 
@@ -791,20 +806,40 @@ decoupling.
 Do not deviate from this order. Risk register 14 is a single-supply-kills-everything risk, so
 the supply is qualified alone, first, and the expensive parts go on last.
 
-1. **Build the power zone only. DONE** *(owner, 2026-09-07)* — `U1` and `C12` are soldered; `F1`
-   and `TVS1`/`C1` are outstanding per §9. The §3a.7 power rows were not run on the bare board;
-   that opportunity has passed, since the board is now powered and populated.
-2. **~~Measure the output into a dummy load~~ — BYPASSED** *(owner, 2026-09-07)*: the supply was
-   powered and the Pi connected without it. **Still do the measurement**, now in place: meter at
-   `TP2` under load, and again at the Pi's USB-C end. There is no pot to set — the HW-384 is
-   fixed-output — so this is *verification and a number*: confirm ~5 V rather than a mis-solder,
-   and **write the value down**, because it is the margin against the 4.63 V flag that a fixed
-   module cannot be trimmed to fix (plan item 5.4). See §7 check 2.
-3. **~~Transient-check the supply before it ever sees the Pi~~ — BYPASSED** *(owner,
-   2026-09-07)*. Still worth running, and still looking for the same two things: the cranking dip
-   that reboots a logger mid-session, and — because `TVS1` is not fitted — any sign that
-   switch-off or load-dump transients reach the output (§3a.5 item 8). **Unplug the Pi and run it
-   into a dummy load** if practical; that recovers most of what doing it in this order gave away.
+> **⚠ STEPS 2, 3, 5 AND 6 ARE CLOSED UNPERFORMED — OWNER DECISION, 2026-09-20.** The electrical
+> qualification and bring-up programme is retired rather than owed. **`F1` is NOT part of this: it
+> is fitted, at the car's fuse box** (step 1). **Do not schedule any of it,
+> and do not read the BYPASSED markers below as outstanding work** — they are the record of what
+> was skipped, kept because the reasoning is worth having, not a task list.
+> **The grounds:** this is a test-and-research installation, not a production one. The board has
+> since run a **38.09-hour continuous session** and two track days with the Pi and all five
+> SDP810s fitted and reading correctly, and the owner judges that enough. **The accepted
+> consequence is that a supply fault destroys the whole rig** — a fault inside the rig, that is;
+> the feed run itself is fused at the car's fuse box.
+> `../../ndLouvers/CFD-Learning-Plan.md` risk 14 and Step 0b item 5 own the decision; its §7.1
+> open item 1a-ii is the closure record and `CFD-Learning-Plan.history.md` §1 holds what each
+> retired check was for.
+
+1. **Build the power zone only. DONE** *(owner, 2026-09-07)* — `U1` and `C12` are soldered.
+   **`F1` IS FITTED, at the car's fuse box** (owner, confirmed 2026-09-20), so the feed conductor
+   is protected over its whole length. **`TVS1`/`C1` will NOT be fitted** (2026-09-20) and have
+   left the §9 list; the input has no load-dump clamp and that is accepted. The §3a.7 power rows
+   were not run on the bare board; that opportunity has passed, since the board is now powered and
+   populated.
+2. **~~Measure the output into a dummy load~~ — BYPASSED 2026-09-07, then CLOSED UNPERFORMED
+   2026-09-20.** The supply was powered and the Pi connected without it, and the measurement will
+   now never be taken. **What is permanently given up:** there is no number for what the rail sits
+   at, at `TP2` or at the Pi's USB-C end, so the margin against the Pi's 4.63 V undervoltage flag
+   is unknown — and a fixed-output HW-384 has no pot to trim it with. **That margin is not
+   academic:** plan open item 48 measured the rail crossing that flag on roughly 2 boots in 10
+   during power-on inrush. See §7 check 2 for what the check was.
+3. **~~Transient-check the supply before it ever sees the Pi~~ — BYPASSED 2026-09-07, then CLOSED
+   UNPERFORMED 2026-09-20.** It looked for two things and neither will be looked for: the cranking
+   dip that reboots a logger mid-session, and — because `TVS1` is not fitted, though `F1` is — any
+   sign that switch-off or load-dump transients reach the output (§3a.5 item 8). **The cranking half has one
+   piece of evidence in its favour and it is not a substitute:** plan open item 48 dated the
+   undervoltage latch to the first 13.2 s of *boot*, never mid-session, across 38 hours of running
+   including all track running.
 4. **Add the Pi alone**, through `J1`. **Partly done** — the Pi is powered from the module, but
    there has been no login, so the acceptance is untested. Boot, then **`vcgencmd get_throttled`
    (`0x0` is clean; bit 0 = undervoltage now, bit 16 = it has occurred)** and
@@ -813,7 +848,7 @@ the supply is qualified alone, first, and the expensive parts go on last.
    refutes the margin from step 2. If it flags, the fix is the pigtail and connectors, not the
    module.
 5. **Build the sensor zone, run the remaining §3a.7 rows, then add the mux and BME280.**
-   **DONE.** Assembled 2026-09-09; both devices answer (`0x70` and `0x77`) since the `~RESET`
+   **DONE** (build); **its bring-up checks CLOSED UNPERFORMED 2026-09-20.** Assembled 2026-09-09; both devices answer (`0x70` and `0x77`) since the `~RESET`
    resolder, and as of 2026-09-10 the **BME280 is read end to end** — chip ID `0x60`, calibration
    block read, 300 valid cycles out of 300 with zero read errors. The scan on 2026-09-09 returned
    **`0x77` only**, not the `0x70` and `0x76` this step expected. §2's measured note owns both discrepancies: the
@@ -833,7 +868,10 @@ the supply is qualified alone, first, and the expensive parts go on last.
    SDP810s, delivered 2026-09-17: they sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux, and a
    mux channel switch followed by a sensor read is two transfers of which the first is the one
    after idle.
-6. **Add the four DS18B20s** *(plan item 2 of the thermal section)*, **one probe at a time** —
+6. **Add the four DS18B20s** *(plan item 2 of the thermal section)* — **done in practice, and this
+   step's remaining checks CLOSED UNPERFORMED 2026-09-20**; all four are enrolled and the loaded
+   star reads CRC-clean. The build rule below stands for any future probe: **one probe at a
+   time** —
    cable colours vary by vendor and a reversed supply destroys the probe (§3a.5 item 4). All four
    must then enumerate together.
    **This is no longer bench work: the probes are installed on the car** (owner, 2026-09-09) on
@@ -880,8 +918,8 @@ the supply is qualified alone, first, and the expensive parts go on last.
    session record, not a channel name (§5a).
 10. **Only then** commission against the plan: item 2's boot identification and CRC, item 3's
     compensation start, item 4's logging fields, item 5a's BLE link check, item 5b's SD logging.
-    Item 5.3's continuous-draw measurement and thermal derating belong here too — the figure
-    step 2 used was an expectation, and this is where the real load exists to measure.
+    **Item 5.3's continuous-draw measurement and thermal derating were DROPPED 2026-09-20** and do
+    not belong here any more — the ~275 mA figure stays an estimate permanently.
 
 **Stop and go back to the plan at step 10.** Everything up to there is assembly; commissioning
 is a plan activity with acceptance criteria this file does not restate.

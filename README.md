@@ -26,7 +26,11 @@ apart. `T_aft` peaks at **101.25 °C** and spends 2 351 samples above 85 °C in 
 heat-soak stretches, which is outside the part's ±0.5 °C band and is a real finding rather than an
 erratum. The "every read error happened parked" observation survives and now has a mechanism: it is
 the pit soak driving the aft probe through the threshold. `CLAUDE.md` and `one-wire-probes.md` own
-the trap; `../ndLouvers/` open items 52 and 53 own the decisions.
+the trap. **`../ndLouvers/` open item 52 was DROPPED on 2026-09-20** — the band-edge accuracy will
+not be bounded and the probe assembly's own rating will not be checked, the owner having accepted
+the risk of losing the probe — so **every `T_aft` sample above 85 °C is permanently an indication
+rather than a measurement.** Open item 53, the detector's inability to tell a hot probe from a
+reset one, is still open.
 
 **The undervoltage latch is dated.** `0x604` byte 1 reads **5** on every sample —
 `undervoltage` and `throttled` latched since boot — while the live bits and the `rpi_volt`
@@ -34,7 +38,11 @@ comparator read 0 throughout. No `.rcz` could date it; the SD file does. `sticky
 already 5 in the baseline record at `bootUs` **13.17 s**, so both bits were earned **within 13.2 s
 of kernel boot** and never moved across 38 hours. Two of ten boots carry it, so it is an
 intermittent power-on transient — item 5.4's supply-margin question, not a cranking dip.
-`../ndLouvers/` open item 48.
+**`../ndLouvers/` open item 48 is CLOSED as permanently unanswerable** (2026-09-20): the `TP2` and
+Pi-end rail measurements that would have turned "sometimes crosses the flag" into a margin figure
+were retired unperformed with the rest of the electrical qualification programme. **The finding
+stands; the margin behind it is an accepted unknown.** What would reopen it is behavioural — the
+live bits or the comparator moving *during* a run rather than latching at boot.
 
 **Eight BME280 measurements were skipped, not one** — the extra seven fell between recorded
 fragments, which is why the `.rcz` showed one. Each carried the specified signature exactly.
@@ -942,11 +950,23 @@ lived in the backup that way until it was replaced; `systemctl is-active KnurLog
 
 ## Next
 
+> **⚠ THE BOX IS ACCEPTED AS OPERATIONAL** (owner, 2026-09-20). The electrical qualification and
+> bring-up programme — `TVS1`, the dummy-load bench, the `TP2` and Pi-end rail readings, the
+> crank watch and build-sheet §10 steps 2, 3, 5 and 6 — is **retired unperformed** (**`F1` is not
+> among them: it is fitted, at the car's fuse box**), on the grounds
+> that this is a test-and-research installation whose supply has run a 38.09-hour continuous
+> session and two track days with every sensor fitted and reading correctly. **The accepted
+> consequence is that a supply fault destroys the rig.** `../ndLouvers/` risk 14 and open item
+> 1a-ii own the decision. **Nothing in this repository should carry any of it as outstanding.**
+
 **Needing a drive, not code.** Commissioning item 5.7's under-load supply telemetry still wants
-duration, a hot ambient, and the five SDP810s actually drawing. Items 1c and 1d — ventilated versus
-sealed, and the thermal envelope — want a **hot day**; the sealed configuration has cool-evening
-data only. **Record where the box was mounted on every session.** Without it a run cannot serve
-either, because a cabin record reads exactly like a cavity one.
+duration, a hot ambient, and the five SDP810s actually drawing — and since the `TP2` measurement
+was retired, **this telemetry is the only rail evidence there will ever be**, so read it as a
+monitor rather than a qualification. Item 1d — the thermal envelope — wants a **hot day**; the
+sealed configuration has cool-evening data only. **Item 1c is closed**: the enclosure stays sealed
+with added external protection (owner, 2026-09-20). **Record where the box was mounted on every
+session.** Without it a run cannot serve either, because a cabin record reads exactly like a
+cavity one.
 
 **Needing the phone — nearly done.** The pressure channels and their status fields are **entered
 and verified** (owner, 2026-09-19): the sentinel check passed with the sensors disconnected, every

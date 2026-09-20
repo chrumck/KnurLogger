@@ -1,8 +1,11 @@
 # Liquid-sealed pressure bell — printed reference source
 
-**Status: an OPTION, not an adopted decision.** The reference-setup route for Step 0b's pressure
-qualification is undecided (`../../ndLouvers/pressure-testing.md` §2.2), so nothing in that file
-points here yet. This is a fabrication package, not a requirement, and it closes no open item.
+**Status: ADOPTED as the reference route** (owner decision, 2026-09-20). Step 0b's pressure
+qualification will use this bell rather than the water manometer, which is now the documented
+fallback (`../../ndLouvers/pressure-testing.md` §2.2 carries the decision and the reasoning).
+**Adopted is not built:** no bell exists, nothing has been weighed, and no pressure has been
+delivered by one. This is still a fabrication package — it closes no open item and produces no
+calibration — but it is now **the** fabrication package rather than one candidate among several.
 
 > **⚠ LIVING IN THIS REPOSITORY CHANGES NOTHING ABOUT WHAT IT MAY DECIDE.** `CLAUDE.md` here is
 > explicit that this repository owns software, host configuration and box-2 hardware, and **owns

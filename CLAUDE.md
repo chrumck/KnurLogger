@@ -28,11 +28,12 @@ narrative in this file.
 - **`3DPrinting/` holds every printed part for both boxes** (moved here from `ndLouvers`
   2026-09-20, which now has none). Enclosure, DS18B20 stalks, boom tip, and the
   **calibration bell** for the pressure ladder — `calibrationBell.md` with `calibrationBell.svg`
-  and `calibrationBellWeighing.svg`. **The bell is an OPTION that has not been adopted**, and
-  the same rule applies to it as to the build sheet: living here lets it own the fixture's
-  geometry and constants, and lets it own no measurement decision. Whether that reference is
-  used at all, and what accuracy is demanded of it, stay with `../ndLouvers/` Step 0b and
-  `pressure-testing.md` §2.2. **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
+  and `calibrationBellWeighing.svg`. **The bell is the ADOPTED reference route** (owner,
+  2026-09-20), and the same rule applies to it as to the build sheet: living here lets it own the
+  fixture's geometry and constants, and lets it own no measurement decision. **Adoption did not
+  move that boundary** — what accuracy is demanded of it still belongs to `../ndLouvers/` Step 0b
+  and `pressure-testing.md` §2.2. **Adopted is not built:** no bell exists and nothing has been
+  weighed. **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
   pair that used to be in `ndLouvers/3DPrinting`** — those were deleted rather than moved,
   because they were older files under colliding names; git history still has them.
 - **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
@@ -265,8 +266,11 @@ narrative in this file.
   reported for the 2026-09-13 track day are withdrawn. `T_aft` peaks at **101.25 °C** and puts
   2 351 samples above 85 °C, so this is a band the aft probe lives in rather than an edge case.
   **The reason code sends a reader to the power and the pull-ups, and that is the cost** — it is a
-  diagnosis the data cannot support. `one-wire-probes.md` owns the requirement and
-  `../ndLouvers/` open items 52 and 53 own the decisions.
+  diagnosis the data cannot support. `one-wire-probes.md` owns the requirement; **`../ndLouvers/`
+  open item 53 owns the remaining decision, and open item 52 was DROPPED on 2026-09-20** — the aft
+  probe's band-edge accuracy will not be bounded and its assembly rating will not be checked, the
+  owner having accepted the risk of losing it. **So treat every `T_aft` sample above 85 °C as an
+  indication rather than a measurement, permanently**, and do not open a task to characterise it.
 - **The whole 1-Wire path is in [`one-wire-probes.md`](one-wire-probes.md)**, split out of this
   file on 2026-09-15: the ROM-ID bindings, the mandatory `28-*` family filter, `therm_bulk_read`
   and the two conditions that make it convert, the ~100 s tail a pulled probe leaves behind, the
@@ -557,7 +561,11 @@ The platform has already been the culprit once and the logger looked guilty (his
      against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
      in, i.e. a flat battery.** Estimated, not measured; plan item 5.3 still owes the real figure.
      **That estimate predates the five SDP810s, which were drawing nothing in every session on
-     record**, and it predates the sixth worker. Neither has been measured.
+     record**, and it predates the sixth worker. **Neither will be measured** — `../ndLouvers/`
+     Step 0b item 5.3 was dropped on 2026-09-20 with the rest of the electrical qualification
+     programme, so this stays an estimate permanently. **Label it as one wherever it is quoted**;
+     the practical rule it supports — a fuse left in for a week is a flat battery — does not need
+     a figure to be true.
   **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is the fuse
   being pulled, or a cranking dip. Repeated hard cuts are the durability risk worth knowing: one
   costs at most the last second, but doing it daily for a season is the classic route to a corrupt
