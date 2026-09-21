@@ -42,9 +42,11 @@ narrative in this file.
   file's own "+0.041 N·m/rad, bare, stable" row.
   **A third trap came the same evening:** a leak test with the full line but no sensor showed **zero
   sinking in 10 minutes**, so the whole bleed is the sensor's own bypass, the circuit resistance is
-  **8.75 × 10⁷ Pa·s/m³** and that file's "order 1 mL/s at 500 Pa" is really **~5.5 mL/s**. The
-  attempt to measure the tubing's share of the loss **failed** because the bare bell had to be
-  corrected mid-run — **no number from `../ndLouvers/pressure-testing.md` §3.4b is a result.**
+  **2.29 × 10⁸ Pa·s/m³** and that file's "order 1 mL/s at 500 Pa" is optimistic. The attempt to
+  measure the tubing's share **failed** on a bare bell (§3.4b — **no number from it is a result**)
+  and **succeeded once ballast was hung** (§3.5, 2026-09-21): **the line loss is 5.1 % of reading on
+  1.5 m lines, 15.5 % with an 8.6 m extension**, and the same run put the **wall at 0.891 mm**, so
+  every `k_d` in `calibrationBell.md` moved again.
   **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
   pair that used to be in `ndLouvers/3DPrinting`** — those were deleted rather than moved,
   because they were older files under colliding names; git history still has them.

@@ -7,7 +7,10 @@ decision and the reasoning).
 
 **A bell exists, it is weighed at 79 g, and it ran 53 minutes on `P0` at 26–32 Pa**
 (`../../ndLouvers/pressure-testing.md` §3.3). The force balance holds: the measured `k_d` is
-**0.2615 ± 0.013 Pa/mm** against **0.2627** computed from the as-built geometry — 0.5 %.
+**0.2372 Pa/mm** with the rod fitted (§3.5, 2026-09-21), measured against printed graduations
+accurate to 0.6 %, which inverts to a **0.891 mm wall** — `calibrationBell.stl`'s 0.90 to within 1 %.
+**An earlier figure of 0.2615 ± 0.013, from eyeballed depths on an unballasted bell, is
+withdrawn.**
 **It still produces no calibration and closes no open item**: one channel, one source, no ladder,
 no repeats, no independent reference. What it produced was the fixture's own constants and four
 error terms this file did not carry.
@@ -60,13 +63,15 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
 | `A_eff` | **17 671 mm²** | 17 296 mm² |
 | `A_wall` | **474 mm²** | 375 mm² |
 | **`k_m`** | **0.5550 Pa/g** | 0.5670 Pa/g |
-| **`k_d`** | **0.2627 Pa/mm** | 0.2122 Pa/mm |
-| `k_d`, measured | **0.2615 ± 0.013 Pa/mm** | — |
+| **`k_d`** | **0.2337 rod-less, 0.2372 with the rod** | 0.2122 Pa/mm |
+| `k_d`, measured (§3.5) | **0.2372 Pa/mm** | — |
 | `ΔP/Δm` at constant volume | **0.5405 Pa/g** (`g/A_o`) | — |
 
 1. **The print over-extruded ~0.1 mm on the wall, outward.** ID still 150.00, OD 151.80 → 152, so
    `A_eff` and `k_m` are unaffected and only `k_d` moves. Inverting the measured slope gives
-   `A_wall` = 472 mm², a 0.995 mm wall — **0.1σ from the caliper and 1.9σ from the STL**. The
+   `A_wall` = **422 mm², a 0.891 mm wall** — **the STL's 0.90, not the caliper's 1.00**. The
+   caliper was read **at the rim**, which is the first layer of a part printed rim-down and is
+   squished wider than the rest; measure a printed wall away from the sealing edge. The
    printed part, not the model, is the authority, which is what §"Measure the finished part" says.
 2. **Three independent mass figures agree to 2.5 g** — 80.7 g from STL volume at 1.24, 78 g from
    the slicer, 79 g on the scale. The slicer's does not come from the scale, so **this bounds the
@@ -105,7 +110,8 @@ sinks, and the pressure — weight over area — does not change. The supply onl
 the sensor drinks, of order 1 mL/s at 500 Pa.
 **That estimate is superseded: the measured figure is ~5.5 mL/s at 500 Pa**
 (`../../ndLouvers/pressure-testing.md` §3.4a, 2026-09-20). The circuit resistance was measured at
-**8.75 × 10⁷ Pa·s/m³**, 6× below the U-tube figure the 1 mL/s came from — that observation was taken
+**2.29 × 10⁸ Pa·s/m³** (§3.5; an earlier 8.75 × 10⁷ from an unballasted run is withdrawn),
+below the U-tube figure the 1 mL/s came from — that observation was taken
 at ten times full scale, where the flow in the sensor's internal channel is not laminar. **At 500 Pa
 the bell therefore sinks ~18 mm/min and lasts about four minutes per charge**, and the supply has to
 keep up with 5.5 mL/s.
@@ -175,7 +181,8 @@ stability, which is exactly what hanging it does.
 - `k_d = ρ·g·(A_wall + A_rod) / A_eff` — nominal **0.2155 Pa/mm**
 
 **Those two numbers are rev F NOMINAL and are not the bell that exists** — see §"As built", where
-`k_m` is 0.5550 and `k_d` is 0.2627. The formula itself is unchanged; only the constants move.
+`k_m` is 0.5549–0.5551 and `k_d` is **0.2337 rod-less / 0.2372 with the rod**. The formula itself is
+unchanged; only the constants move.
 Nominal `ID 148.4` with an M3 rod → `A_eff = 17 289 mm²`, `A_wall = 375 mm²`, water at 20 °C.
 **A thread has two areas and they go in different places:** the **major** diameter (7.07 mm²) is
 what the bore removes from the lid; the **pitch** diameter (5.62 mm²) is what displaces water at
@@ -481,7 +488,7 @@ Unscrewing the rod and fitting an M3×6 grub screw in its place gives a **second
 with its own constants, because removing the rod changes `A_eff` *and* `k_d` together:
 
 **All four constants in the table below are rev F NOMINAL**, and the bell that exists is rod-less
-with `k_m` **0.5550** and `k_d` **0.2627** — see §"As built". The rod-less *row* is the closest
+with `k_m` **0.5549** and `k_d` **0.2337** — see §"As built". The rod-less *row* is the closest
 match to it and is still 23 % out on `k_d`.
 
 | | `k_m` | `k_d` | tare | floor |

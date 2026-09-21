@@ -1232,3 +1232,24 @@ The follow-up — 8.6 m of added tube, to measure how much of the reading the tu
 because the bare bell lolled and had to be corrected, and each correction is a positive transient.
 **No number from §3.4b belongs in this file.** What it did strengthen is the case already recorded
 here: the bare bell is not usable, and open item 55 has gone from a risk to a blocker.
+
+### The bell's wall is 0.891 mm, and the caliper was read in the wrong place (2026-09-21)
+
+**Nothing here is a live instruction.** `calibrationBell.md` §"As built" carries the current
+constants; `../ndLouvers/pressure-testing.md` §3.5 is the session.
+
+This file and §"As built" had `k_d` = 0.2627 from a 1.00 mm wall, on the strength of a caliper
+reading and a five-point regression that agreed with it. **Both were wrong.** A ballasted run
+against printed graduations inverts to `A_wall` = 422 mm², a **0.891 mm** wall — `calibrationBell.stl`'s
+0.90 to within 1 %. **The caliper was read at the rim**, which is the first layer of a part printed
+rim-down and is squished wider than the rest; this file's own print notes call that edge the sealing
+face. `k_d` is now **0.2337 rod-less / 0.2372 with the rod**, and the earlier regression's
+0.2615 ± 0.013 is withdrawn as 3σ out.
+
+The supply figure moved again too: the circuit resistance is **2.29 × 10⁸ Pa·s/m³**, not the
+8.75 × 10⁷ recorded the day before, so the bell needs ~2.2 mL/s at 500 Pa rather than ~5.5 and lasts
+about ten minutes per charge there.
+
+**What the fixture got right:** hanging the load is what made the run possible at all, and the
+before/after weighing worked exactly as specified — 81 g against 79 g bare, the 2 g being the paper
+and tape of the graduations, so no water was taken up.
