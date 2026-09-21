@@ -96,9 +96,8 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
    it grows with the pressure, so **it is not a zero error and this item has been mis-filed since it
    was written** — the shape is a span, and the two spans in the chain are this bell's `k_m` and the
    SDP810's own ±3 % of reading, which no derivation has budgeted. **The reference weights now
-   exist: run the add-mass test at heavy load first**, which measures the span product free of every
-   zero term, and put a second sensor on the bell, which is the only way to tell the reference from
-   the instrument. **Done the same night** (§3.11): the two ±500 Pa parts disagree by 2.5 % and both
+   exist but the add-mass test cannot be performed on this build** (below); what told the reference
+   from the instrument was a second and third sensor on the bell. **Done the same night** (§3.11): the two ±500 Pa parts disagree by 2.5 % and both
    read above the model. **Then the length-change pair (§3.12) measured the extension and the record
    re-solved with NO bell residual** — the sensors read high, `P0` by ~2–4 % and `P1` by ~6 %, and
    the residual this item has carried since it was written was their span at every load it was
