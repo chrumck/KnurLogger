@@ -131,6 +131,14 @@ sinking in 10 minutes with the full line and no sensor — so the entire 0.32 mL
 sensor's own bypass and the tubing's viscous loss becomes a first-order error term. The attempt to
 measure that loss by adding 8.6 m of tube **failed**, because the bare bell lolled and had to be
 corrected, and each correction is a positive transient. **No number from §3.4b is a result.**
+**Ballasting the bell fixed that** (2026-09-21) and eleven sessions later the pressure chain is
+restated once in `../ndLouvers/pressure-testing.md` §3.15 (rev 113): the bench tubing loses
+**8.2 → 3.8 % of the bell's pressure across 38–386 Pa**, the 8.6 m extension is 3.1 × 10⁷, and
+**three of the five sensors read against one bell spread ten percent** (`P2` −3.5 %, `P0` +2 to
++4 %, `P1` ~+6 % — outside its spec), so each channel gets its own gain from a ladder on the bell,
+which is the best absolute in the room. The "5.1 % rising to 9.5 %" curve published earlier was
+one sensor's deficit with its span inside; **do not quote it as a tubing figure.** **None of this
+qualifies a channel.**
 **The ±125 Pa is on channel `P2`, not the specified `P4`** — the board won and the documents were
 corrected; `Hardware/logger-perfboard-wiring.md` §5 is the record.
 **Do not address mux channel 5: its pull-ups are not fitted and probing it hangs the whole bus.**

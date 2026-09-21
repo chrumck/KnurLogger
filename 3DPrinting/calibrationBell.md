@@ -14,6 +14,11 @@ withdrawn.**
 **It still produces no calibration and closes no open item**: one channel, one source, no ladder,
 no repeats, no independent reference. What it produced was the fixture's own constants and four
 error terms this file did not carry.
+**Eleven sessions later (2026-09-20/22) it is the best absolute in the room** — three of the five
+sensors read against it spread ten percent, `P2` −3.5 %, `P0` +2 to +4 %, `P1` ~+6 %, and the bell
+sits inside them to ~1–2 % (`../../ndLouvers/pressure-testing.md` §3.15c). **`k_m`, `k_d` and the
+wall are unchanged by that**; the "residual" §"As built" item 4 carried was the reading sensor's
+span every time. The add-mass test below cannot be performed on this build and is retired.
 
 > **⚠ THE BELL THAT EXISTS IS NOT THE BELL DRAWN BELOW.** It was printed from
 > `calibrationBell.stl`, which is a **bare** bell — plain skirt, plain lid, small central boss,
@@ -84,6 +89,31 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
    equivalent to reading `d` 1.6 mm shallow, to 0.75 g of mass, or to a skirt meniscus force at a
    contact angle near 97°, and **those three cannot be separated by any bare-bell run.** The
    add-mass test in §"Use it differentially" is what separates them.
+   **Seen a third time on 2026-09-21, at +3.3 Pa = 6 g on a 347 g bell, with the masses, the
+   scale (500 g of reference weights, within 1 g), the ID and the rig — standpipe, nothing touching
+   — all confirmed** (`../../ndLouvers/pressure-testing.md` §3.9, plan open item 57). The
+   sightings are **−0.4 Pa bare, +0.6 Pa light, +3.3 Pa at 347 g and +14 Pa at 726 g (§3.10)**:
+   it grows with the pressure, so **it is not a zero error and this item has been mis-filed since it
+   was written** — the shape is a span, and the two spans in the chain are this bell's `k_m` and the
+   SDP810's own ±3 % of reading, which no derivation has budgeted. **The reference weights now
+   exist: run the add-mass test at heavy load first**, which measures the span product free of every
+   zero term, and put a second sensor on the bell, which is the only way to tell the reference from
+   the instrument. **Done the same night** (§3.11): the two ±500 Pa parts disagree by 2.5 % and both
+   read above the model. **Then the length-change pair (§3.12) measured the extension and the record
+   re-solved with NO bell residual** — the sensors read high, `P0` by ~2–4 % and `P1` by ~6 %, and
+   the residual this item has carried since it was written was their span at every load it was
+   seen. What the bell still owes is a ≤ 1 % common span (`A_eff`, displacement) that two identical
+   sensors cannot exclude; `P2`'s independent scale factor at the light load is the check — **and
+   it came in 3–4 % LOW (§3.14), so the three sensors straddle this bell at −3.5, +2 and +6 % and
+   the bell is the best absolute in the room, to ~1–2 %. The fixture did what it was built for.**
+   **THE ADD-MASS TEST CANNOT BE PERFORMED ON THIS BUILD** (owner, 2026-09-21): the pan is not
+   reachable with the bell afloat, and changing weights means lifting the bell out, which resets
+   the trapped volume the derivation in §"Use it differentially" depends on. **Retired as
+   impracticable, not as unwanted.** The substitute is two settled placements at different loads
+   compared at matched `d`, which cancels tare, datum and meniscus equally but returns
+   `(1 + ε)(1 − f̄)` rather than `(1 + ε)`, because the line loss changes with load. A rebuild that
+   wanted the check back needs a load path reachable from outside the skirt — a hook below the rim,
+   or a pan that clears the tub floor by a hand's width. Plan open item 57.
 
 > **⚠ REVS A–E ARE SUPERSEDED. DO NOT BUILD ANY OF THEM.**
 > **Rev A** floated the bell free with the masses on a tray on top. It capsizes — confirmed on the
@@ -163,6 +193,17 @@ and the applied mass are the same object.
 > the lid — roughly 50 mm of righting arm the bell does not have. The paragraph immediately above
 > this table already says the right thing in words: *"the same property leaves it almost no
 > stiffness in tilt."* **The prose and the table disagree, and the bench agrees with the prose.**
+> **CONFIRMED AGAIN ON A DIFFERENT BALLAST, AND THE CROSSOVER IS NOW LOCATED** (2026-09-21,
+> §3.8e). With 17.5 g of ballast the bell **lolled ~5° at d ≤ 57 mm and returned upright by
+> d ≥ 64.5 mm**, unaided, as it sank — so the crossover is bracketed in **57–64.5 mm**, against the
+> ≈ 60 mm this box predicted from the capsize and loll angles. **The immersion dependence the table
+> omits is real, repeatable across ballasts, and now quantified.** Third bench contradiction of
+> the "+0.041 N·m/rad, bare, stable" row.
+> **A tilt costs more through the waterline than through `cos θ`.** At 5° the `cos θ` term is only
+> +0.21 Pa on a 38 Pa point, but the waterline runs **±6.6 mm around a 150 mm skirt — 1.6 Pa** — so
+> which azimuth `d` is read at dominates. The force balance wants the **axis** waterline, i.e. the
+> mean of the high and low sides. **Record the read azimuth whenever the bell is not upright**, and
+> treat any mark below d ≈ 60 mm in a light configuration as untrustworthy without it.
 > Until the model is re-derived, treat the load rows as unverified too, and **do not run this bell
 > bare** — §"What it can and cannot reach" carries the working consequence.
 
@@ -469,6 +510,23 @@ since rev B needed the load centred to 1 mm to keep bearing friction down.
 1. **Nothing compliant may touch the moving bell.** The gas enters through a **standpipe fixed to
    the tub floor**, which is what the rev A/B core used to do. A tube run to the lid adds its own
    stiffness to the weight and the error is silent.
+   > **⚠ THIS HAPPENED, IT COST A RUN, AND IT IS THE LARGEST ERROR THIS FIXTURE HAS PRODUCED**
+   > (2026-09-21, `../../ndLouvers/pressure-testing.md` §3.7). The pressure line bore on the bell
+   > for a whole session and the bell was seen **hanging on it** at the end. The tube in
+   > compression put a constant **+5.6 Pa — 10 g, 0.11 N** — on a 180 Pa point, then as the bell
+   > sank it went slack and into tension and began taking the weight instead, which is an
+   > **accelerating** pressure loss and not something a bleed or a pinch can imitate.
+   > **Three things to carry:**
+   > **(a) It is invisible inside the run.** That session had the cleanest instrument record on
+   > file, perfect counters, and three collinear points. A constant force is degenerate with the
+   > tare mass, the `d` datum and the meniscus — and it is an order of magnitude larger than all
+   > three, so the degeneracy is not a small-print caveat here.
+   > **(b) The detector is a length-change pair, not a better single run.** The contact force does
+   > not scale with line length and the line loss does, so two runs at different line lengths
+   > over-determine the system and the contact has nowhere to hide. That is the only reason this
+   > one was caught.
+   > **(c) Charge and settle through the standpipe, and look at where the line goes** before every
+   > session, not just at whether the bell is upright.
 2. **Keep `d` greater than `h = P/ρg`**, 51 mm at 500 Pa. Below that the bell blows out under its
    own rim and the pressure is capped by immersion depth instead of mass.
 3. **Keep the sensor at the height of the bell's water line**, or correct at **0.0118 Pa/mm** of
@@ -534,6 +592,9 @@ reading as the only rod-less one.
 
 1. Feed air through the standpipe from a syringe or a pump with a bleed. **Never lift the bell to
    recharge it** — that is what leaves the 1.4 Pa film, and the standpipe exists to avoid it.
+   **Check where the pressure line runs before every session**: a line bearing on the bell put a
+   silent constant **+5.6 Pa** on a whole run on 2026-09-21 (§"Things that would corrupt every
+   reading" item 1).
    Measured demand: **0.32 mL/s at ~28 Pa, rising to ~5.5 mL/s at 500 Pa** (2026-09-20). **A leak
    test with the sensor removed showed zero sinking in 10 minutes**, so essentially all of it is the
    sensor's bypass rather than a leak in the bell or its lines. Unsupplied, the bell sags
@@ -542,7 +603,10 @@ reading as the only rod-less one.
    sensor is read, and record where it landed — §2.4's ladder values are targets to land near.
    **Within 30 s**: at 0.8 mm/min a two-minute gap is 1.6 mm = 0.4 Pa.
 2a. **Look at the bell and record that it is upright.** A 5–8° lean is invisible in the data and
-   worth a few tenths of a pascal; see the tilt row in the budget.
+   worth a few tenths of a pascal through `cos θ`; see the tilt row in the budget. **If it is
+   leaning, the bigger cost is the waterline, not `cos θ`** — ±6.6 mm around the skirt at 5°,
+   1.6 Pa — so read `d` as the mean of the high and low sides and **record that you did.**
+   It self-corrects as it sinks: expect upright above d ≈ 60 mm, lolling below.
 2b. **After any contact, wait two minutes** for the film to drain before pairing anything.
 3. Tap the bell before every reading to free seal stiction. **This counts as contact** — it costs
    you the two minutes in 2b, and on a bare bell at low immersion it can put it over.

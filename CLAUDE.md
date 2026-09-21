@@ -41,13 +41,18 @@ narrative in this file.
   reachable depth range, having capsized twice and lolled once on the bench, which contradicts that
   file's own "+0.041 N·m/rad, bare, stable" row.
   **A third trap came the same evening:** a leak test with the full line but no sensor showed **zero
-  sinking in 10 minutes**, so the whole bleed is the sensor's own bypass, the circuit resistance is
-  **flow-dependent** — 1.0 × 10⁸ Pa·s/m³ at 0.28 mL/s against 2.3 × 10⁸ at 0.82 — and that file's
-  "order 1 mL/s at 500 Pa" is optimistic. The attempt to measure the tubing's share **failed** on a
-  bare bell (§3.4b — **no number from it is a result**) and **succeeded once ballast was hung**
-  (§3.5–§3.6, 2026-09-21): **the line loss is a CURVE — 5.1 % of reading at 188 Pa rising to ~9.5 %
-  at 37 Pa** on 1.5 m lines, so **never quote it without the pressure**. The same runs put the
-  **wall at 0.891 mm**, so every `k_d` in `calibrationBell.md` moved again.
+  sinking in 10 minutes**, so the whole bleed is the sensor's own bypass and the tubing's loss is a
+  first-order term. **What eleven bell sessions then found is restated once in
+  `../ndLouvers/pressure-testing.md` §3.15 (rev 113), which owns the figures:** the bench tubing
+  loses 8.2 → 3.8 % of the bell's pressure across 38–386 Pa; the 8.6 m extension is 3.1 × 10⁷; and
+  **three of the five SDP810s, read against the same bell, spread ten percent** — `P2` −3.5 %, `P0`
+  +2 to +4 % and nonlinear, `P1` ~+6 % and outside its ±3 % spec — so **each channel needs its own
+  gain from a ladder on the bell, and the bell (~1–2 %) is the best absolute in the room.** The
+  "5.1 % rising to 9.5 %" line-loss curve of rev 110–111 was `P0`'s deficit with its span inside;
+  **do not quote it as a property of the tubing**, and do not reinstate the three revisions of it
+  withdrawn at rev 111 either. `k_d` 0.2372 and the 0.891 mm wall are unchanged. **The add-mass
+  check in `calibrationBell.md` cannot be performed on this build** (pan unreachable afloat) and is
+  retired; a hand-placed bell needs two minutes after release before its first mark.
   **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
   pair that used to be in `ndLouvers/3DPrinting`** — those were deleted rather than moved,
   because they were older files under colliding names; git history still has them.
@@ -236,6 +241,34 @@ narrative in this file.
   succeed onto a faulty segment is exactly the failure that hangs the bus**, and the mux answers
   from the main side, so it still replies while the segment it just connected is dragging the
   downstream lines together. The read-back is where that is caught, and it costs one transfer.
+- **EVERY COUNTER IN A `pressure` RECORD IS A CUMULATIVE SESSION TOTAL, NOT THAT CYCLE'S COUNT**
+  (2026-09-21, and it cost a false hardware alarm). `readErrors`, `crcFailures`,
+  `i2cFirstAttemptFailures`, `i2cRecovered` and `i2cExhausted` are `appData.pressure.*` and
+  `appData.i2c.*` running totals, written into **every** record so that any single record says
+  which mode the boot was in. The per-channel `readErrors`/`crcFailures` inside `channels[]` are
+  the same: `channel.readErrors` is cumulative for that channel.
+  1. **Summing them across records multiplies them by roughly the record count.** A session with
+     **3** read errors read back as **2 972**, and a clean 54 000-cycle run was reported as a
+     degrading bus that needed a `~RESET` and a continuity check. It did not; a bench probe found
+     all five sensors answering with the right product numbers and serials and 300 round-robin
+     cycles with zero failures.
+  2. **The right reads.** Session total = the **last** record's value. Per-cycle delta = the
+     difference between consecutive records. **Number of affected cycles = count records where the
+     channel's own `valid` flag is false**, which is the only field that is per-cycle.
+  3. **A non-zero counter on a record does not mean that cycle was bad.** Once the total moves off
+     zero it stays there, so every later record looks "errored" to a truthiness test. That is the
+     specific mistake: `if r["readErrors"]:` is true for the rest of the session.
+  4. **This is why `i2cExhausted` looked like it was climbing with the device present** — the
+     signature this file says has never been seen. It still has not been seen.
+  5. **The same shape applies to `enclosure` and `temp` records** — `appData.bme280.readErrors`,
+     `appData.thermal.readErrors` and `channel.readErrors` are all cumulative. `validMask` and each
+     channel's `valid`/`reason` are the per-cycle fields.
+  6. **`i2cFirstAttemptFailures`, `i2cRecovered` and `i2cExhausted` are `appData.i2c.*`, which is
+     SHARED BY ALL THREE I2C WORKERS.** The figure in a `pressure` record includes the BME280's
+     transfers and vice versa, so a count from one worker's records is a whole-bus count, not that
+     worker's. It is the bus that open item 44 is about, so this is the right scope — but do not
+     attribute a failure to a sensor on the strength of which record it appeared in.
+
 - **A SKIPPED BME280 MEASUREMENT DOES NOT MOVE THE READ-ERROR COUNTER, AND THAT IS CORRECT.**
   Measured once in the field, 2026-09-14. All three `0x600` values go to their sentinels in the
   same cycle — a skipped temperature invalidates pressure and humidity through the shared `t_fine`

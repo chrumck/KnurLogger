@@ -1268,3 +1268,39 @@ wrong.** The sensor's internal bypass resistance **rises with flow**: 1.0 × 10�
 The practical consequence for this fixture is that **the syringe or pump must be sized from the
 high-flow end**, and that a bell run at the bottom of its range lasts longer per charge than a
 linear extrapolation predicts.
+
+### A false hardware alarm on `P4`, from reading cumulative counters as per-cycle (2026-09-21)
+
+Session `2026-09-21T17-35-44` was first read as showing `P4` degrading: 2 972 read errors, the
+same number of `i2cFirstAttemptFailures` and `i2cExhausted`, `i2cRecovered` stuck at zero, and the
+error rate climbing from a third of the cycles in one minute to **100 % of cycles** for the last
+hour of the session. That is `i2cExhausted` climbing while the device is present — the degraded-bus
+signature `CLAUDE.md` says has never been observed — so a `~RESET` pulse and a continuity check on
+`SDA_CH4`/`SCL_CH4` were recommended to the owner.
+
+**None of it was real.** The counters in a `pressure` record are `appData.pressure.*` and
+`appData.i2c.*` **cumulative session totals**, written into every record so that any single record
+states which mode the boot was in. They were summed across 16 871 records. The two symptoms follow
+mechanically: the sum multiplies the true count by roughly the record count, and a truthiness test
+on a cumulative counter reports every record after the first error as "errored", which is what
+produced the apparent climb to 100 %.
+
+**The true figure is 3 read errors in 53 981 cycles**, all on `P4`, each recovered on the next
+cycle: two at 19:59:39 and one at 20:18:05 — both moments when the rig was being handled, the first
+being the instant the pressure line was plugged. `P0` was valid on every cycle of the session and
+`validMask` was 31 on all but three.
+
+**The owner restarted the box and stopped the service, and a bench probe confirmed it.** Main bus
+clean with `0x70` and `0x77` answering and both lines idle-high; all five mux channels selecting
+and reading back correctly with a `~RESET` between each; all five product numbers and serials
+re-read over I2C and **matching `Hardware/logger-perfboard-wiring.md` §5 exactly** —
+`0x03020A01` on `P0`/`P1`/`P3`/`P4` and `0x03020B01` on `P2`. A 300-cycle round-robin over all five,
+1 500 select-plus-readback-plus-read triples at 11.2 Hz, returned **zero first-attempt failures and
+zero exhausted transfers**. That boot was in the non-refusing mode, so it says nothing about open
+item 44.
+
+**Two things to carry.** The counter semantics are now a trap in `CLAUDE.md`, including the fact
+that `appData.i2c.*` is shared by all three I2C workers, so a count taken from one worker's records
+is a whole-bus count. And `i2cRecovered = 0` alongside `i2cExhausted > 0` is not a contradiction to
+explain away: on a non-refusing boot nothing needs recovering, so the rare failure that does occur
+exhausts outright rather than recovering on the second attempt.
