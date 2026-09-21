@@ -1253,3 +1253,18 @@ about ten minutes per charge there.
 **What the fixture got right:** hanging the load is what made the run possible at all, and the
 before/after weighing worked exactly as specified — 81 g against 79 g bare, the 2 g being the paper
 and tape of the graduations, so no water was taken up.
+
+### The bell's supply demand does not scale with pressure (2026-09-21)
+
+**Nothing here is a live instruction.** `calibrationBell.md` §"As built" and the operating sequence
+carry the current figures; `../ndLouvers/pressure-testing.md` §3.6 is the session.
+
+This file recorded a single circuit resistance — first 8.75 × 10⁷ Pa·s/m³, then 2.29 × 10⁸ after the
+ballasted run, with the earlier figure marked as withdrawn. **Both were right and the withdrawal was
+wrong.** The sensor's internal bypass resistance **rises with flow**: 1.0 × 10⁸ at 0.28 mL/s against
+2.3 × 10⁸ at 0.82. So the supply demand does not scale linearly with pressure, and the fixture's
+"of order 1 mL/s at 500 Pa" cannot be scaled from a low-pressure observation in either direction.
+
+The practical consequence for this fixture is that **the syringe or pump must be sized from the
+high-flow end**, and that a bell run at the bottom of its range lasts longer per charge than a
+linear extrapolation predicts.

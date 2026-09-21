@@ -110,8 +110,9 @@ sinks, and the pressure — weight over area — does not change. The supply onl
 the sensor drinks, of order 1 mL/s at 500 Pa.
 **That estimate is superseded: the measured figure is ~5.5 mL/s at 500 Pa**
 (`../../ndLouvers/pressure-testing.md` §3.4a, 2026-09-20). The circuit resistance was measured at
-**2.29 × 10⁸ Pa·s/m³** (§3.5; an earlier 8.75 × 10⁷ from an unballasted run is withdrawn),
-below the U-tube figure the 1 mL/s came from — that observation was taken
+**flow-dependent**: 2.29 × 10⁸ Pa·s/m³ at 0.82 mL/s but only 1.0 × 10⁸ at 0.28 (§3.5–§3.6), so
+**the supply demand does not scale linearly with pressure**. Both are below the U-tube figure the
+1 mL/s came from — that observation was taken
 at ten times full scale, where the flow in the sensor's internal channel is not laminar. **At 500 Pa
 the bell therefore sinks ~18 mm/min and lasts about four minutes per charge**, and the supply has to
 keep up with 5.5 mL/s.
