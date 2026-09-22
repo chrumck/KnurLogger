@@ -124,15 +124,15 @@ had been measured.
 two fabricated wands and two filtered 1.5 m lines — 30 511 cycles at 9.589 Hz, **zero read errors,
 zero CRC failures, zero I2C first-attempt failures**, and the four unconnected channels holding
 ±0.07 Pa throughout. **It is a bring-up of the reference, not a qualification of a channel**, and it
-discharges nothing in `../ndLouvers/pressure-testing.md` §2 — that file's §3.3 is the record and
+discharges nothing in `../ndLouvers/pressure-testing.md` §2 — `../ndLouvers/pressure-testing.history.md` §3.3 is the record and
 says so at length. The installed rig on the car is still unbuilt.
-**Two follow-up sessions the same evening** (§3.4): §2.3's leak test found **no leak at all** — zero
+**Two follow-up sessions the same evening** (`../ndLouvers/pressure-testing.history.md` §3.4): §2.3's leak test found **no leak at all** — zero
 sinking in 10 minutes with the full line and no sensor — so the entire 0.32 mL/s bleed is the
 sensor's own bypass and the tubing's viscous loss becomes a first-order error term. The attempt to
 measure that loss by adding 8.6 m of tube **failed**, because the bare bell lolled and had to be
-corrected, and each correction is a positive transient. **No number from §3.4b is a result.**
+corrected, and each correction is a positive transient. **No number from history §3.4b is a result.**
 **Ballasting the bell fixed that** (2026-09-21) and eleven sessions later the pressure chain is
-restated once in `../ndLouvers/pressure-testing.md` §3.15 (rev 113): the bench tubing loses
+restated once in `../ndLouvers/pressure-testing.md` §3.3 (rev 113): the bench tubing loses
 **8.2 → 3.8 % of the bell's pressure across 38–386 Pa**, the 8.6 m extension is 3.1 × 10⁷, and
 **three of the five sensors read against one bell spread ten percent** (`P2` −3.5 %, `P0` +2 to
 +4 %, `P1` ~+6 % — outside its spec), so each channel gets its own gain from a ladder on the bell,
@@ -177,9 +177,9 @@ Read, in this order, before changing anything here:
 1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **The installed rig
    is still unbuilt**: no line is on the car, no wand is sited, no hole-plane coordinate recorded,
    no filter characterised and no ladder run. **What exists is bench hardware** — two wands, two
-   filtered lines and the calibration bell — which delivered pressure to `P0` on 2026-09-20 (§3.3).
+   filtered lines and the calibration bell — which delivered pressure to `P0` on 2026-09-20 (`../ndLouvers/pressure-testing.history.md` §3.3).
    **The pressure worker exists as of 2026-09-19 and satisfies none of that file** — it produces
-   the channel, not the measurement — and §3.3 qualifies no channel either. Read it before reading
+   the channel, not the measurement — and that session qualifies no channel either. Read it before reading
    any pressure number as one, and note that the five SDP810s share the I2C bus whose
    first-transfer refusal is documented above.
 1c. `one-wire-probes.md` — the 1-Wire subsystem's traps and standing requirements: the ROM-ID

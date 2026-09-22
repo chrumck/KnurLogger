@@ -34,7 +34,7 @@ narrative in this file.
   move that boundary** — what accuracy is demanded of it still belongs to `../ndLouvers/` Step 0b
   and `pressure-testing.md` §2.2. **IT IS NOW BUILT AND HAS DELIVERED PRESSURE** (2026-09-20) —
   79 g, 53 minutes on `P0` at 26–32 Pa, `k_d` measured to 0.5 % of the as-built figure
-  (`../ndLouvers/pressure-testing.md` §3.3). **Two traps came out of that and both live in
+  (`../ndLouvers/pressure-testing.history.md` §3.3). **Two traps came out of that and both live in
   `calibrationBell.md` §"As built":** the bell that exists is **not** the rev F bell drawn — ID
   150.00 and wall 0.90 against 148.4/0.80, so **every nominal constant in that file is wrong for
   it, `k_d` by 23 %** — and the **bare bell is metacentrically unstable** across its whole
@@ -43,11 +43,16 @@ narrative in this file.
   **A third trap came the same evening:** a leak test with the full line but no sensor showed **zero
   sinking in 10 minutes**, so the whole bleed is the sensor's own bypass and the tubing's loss is a
   first-order term. **What eleven bell sessions then found is restated once in
-  `../ndLouvers/pressure-testing.md` §3.15 (rev 113), which owns the figures:** the bench tubing
+  `../ndLouvers/pressure-testing.md` §3.3 (rev 113; sessions in `../ndLouvers/pressure-testing.history.md` §3.3–§3.14), which owns the figures:** the bench tubing
   loses 8.2 → 3.8 % of the bell's pressure across 38–386 Pa; the 8.6 m extension is 3.1 × 10⁷; and
   **three of the five SDP810s, read against the same bell, spread ten percent** — `P2` −3.5 %, `P0`
   +2 to +4 % and nonlinear, `P1` ~+6 % and outside its ±3 % spec — so **each channel needs its own
-  gain from a ladder on the bell, and the bell (~1–2 %) is the best absolute in the room.** The
+  gain from a ladder on the bell, and the bell (~1–2 %) is the best absolute in the room.** **A
+  logger requirement follows and is NOT yet implemented** (owner regime, 2026-09-22,
+  `../ndLouvers/pressure-testing.md` §2.4 step 4): a per-channel pressure correction configured in
+  `KnurLogger.ini` from the bench curves and the measured route length, applied to the RaceChrono
+  feed only, raw counts always logged, parameters written into the session header — the same shape
+  as the thermal offsets. The
   "5.1 % rising to 9.5 %" line-loss curve of rev 110–111 was `P0`'s deficit with its span inside;
   **do not quote it as a property of the tubing**, and do not reinstate the three revisions of it
   withdrawn at rev 111 either. `k_d` 0.2372 and the 0.891 mm wall are unchanged. **The add-mass

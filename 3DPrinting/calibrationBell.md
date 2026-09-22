@@ -6,8 +6,8 @@ which is now the documented fallback (`../../ndLouvers/pressure-testing.md` §2.
 decision and the reasoning).
 
 **A bell exists, it is weighed at 79 g, and it ran 53 minutes on `P0` at 26–32 Pa**
-(`../../ndLouvers/pressure-testing.md` §3.3). The force balance holds: the measured `k_d` is
-**0.2372 Pa/mm** with the rod fitted (§3.5, 2026-09-21), measured against printed graduations
+(`../../ndLouvers/pressure-testing.history.md` §3.3). The force balance holds: the measured `k_d` is
+**0.2372 Pa/mm** with the rod fitted (`../../ndLouvers/pressure-testing.history.md` §3.5, 2026-09-21), measured against printed graduations
 accurate to 0.6 %, which inverts to a **0.891 mm wall** — `calibrationBell.stl`'s 0.90 to within 1 %.
 **An earlier figure of 0.2615 ± 0.013, from eyeballed depths on an unballasted bell, is
 withdrawn.**
@@ -16,7 +16,7 @@ no repeats, no independent reference. What it produced was the fixture's own con
 error terms this file did not carry.
 **Eleven sessions later (2026-09-20/22) it is the best absolute in the room** — three of the five
 sensors read against it spread ten percent, `P2` −3.5 %, `P0` +2 to +4 %, `P1` ~+6 %, and the bell
-sits inside them to ~1–2 % (`../../ndLouvers/pressure-testing.md` §3.15c). **`k_m`, `k_d` and the
+sits inside them to ~1–2 % (`../../ndLouvers/pressure-testing.md` §3.3c). **`k_m`, `k_d` and the
 wall are unchanged by that**; the "residual" §"As built" item 4 carried was the reading sensor's
 span every time. The add-mass test below cannot be performed on this build and is retired.
 
@@ -34,7 +34,9 @@ span every time. The add-mass test below cannot be performed on this build and i
 > fixture: its geometry, its constants and how to use it. It does not own whether the fixture is
 > adopted, what accuracy is required of it, or what counts as a qualified reference.
 >
-> Section numbers like §2.2 and §2.9 below refer to `../../ndLouvers/pressure-testing.md`.
+> Section numbers like §2.2 and §2.9 below refer to `../../ndLouvers/pressure-testing.md`; the bell
+> sessions §3.3–§3.14 cited below are in `../../ndLouvers/pressure-testing.history.md` (rev 114),
+> and the current tubing, span and bell figures are in `pressure-testing.md` §2.2a and §3.3.
 > Cross-repo links resolve on disk and 404 on the public git host; that is accepted here, as
 > `CLAUDE.md` says.
 
@@ -69,7 +71,7 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
 | `A_wall` | **474 mm²** | 375 mm² |
 | **`k_m`** | **0.5550 Pa/g** | 0.5670 Pa/g |
 | **`k_d`** | **0.2337 rod-less, 0.2372 with the rod** | 0.2122 Pa/mm |
-| `k_d`, measured (§3.5) | **0.2372 Pa/mm** | — |
+| `k_d`, measured (history §3.5) | **0.2372 Pa/mm** | — |
 | `ΔP/Δm` at constant volume | **0.5405 Pa/g** (`g/A_o`) | — |
 
 1. **The print over-extruded ~0.1 mm on the wall, outward.** ID still 150.00, OD 151.80 → 152, so
@@ -81,7 +83,7 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
 2. **Three independent mass figures agree to 2.5 g** — 80.7 g from STL volume at 1.24, 78 g from
    the slicer, 79 g on the scale. The slicer's does not come from the scale, so **this bounds the
    scale's span error at about ±1 g = ±0.55 Pa** at the bare-bell working point.
-3. **No graduations were printed**, so `d` is read by eye against a plain skirt. §3.3c measured that
+3. **No graduations were printed**, so `d` is read by eye against a plain skirt. history §3.3c measured that
    as **±1 mm of scatter plus a ~1.7 mm systematic**, against the ±1 mm this file's budget assumes.
    **Print the graduations, or set `d` against the grounded position**, which is the only repeatable
    datum this bell currently has.
@@ -91,19 +93,19 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
    add-mass test in §"Use it differentially" is what separates them.
    **Seen a third time on 2026-09-21, at +3.3 Pa = 6 g on a 347 g bell, with the masses, the
    scale (500 g of reference weights, within 1 g), the ID and the rig — standpipe, nothing touching
-   — all confirmed** (`../../ndLouvers/pressure-testing.md` §3.9, plan open item 57). The
-   sightings are **−0.4 Pa bare, +0.6 Pa light, +3.3 Pa at 347 g and +14 Pa at 726 g (§3.10)**:
+   — all confirmed** (`../../ndLouvers/pressure-testing.history.md` §3.9, plan open item 57). The
+   sightings are **−0.4 Pa bare, +0.6 Pa light, +3.3 Pa at 347 g and +14 Pa at 726 g (history §3.10)**:
    it grows with the pressure, so **it is not a zero error and this item has been mis-filed since it
    was written** — the shape is a span, and the two spans in the chain are this bell's `k_m` and the
    SDP810's own ±3 % of reading, which no derivation has budgeted. **The reference weights now
    exist but the add-mass test cannot be performed on this build** (below); what told the reference
-   from the instrument was a second and third sensor on the bell. **Done the same night** (§3.11): the two ±500 Pa parts disagree by 2.5 % and both
-   read above the model. **Then the length-change pair (§3.12) measured the extension and the record
+   from the instrument was a second and third sensor on the bell. **Done the same night** (history §3.11): the two ±500 Pa parts disagree by 2.5 % and both
+   read above the model. **Then the length-change pair (history §3.12) measured the extension and the record
    re-solved with NO bell residual** — the sensors read high, `P0` by ~2–4 % and `P1` by ~6 %, and
    the residual this item has carried since it was written was their span at every load it was
    seen. What the bell still owes is a ≤ 1 % common span (`A_eff`, displacement) that two identical
    sensors cannot exclude; `P2`'s independent scale factor at the light load is the check — **and
-   it came in 3–4 % LOW (§3.14), so the three sensors straddle this bell at −3.5, +2 and +6 % and
+   it came in 3–4 % LOW (history §3.14), so the three sensors straddle this bell at −3.5, +2 and +6 % and
    the bell is the best absolute in the room, to ~1–2 %. The fixture did what it was built for.**
    **THE ADD-MASS TEST CANNOT BE PERFORMED ON THIS BUILD** (owner, 2026-09-21): the pan is not
    reachable with the bell afloat, and changing weights means lifting the bell out, which resets
@@ -138,8 +140,8 @@ A bell does not fight the bleed. It is a **constant-pressure source**: as gas es
 sinks, and the pressure — weight over area — does not change. The supply only has to replace what
 the sensor drinks, of order 1 mL/s at 500 Pa.
 **That estimate is superseded: the measured figure is ~5.5 mL/s at 500 Pa**
-(`../../ndLouvers/pressure-testing.md` §3.4a, 2026-09-20). The circuit resistance was measured at
-**flow-dependent**: 2.29 × 10⁸ Pa·s/m³ at 0.82 mL/s but only 1.0 × 10⁸ at 0.28 (§3.5–§3.6), so
+(`../../ndLouvers/pressure-testing.history.md` §3.4a, 2026-09-20). The circuit resistance was measured at
+**flow-dependent**: 2.29 × 10⁸ Pa·s/m³ at 0.82 mL/s but only 1.0 × 10⁸ at 0.28 (history §3.5–§3.6), so
 **the supply demand does not scale linearly with pressure**. Both are below the U-tube figure the
 1 mL/s came from — that observation was taken
 at ten times full scale, where the flow in the sensor's internal channel is not laminar. **At 500 Pa
@@ -179,7 +181,7 @@ achievable. **Rev F's stability rises with load instead of falling**, because th
 and the applied mass are the same object.
 
 > **⚠ THE +0.041 N·m/rad "BARE, STABLE" ROW IS CONTRADICTED BY THE BENCH** (2026-09-20,
-> `../../ndLouvers/pressure-testing.md` §3.3e). A bare bell on this geometry **capsized twice at an
+> `../../ndLouvers/pressure-testing.history.md` §3.3e). A bare bell on this geometry **capsized twice at an
 > immersion of 49–50 mm and settled at a 5–8° angle of loll at 59–64 mm.** A 5–8° loll on the
 > wall-sided relation `tan θ = √(−2·GM/BM)` with `BM` ≈ 16 mm puts `GM` at **≈ −0.1 mm** — neutral,
 > not stable — and the capsize at 49 mm requires **`GM` ≈ −6 mm**. The bare bell reaches neutral
@@ -193,7 +195,7 @@ and the applied mass are the same object.
 > this table already says the right thing in words: *"the same property leaves it almost no
 > stiffness in tilt."* **The prose and the table disagree, and the bench agrees with the prose.**
 > **CONFIRMED AGAIN ON A DIFFERENT BALLAST, AND THE CROSSOVER IS NOW LOCATED** (2026-09-21,
-> §3.8e). With 17.5 g of ballast the bell **lolled ~5° at d ≤ 57 mm and returned upright by
+> history §3.8e). With 17.5 g of ballast the bell **lolled ~5° at d ≤ 57 mm and returned upright by
 > d ≥ 64.5 mm**, unaided, as it sank — so the crossover is bracketed in **57–64.5 mm**, against the
 > ≈ 60 mm this box predicted from the capsize and loll angles. **The immersion dependence the table
 > omits is real, repeatable across ballasts, and now quantified.** Third bench contradiction of
@@ -334,7 +336,7 @@ Budget at 500 Pa (`m_app` ≈ 906 g), RSS:
 | **total** | **2.85 Pa = 0.57 %** | **1.32 Pa = 0.26 %** | **1.02 Pa = 0.20 %** |
 
 > **⚠ FOUR TERMS MEASURED ON 2026-09-20 ARE MISSING FROM THAT TABLE, AND AT THE BOTTOM OF THE RANGE
-> THEY DOMINATE IT.** `../../ndLouvers/pressure-testing.md` §3.3 owns the evidence.
+> THEY DOMINATE IT.** `../../ndLouvers/pressure-testing.history.md` §3.3 owns the evidence; `pressure-testing.md` §2.2b carries the rules.
 >
 > | term | size | at 500 Pa | at 43 Pa |
 > |---|---|---|---|
@@ -510,7 +512,7 @@ since rev B needed the load centred to 1 mm to keep bearing friction down.
    the tub floor**, which is what the rev A/B core used to do. A tube run to the lid adds its own
    stiffness to the weight and the error is silent.
    > **⚠ THIS HAPPENED, IT COST A RUN, AND IT IS THE LARGEST ERROR THIS FIXTURE HAS PRODUCED**
-   > (2026-09-21, `../../ndLouvers/pressure-testing.md` §3.7). The pressure line bore on the bell
+   > (2026-09-21, `../../ndLouvers/pressure-testing.history.md` §3.7). The pressure line bore on the bell
    > for a whole session and the bell was seen **hanging on it** at the end. The tube in
    > compression put a constant **+5.6 Pa — 10 g, 0.11 N** — on a 180 Pa point, then as the bell
    > sank it went slack and into tension and began taking the weight instead, which is an
@@ -580,7 +582,7 @@ reading as the only rod-less one.
 
 > **⚠ THE BENCH HAS NOW SHOWN SOMETHING WORSE, AND IT INVERTS THE ADVICE ABOVE.** On 2026-09-20 a
 > **bare, unloaded, rod-less** bell capsized twice and lolled 5–8° with nothing at all on the lid
-> (`../../ndLouvers/pressure-testing.md` §3.3e, plan open item 55). The `0 g → +0.041 N·m/rad` row
+> (`../../ndLouvers/pressure-testing.history.md` §3.3e, plan open item 55). The `0 g → +0.041 N·m/rad` row
 > is the same figure the main stability table gives, and **it is contradicted by the same
 > measurement** — so this table cannot be trusted either, and **"treat the bare reading as the only
 > rod-less one" is the opposite of what this bell can do: the bare reading is the one that cannot

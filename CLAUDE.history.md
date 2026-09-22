@@ -1179,7 +1179,7 @@ built:** no bell exists and nothing has been weighed.
 ### The bell was built, and three of `calibrationBell.md`'s conclusions did not survive it (2026-09-20)
 
 **Nothing here is a live instruction.** `calibrationBell.md` §"As built" owns the fixture's current
-constants; `../ndLouvers/pressure-testing.md` §3.3 owns the session; open items 55 and 56 in the
+constants; `../ndLouvers/pressure-testing.history.md` §3.3 owns the session; open items 55 and 56 in the
 plan own what is undecided.
 
 A bell was printed from `calibrationBell.stl` and ran 53 minutes against logger channel `P0`.
@@ -1218,7 +1218,7 @@ names the as-built section instead.
 
 ### The bell's bleed turns out to be all sensor, and the line-loss test fails (2026-09-20)
 
-**Nothing here is a live instruction.** `../ndLouvers/pressure-testing.md` §3.4 owns both sessions.
+**Nothing here is a live instruction.** `../ndLouvers/pressure-testing.history.md` §3.4 owns both sessions.
 
 `calibrationBell.md`'s supply estimate — "of order 1 mL/s at 500 Pa" — is **superseded by ~5.5 mL/s**.
 A leak test with the bell's full line, wand and filter connected but the sensor removed showed
@@ -1236,7 +1236,7 @@ here: the bare bell is not usable, and open item 55 has gone from a risk to a bl
 ### The bell's wall is 0.891 mm, and the caliper was read in the wrong place (2026-09-21)
 
 **Nothing here is a live instruction.** `calibrationBell.md` §"As built" carries the current
-constants; `../ndLouvers/pressure-testing.md` §3.5 is the session.
+constants; `../ndLouvers/pressure-testing.history.md` §3.5 is the session.
 
 This file and §"As built" had `k_d` = 0.2627 from a 1.00 mm wall, on the strength of a caliper
 reading and a five-point regression that agreed with it. **Both were wrong.** A ballasted run
@@ -1257,7 +1257,7 @@ and tape of the graduations, so no water was taken up.
 ### The bell's supply demand does not scale with pressure (2026-09-21)
 
 **Nothing here is a live instruction.** `calibrationBell.md` §"As built" and the operating sequence
-carry the current figures; `../ndLouvers/pressure-testing.md` §3.6 is the session.
+carry the current figures; `../ndLouvers/pressure-testing.history.md` §3.6 is the session.
 
 This file recorded a single circuit resistance — first 8.75 × 10⁷ Pa·s/m³, then 2.29 × 10⁸ after the
 ballasted run, with the earlier figure marked as withdrawn. **Both were right and the withdrawal was
