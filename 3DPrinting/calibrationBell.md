@@ -20,9 +20,9 @@ error terms this file did not carry.
 **A ladder on 2026-09-22/23 settled the fixture and overturned its constants.** `A_eff` was measured
 with water (above), so **`k_m` moved 0.5551 → 0.5639 and `k_d` 0.2372 → 0.2414**, and with the
 SDP810's barometric dependency applied (`../../ndLouvers/pressure-testing.md` §2.3a) **all five
-sensors read within ±1.7 % of this bell** — spread 2.2 pp, every part inside its ±3 % spec.
+sensors read within ±0.9 % of this bell** — spread 1.4 pp, every part inside its ±3 % spec.
 **The earlier "three sensors spread ten percent and the bell sits inside them to ~1–2 %" is
-retired**: `P2`'s −3.5 % was the only figure below the bell and it is now −1.53 %, alongside the
+retired**: `P2`'s −3.5 % was the only figure below the bell and it is now −0.57 %, alongside the
 rest. There was no straddle — there was a 1.6 % bore error and a 4.2 % barometric term.
 The "residual" §"As built" item 4 carried was those two, not a bell term.
 The add-mass test below cannot be performed on this build and is retired.
@@ -154,15 +154,12 @@ gives a 23 s time constant, and §2.5 asks for a 20 s plateau.
 
 A bell does not fight the bleed. It is a **constant-pressure source**: as gas escapes the bell
 sinks, and the pressure — weight over area — does not change. The supply only has to replace what
-the sensor drinks, of order 1 mL/s at 500 Pa.
-**That estimate is superseded: the measured figure is ~5.5 mL/s at 500 Pa**
-(`../../ndLouvers/pressure-testing.history.md` §3.4a, 2026-09-20). The circuit resistance was measured at
-**flow-dependent**: 2.29 × 10⁸ Pa·s/m³ at 0.82 mL/s but only 1.0 × 10⁸ at 0.28 (history §3.5–§3.6), so
-**the supply demand does not scale linearly with pressure**. Both are below the U-tube figure the
-1 mL/s came from — that observation was taken
-at ten times full scale, where the flow in the sensor's internal channel is not laminar. **At 500 Pa
-the bell therefore sinks ~18 mm/min and lasts about four minutes per charge**, and the supply has to
-keep up with 5.5 mL/s.
+the sensor drinks. **Measured: ~0.3 mL/s at ~38 Pa and ~1.5 mL/s at ~394 Pa**, the top of this
+bell's range (the 2026-09-22 ladder's sink rates × `A_o`). The circuit resistance is
+**flow-dependent** — ~1.0 × 10⁸ Pa·s/m³ at 0.3 mL/s, ~2.6 × 10⁸ at 1.5 mL/s (history §3.5–§3.6,
+`../../ndLouvers/pressure-testing.md` §2.3) — so **the demand does not scale linearly with
+pressure**. **At the top rung the bell sinks ~5 mm/min and a charge lasts ~5–6 minutes** over the
+tub's ~28 mm of usable travel.
 
 Its accuracy comes from **mass and diameter**, both measurable at home to better than 0.2 %, rather
 than from a liquid column read against a ruler. That is the other half of the U-tube's problem:
@@ -632,7 +629,7 @@ reading as the only rod-less one.
    **Check where the pressure line runs before every session**: a line bearing on the bell put a
    silent constant **+5.6 Pa** on a whole run on 2026-09-21 (§"Things that would corrupt every
    reading" item 1).
-   Measured demand: **0.32 mL/s at ~28 Pa, rising to ~5.5 mL/s at 500 Pa** (2026-09-20). **A leak
+   Measured demand: **0.32 mL/s at ~28 Pa, rising to ~1.5 mL/s at ~394 Pa**. **A leak
    test with the sensor removed showed zero sinking in 10 minutes**, so essentially all of it is the
    sensor's bypass rather than a leak in the bell or its lines. Unsupplied, the bell sags
    **0.17–0.24 Pa/min** at 28 Pa, which is **0.7–1.0 mm/min of sinking**.

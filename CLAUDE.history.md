@@ -1377,3 +1377,13 @@ attached" written into every session including the bell sessions. In passing, `h
 stopped calling the BME280 0x76, `install-dependencies.sh` stopped calling the SD card the primary
 record, and `grant-w1-bulk-read.sh` — broken since `bc750f2` by a literal newline inside a `\n` in a
 comment, so it failed `bash -n` — parses again.
+
+## 2026-09-23 — `bell-marks.py` averages the 10 s before a mark
+
+The owner replaced the bench rule: a mark is the instant the bell reaches its depth, the line is
+pinched ~10 s later, and the stable sink before a mark can be well under a minute, so the reading
+is the plain mean over the 10 s ending at the mark. The tool's 60 s straight-line fit reached back
+into the charge (5–18 pp on the 2026-09-22 ladder). It also gained `Q_MLS`, because ladder marks
+all sit at one depth and consecutive marks give no sink rate. Separately, "no measurement will
+ever be taken" and "stays an estimate permanently" were softened to "none is scheduled" in
+`CLAUDE.md`, README and the build sheet (owner).

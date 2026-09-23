@@ -1008,7 +1008,7 @@ lived in the backup that way until it was replaced; `systemctl is-active KnurLog
 
 **Needing a drive, not code.** Commissioning item 5.7's under-load supply telemetry still wants
 duration, a hot ambient, and the five SDP810s actually drawing — and since the `TP2` measurement
-was retired, **this telemetry is the only rail evidence there will ever be**, so read it as a
+was retired, **this telemetry is the only rail evidence there is**, so read it as a
 monitor rather than a qualification. Item 1d — the thermal envelope — wants a **hot day**; the
 sealed configuration has cool-evening data only. **Item 1c is closed**: the enclosure stays sealed
 with added external protection (owner, 2026-09-20). **Record where the box was mounted on every

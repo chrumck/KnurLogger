@@ -5,6 +5,8 @@ Usage:  CH=P1 R_PATH=2.01e6 python Tools/bell-marks.py <session.ndjson> <m_dry_g
         depth of the same charge, from which the sink rate and therefore Q are taken.
         Mark times are LOCAL, CEST, on the session's local date. CH defaults to P0.
         R_PATH defaults to the ladder's short unfiltered leg; set it for any other line.
+        Q_MLS sets the flow through the line directly, in mL/s, when the marks carry no un-pinch
+        point - e.g. every ladder mark sits at the same d, so consecutive marks give no sink rate.
 
 Counters in a pressure record are cumulative session totals, so the session total is the LAST
 record's value and per-cycle validity is each channel's valid flag.
@@ -14,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 
 CH = os.environ.get('CH', 'P0')
 R_PATH = float(os.environ.get('R_PATH', '2.01e6'))   # Pa.s/m^3; the ladder's short leg
+Q_FIXED = float(os.environ['Q_MLS']) * 1e-6 if 'Q_MLS' in os.environ else None
 
 path = sys.argv[1]
 LOCAL = timedelta(hours=2)          # CEST; taiUs on this box equals unix UTC (checked vs isoTime)
@@ -23,7 +26,10 @@ K_M = 0.5639      # Pa/g, g/A_eff on the water-measured A_eff
 K_D = 0.2414      # Pa/mm, rho.g.(A_wall + A_rod)/A_eff, rod fitted
 A_O = 18146.0     # mm^2 outer; sink rate x A_o = flow
 P_CAL = 96600.0   # Pa; the SDP810's calibration pressure, reading = dp x P_abs/P_CAL
-FIT_S = 60        # s; straight-line fit over the window ending at the mark
+WINDOW_S = 10     # s; the reading is the plain mean over the window ending at the mark. The line is
+                  # pinched ~10 s after the mark and the stable sink before it can be short, so a
+                  # longer window reaches back into the charge.
+BARO_S = 60       # s either side of the mark for P_abs, which moves far slower than the bell
 
 m_dry, m_disp = float(sys.argv[2]), float(sys.argv[3])
 m_app = m_dry - m_disp
@@ -104,30 +110,27 @@ def to_utc(hms):
     return datetime(lf.year, lf.month, lf.day, hh, mm, ss, tzinfo=timezone.utc) - LOCAL
 
 
-def fit_at(tm, sec):
-    """Straight-line fit of the channel over the window ending at tm, evaluated at tm."""
-    pts = [((t - tm).total_seconds(), ch[CH]['pressurePa']) for t, r, ch in recs
-           if ch[CH]['valid'] and tm - timedelta(seconds=sec) <= t <= tm]
-    if len(pts) < 3:
-        return float('nan'), float('nan'), len(pts)
-    xm, ym = st.mean(x for x, _ in pts), st.mean(y for _, y in pts)
-    slope = sum((x-xm)*(y-ym) for x, y in pts) / sum((x-xm)**2 for x, _ in pts)
-    resid = st.pstdev(y - (ym + slope*(x-xm)) for x, y in pts)
-    return ym - slope*xm, resid, len(pts)
+def mean_before(tm, sec):
+    """Mean and sd of the channel's magnitude over the window ending at tm."""
+    vals = [abs(ch[CH]['pressurePa']) for t, r, ch in recs
+            if ch[CH]['valid'] and tm - timedelta(seconds=sec) <= t <= tm]
+    if len(vals) < 2:
+        return float('nan'), float('nan'), len(vals)
+    return st.mean(vals), st.pstdev(vals), len(vals)
 
 
 def p_abs_at(tm):
-    near = [p for t, p in baro if abs((t - tm).total_seconds()) <= FIT_S]
+    near = [p for t, p in baro if abs((t - tm).total_seconds()) <= BARO_S]
     return st.mean(near) if near else float('nan')
 
 
 print(f'\nm_dry {m_dry} g, m_disp {m_disp} g, m_app {m_app} g, k_m*m_app = {K_M*m_app:.2f} Pa; '
       f'k_d {K_D}, R_path {R_PATH:.3g} Pa.s/m^3')
-print('mark(local)  d_mm  P_bell   fit60 (resid,n)       P_abs    Q mL/s  loss Pa  f=1-rdg/P_bell  eps')
+print(f'mark(local)  d_mm  P_bell   mean{WINDOW_S}s (sd,n)        P_abs    Q mL/s  loss Pa  f=1-rdg/P_bell  eps')
 prev = None
 for (hms, d), start in marks:
     tm = to_utc(hms)
-    reading, resid, npts = fit_at(tm, FIT_S)
+    reading, resid, npts = mean_before(tm, WINDOW_S)
     pb = K_M*m_app - K_D*d
     pa = p_abs_at(tm)
     baro_factor = pa / P_CAL
@@ -138,7 +141,9 @@ for (hms, d), start in marks:
         t0, d0 = prev
     else:
         t0 = None
-    if t0 is not None and (tm - t0).total_seconds() > 0:
+    if Q_FIXED is not None:
+        q = Q_FIXED
+    elif t0 is not None and (tm - t0).total_seconds() > 0 and d > d0:
         rate = (d - d0) / (tm - t0).total_seconds()        # mm/s
         q = rate * A_O * 1e-9                              # m^3/s
     else:

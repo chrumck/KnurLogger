@@ -46,8 +46,7 @@ narrative in this file.
   `../ndLouvers/pressure-testing.md` §3.3 (rev 113; sessions in `../ndLouvers/pressure-testing.history.md` §3.3–§3.14), which owns the figures:** the bench tubing
   loses 8.4 → 3.9 % of the bell's pressure across 38–386 Pa; the 8.6 m extension is 3.1 × 10⁷; and
   **all five SDP810s, read against the same bell on 2026-09-22/23, are inside their ±3 % spec** —
-  `P0` −1.03, `P1` −0.91, `P2` −1.53, `P3` −1.70, `P4` +0.50 %, a 2.2 pp spread (reduced on the
-  wall-only `k_d`; each moves up by ≤ 0.3 pp on the rod-inclusive 0.2414).
+  `P0` −0.82, `P1` +0.08, `P2` −0.57, `P3` −0.73, `P4` +0.58 %, a 1.4 pp spread.
   > **⚠ THE EARLIER "THREE SENSORS SPREAD TEN PERCENT, `P1` IS OUT OF SPEC, AND THE BELL IS THE
   > BEST ABSOLUTE IN THE ROOM" IS RETIRED — do not restore it.** Those figures were computed with a
   > `k_m` that assumed a perfectly circular bore (it is 1.6 % oval) and **with no barometric term at
@@ -643,10 +642,10 @@ The platform has already been the culprit once and the logger looked guilty (his
   4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V, plausibly 330–430 mA once
      BLE and the workers are counted — ~3.3–5 Ah over a 12 h day
      against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
-     in, i.e. a flat battery.** Estimated, not measured, and it will stay that way.
-     **That estimate predates the five SDP810s and the sixth worker.** **Neither will be
-     measured** — `../ndLouvers/` Step 0b item 5.3 was dropped on 2026-09-20 with the rest of the electrical qualification
-     programme, so this stays an estimate permanently. **Label it as one wherever it is quoted**;
+     in, i.e. a flat battery.** Estimated, not measured.
+     **That estimate predates the five SDP810s and the sixth worker**, and no draw measurement is
+     scheduled — `../ndLouvers/` Step 0b item 5.3 was dropped on 2026-09-20 with the rest of the
+     electrical qualification programme. **Label it as one wherever it is quoted**;
      the practical rule it supports — a fuse left in for a week is a flat battery — does not need
      a figure to be true.
   **The ~1 s `fsync` requirement is unchanged — only its trigger moved.** A hard cut is the fuse

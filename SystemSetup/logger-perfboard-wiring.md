@@ -7,7 +7,7 @@ disagreement back to the plan rather than resolving it at the bench.
 **Status: power zone built and powered; the Pi runs on it; nothing measured.** The supply is
 soldered — an **HW-384 buck module** (`U1`) with its USB-A port removed and pins fitted, plus a
 100 µF output electrolytic (`C12`) — per the owner, 2026-09-07, who judges it sufficient. It has
-been **powered and it powers the Pi**. **No measurement has ever been taken anywhere on the board, and none ever will be:**
+been **powered and it powers the Pi**. **No measurement has been taken anywhere on the board, and none is scheduled:**
 §10 step 2 (dummy load) and step 3 (crank transient) were bypassed in 2026-09-07 and **CLOSED
 UNPERFORMED on 2026-09-20** with the rest of the qualification programme (plan risk 14). The only
 rail evidence there is, or will be, is the Pi's own opinion of it: `throttled=0x0` at idle
@@ -30,7 +30,7 @@ the 5 V output retire `RP1`, `D2`, `F2`, `L1`, `C3` and `C4`, and the fixed 4.8�
 retires the trim-pot procedure entirely. **Since 2026-09-20 most of the remainder is retired
 too:** `TVS1` against load dump and every measurement in §10 steps 2–3 are **closed unperformed**
 by owner decision (plan risk 14), so the input has **no clamp against load dump** and that exposure
-is accepted permanently. **`F1` is the exception and it is FITTED** — at the **car's fuse box**,
+is accepted. **`F1` is the exception and it is FITTED** — at the **car's fuse box**,
 upstream of any cable routed to the logger, which is the source-end position it always specified.
 **So the feed run is protected over its whole length**, and the fire-risk argument that made `F1`
 a different case from `TVS1` is satisfied rather than waived. Step 4's logged telemetry stands and
@@ -845,8 +845,8 @@ the supply is qualified alone, first, and the expensive parts go on last.
    were not run on the bare board; that opportunity has passed, since the board is now powered and
    populated.
 2. **~~Measure the output into a dummy load~~ — BYPASSED 2026-09-07, then CLOSED UNPERFORMED
-   2026-09-20.** The supply was powered and the Pi connected without it, and the measurement will
-   now never be taken. **What is permanently given up:** there is no number for what the rail sits
+   2026-09-20.** The supply was powered and the Pi connected without it, and the measurement is
+   not scheduled. **What that gives up:** there is no number for what the rail sits
    at, at `TP2` or at the Pi's USB-C end, so the margin against the Pi's 4.63 V undervoltage flag
    is unknown — and a fixed-output HW-384 has no pot to trim it with. **That margin is not
    academic:** plan open item 48 measured the rail crossing that flag on roughly 2 boots in 10
@@ -941,7 +941,7 @@ the supply is qualified alone, first, and the expensive parts go on last.
 10. **Only then** commission against the plan: item 2's boot identification and CRC, item 3's
     compensation start, item 4's logging fields, item 5a's BLE link check, item 5b's SD logging.
     **Item 5.3's continuous-draw measurement and thermal derating were DROPPED 2026-09-20** and do
-    not belong here any more — the ~275 mA figure stays an estimate permanently.
+    not belong here any more — the ~275 mA figure is an estimate.
 
 **Stop and go back to the plan at step 10.** Everything up to there is assembly; commissioning
 is a plan activity with acceptance criteria this file does not restate.
