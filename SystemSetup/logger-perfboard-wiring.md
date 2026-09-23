@@ -230,7 +230,7 @@ liability.
 | `U2` | **PCA9548A** mux `0x70` — board marked PCA9548A, a functional equivalent of the TCA9548A the parts list names (§2 note 4) | Sensor |
 | `U3` | BME280 `0x77` | Sensor |
 | `U4`–`U7` | SDP810 ±500 Pa — the four ±500 Pa sensors. **As plugged in 2026-09-19 they occupy `J7`, `J8`, `J10` and `J11`, i.e. channels P0, P1, P3 and P4** | Off-board |
-| `U8` | SDP810 **±125 Pa** — **plugged into `J9`, channel P2, as built 2026-09-19** (the build specified `J11`/P4; it is connectorised, so its position is a plug choice and §5 is the record) | Off-board |
+| `U8` | SDP810 **±125 Pa** — **at `J9`, channel P2, as built 2026-09-19** (the build specified `J11`/P4; §5 is the record). **Hard-soldered, not plugged** — corrected 2026-09-23 | Off-board |
 | `R1`–`R10` | 4.7 kΩ channel pull-ups, one pair per populated mux channel | Sensor |
 | `R11` | 2.2 kΩ 1-Wire pull-up | Sensor |
 | `R12` | 10 kΩ mux `~RESET` pull-up | Sensor |
@@ -531,7 +531,7 @@ scale factor below was read back over I2C, not taken from a label. Five distinct
 |---|---|---|---|---|---|
 | SD0/SC0 | **P0** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E22` | 60 | `P0+` / `P0−` |
 | SD1/SC1 | **P1** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E19` | 60 | `P1+` / `P1−` |
-| SD2/SC2 | **P2** | SDP810 **±125 Pa** — **connectorised, not soldered** | `0x03020B01` / `0x00000000978B88F8` | **240** | `P2+` / `P2−` |
+| SD2/SC2 | **P2** | SDP810 **±125 Pa** — **hard-soldered, like the other four** (corrected 2026-09-23; "connectorised, not soldered" was wrong) | `0x03020B01` / `0x00000000978B88F8` | **240** | `P2+` / `P2−` |
 | SD3/SC3 | **P3** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E18` | 60 | `P3+` / `P3−` |
 | SD4/SC4 | **P4** | SDP810 ±500 Pa | `0x03020A01` / `0x000000009B994E24` | 60 | `P4+` / `P4−` |
 | SD5/SC5 | **P5** | Unpopulated. Reserved position, wired for a sixth sensor. `R13`/`R14` are footprints only. | — | — | — |
@@ -540,8 +540,12 @@ scale factor below was read back over I2C, not taken from a label. Five distinct
 > **⚠ THE ±125 Pa IS ON P2, NOT P4 — THE BUILD SPECIFIED P4 AND THE BOARD DISAGREES.** Every
 > version of this document before 2026-09-19 put it at `J11`/P4, and §3, §3a.1, §3a.3 and net list
 > row 22 have been corrected to match the board. **The board is right and the document was
-> updated**, because the part is connectorised: which header it sits in is a plug choice, not
-> copper, so no net changed and nothing needs unsoldering. **This table is the record.** Anything
+> updated**. **The reason originally given here — "the part is connectorised, so which header it
+> sits in is a plug choice, not copper" — IS WRONG and is withdrawn** (owner, 2026-09-23):
+> **all five SDP810s are hard-soldered, the ±125 Pa included.** It was soldered into the `P2`
+> position rather than the specified `P4`. The board still wins and this table is still the record
+> — but **nothing here can be moved with a plug**, and plan open item 38, which closed partly on
+> the connectorised claim, carries the consequence. Anything
 > that still says "the ±125 Pa sits at P4" is stale — and the plan's phase table, which allocates
 > the low range by *role*, was reconciled at the same time.
 

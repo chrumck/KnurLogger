@@ -111,8 +111,11 @@ narrative in this file.
 
 - **The sensor zone is ASSEMBLED** (owner, 2026-09-09), and **all five SDP810s are fitted and read
   correctly** (2026-09-19) — one per mux channel, each channel needing its own
-  pull-ups, and the single ±125 Pa **connectorised rather than hard-soldered** (plan open
-  item 38). **The ±125 Pa is on `P2`, not the specified `P4`** — the board won and the build sheet
+  pull-ups. **ALL FIVE ARE HARD-SOLDERED, THE ±125 Pa INCLUDED** (owner, 2026-09-23). **This
+  document, the build sheet and the plan all said the ±125 Pa was "connectorised rather than
+  hard-soldered" — that was wrong about the board**, and plan open item 38 was closed partly on the
+  strength of it. A sensor cannot be moved between mux channels with a plug, and no part can be
+  separated from its channel for fault-finding without desoldering. **The ±125 Pa is on `P2`, not the specified `P4`** — the board won and the build sheet
   was corrected; §5 there is the record and carries all five serials. **An empty I2C scan is therefore no longer the correct
   result**, and neither is zero `28-*` devices (history §2.6 for what the acceptance criteria used
   to say). Three facts from the assembled board matter before writing any bus code:
