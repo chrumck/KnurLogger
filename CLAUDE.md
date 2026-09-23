@@ -64,7 +64,15 @@ narrative in this file.
   `KnurLogger.ini` from the bench curves and the measured route length, **multiplied by a live
   `P_abs`/96 600 factor read from the BME280**, applied to the RaceChrono feed only, raw counts
   always logged, parameters — including the `P_abs` in force — written into the session header, the
-  same shape as the thermal offsets. The
+  same shape as the thermal offsets.
+  **The span term is a pair of `.ini` values per channel slot, one for positive readings and one for
+  negative, and is never hard-coded** (owner, 2026-09-23). The bench fit put it at **0 on
+  `P0`/`P2`/`P3`/`P4` and ±0.91 % on `P1`**, whose H port reads 1.8 pp above its L port
+  (`../ndLouvers/pressure-testing.md` §3.3b "The §2.7 fit"). The thermal offsets' rules carry over:
+  a missing key for an enabled channel is a startup error, not a silent zero; the pair is keyed to
+  the slot, so a replaced sensor leaves it describing a part that is gone; and the values in force go
+  in the session header. **These are new required keys, so hand-merge them into `~/bin/KnurLogger.ini`
+  before deploying the build that reads them**, or the car's logger crash-loops. The
   "5.1 % rising to 9.5 %" line-loss curve of rev 110–111 was `P0`'s deficit with its span inside;
   **do not quote it as a property of the tubing**, and do not reinstate the three revisions of it
   withdrawn at rev 111 either. **`k_d` 0.2372 and the 0.891 mm wall are withdrawn as of 2026-09-23**
