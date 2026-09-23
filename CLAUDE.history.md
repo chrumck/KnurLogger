@@ -1387,3 +1387,10 @@ into the charge (5–18 pp on the 2026-09-22 ladder). It also gained `Q_MLS`, be
 all sit at one depth and consecutive marks give no sink rate. Separately, "no measurement will
 ever be taken" and "stays an estimate permanently" were softened to "none is scheduled" in
 `CLAUDE.md`, README and the build sheet (owner).
+
+## 2026-09-23 — Wi-Fi gating closed as manual
+
+The open question "manual `nmcli`, or logger-owned?" had waited on plan item 5a's installed link
+check, which closed on 2026-09-15 without answering it because no session recorded the radio
+state. The owner closed it: the track sessions ran clean with Wi-Fi up, so gating is manual and
+done only when diagnosing a BLE link problem. The `rfkill block all` prohibition is unchanged.

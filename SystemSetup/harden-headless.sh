@@ -573,8 +573,8 @@ To gate Wi-Fi for a session without giving up your way back in:
 over a shell; dtoverlay=disable-wifi is not, which is why this script does not
 use it. Note that `rfkill block wifi` targets wlan only and leaves
 Bluetooth alone — do not use bare `rfkill block all`, which would take the BLE
-link down with it. Leave the gating manual until the logger owns it, and gate
-Wi-Fi for any measurement of BLE link quality.
+link down with it. Gating is manual: do it only when diagnosing a BLE link
+problem.
 
 Rollback — everything this script touched, in one place:
   config.txt, cmdline.txt   restore the .bak-<timestamp> copies beside them

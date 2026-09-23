@@ -368,13 +368,12 @@ Only after both succeed, drop port 22 by hand.
 
 ## 8. Step 8 — Wi-Fi gating for a run
 
-**Background.** Plan item 1b: Wi-Fi and BT share one radio and one antenna on the BCM43455, and
-background scanning is a known source of BLE jitter. Item 5a wants connection events, supervision
-timeouts and notify-sequence gaps logged during the installed link check — which is the test that
-would actually show whether scanning matters on this car.
+**Background.** Wi-Fi and BT share one radio and one antenna on the BCM43455, and background
+scanning is a known source of BLE jitter.
 
-**Decision, open.** Whether Wi-Fi is blocked for a session, and whether the logger owns that or you
-do, is not settled. Until it is, by hand:
+**Decision: gating is manual** (owner, 2026-09-23). The installed link has run clean through the
+track sessions with Wi-Fi left up, so nothing gates it routinely and the logger will not own it.
+Gate by hand only when diagnosing a BLE link problem:
 
 ```bash
 sudo rfkill block wifi         # before a run
@@ -428,7 +427,7 @@ exactly the condition the box shipped in.
 | 11. 1-Wire bulk-read permission | **done** 2026-09-10 | `grant-w1-bulk-read.sh --execute --verify` from a login shell. The udev rule gives the `gpio` group write access to `w1_bus_master*/therm_bulk_read`, which `w1_therm` registers `0644 root:root`; without it the logger's write is refused with `EACCES` (errno 13) and four probes sample at **0.31 Hz instead of ~1 Hz**. **Verified against a fake probe, not a real one**: `--verify` writes a family-0x28 id to `w1_master_add`, the attribute appears as `root:gpio 664`, `chrum` writes it successfully, and the fake slave is removed again — bus left with the master alone. **The rate did NOT change and the permission was not the whole fault** (measured with four real probes the same day): 331 cycles at 3190–3309 ms, every probe still ~800 ms. **The other half was found 2026-09-11 and is in the logger, not here:** the trigger must be written as eight bytes (`"trigger
 "`), because `therm_bulk_read_store` gates on `size == sizeof("trigger")`. With both in place, 123 cycles at a 1023 ms mean interval — **0.977 Hz** — and one 762–790 ms conversion for all four probes. Parasite power was the standing suspect and was wrong. The rule is correct and stays. Plan open item 43 and `../CLAUDE.history.md` §1.15. |
 | 12. KnurLogger.service | **done** 2026-09-10 | Installed to `/etc/systemd/system/`, `daemon-reload`, `enable --now`, and **verified across a reboot** — `active` and `enabled`, all four channels bound at startup, BLE advertising. It runs `/home/chrum/bin/KnurLogger` in log mode as `chrum`. **Consequence for anything done by hand from now on: the logger is ALREADY RUNNING whenever the box is powered.** Two instances both poll the 1-Wire bus, each read triggering its own conversion, which roughly doubles cycle time and would corrupt any timing measurement — so `sudo systemctl stop KnurLogger` before running the binary by hand, `--enroll` included. Live view is `journalctl -u KnurLogger -f`. |
-| 8. Wi-Fi gating | **decision open** | Manual `nmcli`/`rfkill block wifi` for now. Plan item 5a's installed link check has run and **5a closed 2026-09-15**, but no session recorded the radio state, so it did not answer whether gating is needed (`../CLAUDE.md` §"Never disable"). |
+| 8. Wi-Fi gating | **done — manual** | Owner decision 2026-09-23: gate by hand with `rfkill block wifi` / `nmcli radio wifi off` only when diagnosing a BLE link problem; the logger does not own it. |
 
 ### Corrections the first real audit forced
 
@@ -748,9 +747,8 @@ plan's companion file). What that did and did not establish:
 
 ### Open items owned by this file
 
-1. **Wi-Fi gating policy** — manual `nmcli`, or logger-owned? Blocked on plan item 5a.
-2. **`avahi-daemon` keep or drop** — kept by default. Dropping needs a static DHCP reservation.
-3. **Read-only root** — see §9 item 1. Decide before the first event.
+1. **`avahi-daemon` keep or drop** — kept by default. Dropping needs a static DHCP reservation.
+2. **Read-only root** — see §9 item 1. Decide before the first event.
 
 **I2C bus speed is not an open item.** Build sheet §6 specifies 100 kHz and owns the decision.
 Raising it needs a segment-capacitance measurement or lower pull-ups, and a change to the build

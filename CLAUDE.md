@@ -151,8 +151,8 @@ narrative in this file.
      probe by hand and watch which channel moves" identification check performable in situ.
   4. **Do not run the BLE link qualification with Wi-Fi up.** Wi-Fi and BT share one radio and one
      antenna on the BCM43455, and plan item 1b names background Wi-Fi scanning as a known source
-     of BLE jitter. The hotspot is a debugging convenience, so **gate Wi-Fi off for any
-     measurement of link quality** and bring it back up afterwards to collect artefacts.
+     of BLE jitter. The hotspot is a debugging convenience, so **gate Wi-Fi off by hand when
+     diagnosing link quality** and bring it back up afterwards to collect artefacts.
      `rfkill block wifi`, never `rfkill block all`.
   5. **The pressure sensors have no such problem** — they sit on the perfboard and bench-test
      directly. They arrived 2026-09-17; the first was brought up on the bench 2026-09-18.
@@ -751,10 +751,9 @@ The platform has already been the culprit once and the logger looked guilty (his
 - **Wi-Fi, permanently.** `dtoverlay=disable-wifi` needs an SD card and a text editor to undo.
   Gate it per session with `rfkill block wifi` or `nmcli radio wifi off` instead — **never
   `rfkill block all`**, which takes BLE down with it and persists across reboots, and cannot then
-  be cleared from `bluetoothctl` (history §1.3). Whether Wi-Fi needs gating at all is plan item
-  5a's installed link check to answer. **That item is now closed and it did not answer this
-  question**: no session records the radio state, so a clean link says nothing about whether gating
-  was doing any work. Gate Wi-Fi for any link measurement regardless.
+  be cleared from `bluetoothctl` (history §1.3). **Gating is manual** (owner, 2026-09-23): the
+  installed link has run clean with Wi-Fi up, so gate it by hand only when diagnosing a BLE link
+  problem; the logger does not own it.
 
 ## Scripts
 
