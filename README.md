@@ -37,7 +37,7 @@ reset one, is still open.
 comparator read 0 throughout. No `.rcz` could date it; the SD file does. `stickyAtSessionStart` is
 already 5 in the baseline record at `bootUs` **13.17 s**, so both bits were earned **within 13.2 s
 of kernel boot** and never moved across 38 hours. Two of ten boots carry it, so it is an
-intermittent power-on transient — item 5.4's supply-margin question, not a cranking dip.
+intermittent power-on transient — a supply-margin question under Step 0b item 5, not a cranking dip.
 **`../ndLouvers/` open item 48 is CLOSED as permanently unanswerable** (2026-09-20): the `TP2` and
 Pi-end rail measurements that would have turned "sometimes crosses the flag" into a margin figure
 were retired unperformed with the rest of the electrical qualification programme. **The finding
@@ -100,9 +100,10 @@ undisturbed minutes, ~3 % of a ~6 K ΔT_preheat signal and inseparable from a re
 so all four `temp<N>OffsetC` stay 0.0 — **a result, not an oversight**.
 
 **A 7.53 h unattended bench run holds up**: 27,123 cycles, worst-case gap 1004 ms, zero gaps over
-2 s, zero dropped records, `throttled` 0 throughout, 1457 B/s (~72 MB for a 12 h day against 108 GB
+2 s, zero dropped records, `throttled` 0 throughout, 1457 B/s (~63 MB for a 12 h day against 108 GB
 free). It was open-air and idle with no probes bound and `0 notifications sent`, so it exercises
-neither BLE load nor the sealed enclosure.
+neither BLE load nor the sealed enclosure. The 10 Hz pressure worker has since raised the rate to
+**20.2 kB/s, ~873 MB for a 12 h day** (`pressure-worker-plan.md` step 9).
 
 **The host setup under `SystemSetup/` has been applied** and the box is key-only over SSH, on
 kernel `6.18.39` / `bluez 5.82-1.1+rpt2` — the upgrade is what made BLE advertising work at all
@@ -131,16 +132,18 @@ sinking in 10 minutes with the full line and no sensor — so the entire 0.32 mL
 sensor's own bypass and the tubing's viscous loss becomes a first-order error term. The attempt to
 measure that loss by adding 8.6 m of tube **failed**, because the bare bell lolled and had to be
 corrected, and each correction is a positive transient. **No number from history §3.4b is a result.**
-**Ballasting the bell fixed that** (2026-09-21) and eleven sessions later the pressure chain is
-restated once in `../ndLouvers/pressure-testing.md` §3.3 (rev 113): the bench tubing loses
-**8.2 → 3.8 % of the bell's pressure across 38–386 Pa**, the 8.6 m extension is 3.1 × 10⁷, and
-**three of the five sensors read against one bell spread ten percent** (`P2` −3.5 %, `P0` +2 to
-+4 %, `P1` ~+6 % — outside its spec), so each channel gets its own gain from a ladder on the bell,
-which is the best absolute in the room. The "5.1 % rising to 9.5 %" curve published earlier was
+**Ballasting the bell fixed that** (2026-09-21), and the pressure chain is stated once in
+`../ndLouvers/pressure-testing.md` §3.3, which owns the figures: the bench tubing loses
+**8.4 → 3.9 % of the bell's pressure across 38–386 Pa**, the 8.6 m extension is 3.1 × 10⁷, and
+**all five sensors, read against the bell on the 2026-09-22/23 ladder, are inside their ±3 % of
+reading** once the SDP810's barometric term is applied — `reading = Δp × P_abs/966 mbar`, +4.19 %
+at the bench (`pressure-testing.md` §2.3a). Each channel still gets its own gain from the ladder.
+**The earlier "three sensors spread ten percent, `P1` out of spec, the bell the best absolute in
+the room" is retired** — it was a 1.6 % bore error and the missing barometric term. The "5.1 % rising to 9.5 %" curve published earlier was
 one sensor's deficit with its span inside; **do not quote it as a tubing figure.** **None of this
 qualifies a channel.**
 **The ±125 Pa is on channel `P2`, not the specified `P4`** — the board won and the documents were
-corrected; `Hardware/logger-perfboard-wiring.md` §5 is the record.
+corrected; `SystemSetup/logger-perfboard-wiring.md` §5 is the record.
 **Do not address mux channel 5: its pull-ups are not fitted and probing it hangs the whole bus.**
 
 **The pressure worker landed 2026-09-19 and it still measures nothing.** `pressureSensors.cxx`
@@ -175,9 +178,10 @@ Read, in this order, before changing anything here:
    before changing anything that touches `oneWireProbes.cxx` or `bme280Sensor.cxx`. It owns no
    requirement; Step 0b does.
 1b. `../ndLouvers/pressure-testing.md` — the pressure measurement companion. **The installed rig
-   is still unbuilt**: no line is on the car, no wand is sited, no hole-plane coordinate recorded,
-   no filter characterised and no ladder run. **What exists is bench hardware** — two wands, two
-   filtered lines and the calibration bell — which delivered pressure to `P0` on 2026-09-20 (`../ndLouvers/pressure-testing.history.md` §3.3).
+   is still unbuilt**: no line is on the car, no wand is sited and no hole-plane coordinate is
+   recorded. **What exists is bench hardware** — two wands, two filtered lines and the calibration
+   bell — which delivered pressure to `P0` on 2026-09-20 (`../ndLouvers/pressure-testing.history.md` §3.3);
+   the filter pair is measured and ladder rungs 1, 3 and 6 have run (`pressure-testing.md` §3.3).
    **The pressure worker exists as of 2026-09-19 and satisfies none of that file** — it produces
    the channel, not the measurement — and that session qualifies no channel either. Read it before reading
    any pressure number as one, and note that the five SDP810s share the I2C bus whose
@@ -186,7 +190,7 @@ Read, in this order, before changing anything here:
    bindings, the `28-*` family filter, `therm_bulk_read`, the ~100 s tail a pulled probe leaves,
    the fake-sysfs harness, and the enrollment and offset requirements. **Read it before touching
    `oneWireProbes.cxx`.** Split out of `CLAUDE.md` on 2026-09-15.
-2. `Hardware/logger-perfboard-wiring.md` — pinouts, I2C addresses, mux channel numbering and
+2. `SystemSetup/logger-perfboard-wiring.md` — pinouts, I2C addresses, mux channel numbering and
    bring-up order. Its §3a net list is the authority on every connection. It is subordinate to the
    plan's Step 0b, which it lived alongside until 2026-09-10.
 3. `SystemSetup/pi-headless-setup.md` — the host runbook.
@@ -208,7 +212,7 @@ Read, in this order, before changing anything here:
 rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided
 and applied** — installing the probes on the car pinned it, and enrolled in installed order it
 is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. **All four are bound**
-(2026-09-10); `Hardware/logger-perfboard-wiring.md` §5a has the ROM IDs. **The role map is
+(2026-09-10); `SystemSetup/logger-perfboard-wiring.md` §5a has the ROM IDs. **The role map is
 independently confirmed** — warming each probe in installed order moved `temp0`–`temp3` in that
 order, +3.8 to +5.4 K each.
 
@@ -362,8 +366,8 @@ easy to point at the wrong thing:
 1. **Pressure is ENCLOSURE pressure and never a static reference.** The cavity is
    aerodynamically live: **measured at 156 Pa below stationary at a mean 116 km/h on the first
    drive (Cp ≈ −0.25)**, which is still 2–3× the 45–90 Pa measurands, is not a single constant Cp,
-   and is speed-correlated so it does not average out of a speed sweep. **That is the only cavity
-   QUALIFIED measurement of it there is**, and a second cavity record from the third drive
+   and is speed-correlated so it does not average out of a speed sweep. **That is not the only cavity
+   record, and the records disagree**: a second cavity record from the third drive
    corroborates the sign and order without being a Cp point, because the route's elevation change
    is the same order as the signal and no altitude channel was exported. **Two track days then add
    SEVEN sessions and they CONTRADICT the first drive** — Cp −0.108 to −0.144, flat to within ±0.006
@@ -376,11 +380,12 @@ easy to point at the wrong thing:
    **This field is named for where the box is designed to sit, not for where it actually sat**, and
    nothing in the session file says which. Record the mounting state per session. It is tolerable as a
    density term and disqualifying as a reference (`../ndLouvers/thermals-testing.md` §3.6).
-2. **Temperature is the cavity thermometer** (plan item 1c), with Pi SoC temperature on `0x604`
+2. **Temperature is the cavity thermometer** (plan item 1d, the hot-day envelope), with Pi SoC temperature on `0x604`
    as a cross-check rather than the primary proxy. **It is not the inlet density term** — that is
    `T_ambient`'s DS18B20 on `0x602` byte 0–1.
-3. **Humidity is a seal and desiccant diagnostic** for the condensation risks in plan items 1a
-   and 1d. It has no measurement consumer.
+3. **Humidity is the enclosure's condensation diagnostic** — the enclosure is sealed with no
+   desiccant (plan item 1c, closed). Its measurement consumer is the dewpoint margin
+   (`../ndLouvers/thermals-testing.md` §3.10).
 
 ### `0x601` — BME280 health
 
@@ -513,7 +518,7 @@ opened, and **no BLE record can ever date that** — `recordStickyTransitions` t
 transition of each bit and `stickyAtSessionStart` says whether it was inherited, and both are in
 the SD session file only. **That is exactly the case the track days produced, and reading the SD
 file is what settled it:** `stickyAtSessionStart` was already 5 at `bootUs` 13.17 s, so the latch
-is a power-on transient inside the first 13 seconds (`../ndLouvers/` open item 48). The general
+is a power-on transient inside the first 13 seconds (`../ndLouvers/` open item 48, closed). The general
 lesson is the one to keep — **a non-zero byte 1 is a question the phone cannot answer.**
 
 **Byte 7 is the channel to watch while the link is live.** Every other field here is a physical
@@ -596,15 +601,15 @@ marker needs, because RaceChrono holds the last value it received indefinitely.
 
 **`0x606` bytes 4–5 advance every cycle whatever the sensors report**, which is what separates a
 dead worker from five steady pressures — and five steady zeroes is the resting state of a healthy
-rig, so this counter is more necessary here than on `0x601` or `0x603`. At 10 Hz it wraps every
-**1.8 h** rather than the 18.2 h those two take at 1 Hz.
+rig, so this counter is more necessary here than on `0x601` or `0x603`. At the measured 9.594 Hz it
+wraps at 65535 every **1.9 h** rather than the 18.2 h those two take at 1 Hz.
 
 **Channel names are positional and mean nothing.** `P0`–`P5` are fixed by mux position. **The
 role→channel mapping is deliberately undecided** — `../ndLouvers/` open item 30a — and these
 channels are published before it exists on purpose, so the phone-side definitions can be built and
 verified **before** the rig does, which is the only way to stop open item 47 repeating on the
 pressure side. Recording which *part* sits on which channel (the `pressureBaseline` record, and
-`Hardware/logger-perfboard-wiring.md` §5) is not deciding which *role* it serves.
+`SystemSetup/logger-perfboard-wiring.md` §5) is not deciding which *role* it serves.
 
 ### `0x607` — pressure channel health
 
@@ -663,10 +668,6 @@ build/KnurLogger.ini  config TEMPLATE; the deployed copy is ~/bin/KnurLogger.ini
 one-wire-probes.md    the 1-Wire subsystem's traps and standing requirements — read before
                       touching oneWireProbes.cxx
 
-Hardware/             box-2 hardware; nothing here is logger code
-  logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
-                              on every connection. Subordinate to the plan's Step 0b.
-
 pressure-worker-plan.md  the implementation plan for the sixth worker: the five SDP810s into
                       the logged and broadcast data. Numbered steps, four owner decisions at
                       step 1, and a Work Progress table to update as it is executed
@@ -674,6 +675,13 @@ pressure-worker-plan.md  the implementation plan for the sixth worker: the five 
 Tools/                offline diagnostics; nothing here runs on the box
   rcz-channels.py       decode a RaceChrono .rcz's channel slots and flag a mistyped
                         equation — the phone's channel list, audited without the phone
+  bell-marks.py         evaluate calibration-bell marks against one pressure channel of a
+                        session, on the as-built bell constants and the barometric factor
+
+3DPrinting/           every printed part for both boxes — enclosure, sensor holders, boom
+                      tip, and the calibration bell (calibrationBell.md owns its constants)
+
+bellTesting.xlsx      the bell-session spreadsheet
 
 RaceChrono/           the phone's configuration, which lives nowhere else
   vehicleProfile.json   RaceChrono's exported vehicle profile, localUuid stripped;
@@ -682,6 +690,8 @@ RaceChrono/           the phone's configuration, which lives nowhere else
 
 SystemSetup/          host configuration; nothing here is logger code
   pi-headless-setup.md    the runbook — start here
+  logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
+                          on every connection. Subordinate to the plan's Step 0b.
   audit-boot.sh           read-only survey of what the box runs at boot
   install-dependencies.sh packages the build needs
   harden-headless.sh      boot-time service reduction and bus configuration
@@ -757,6 +767,13 @@ ssh KnurLogger 'bash ~/KnurLogger/SystemSetup/deploy-logger.sh --execute'
 it.** Run it with no arguments first, like every script in `SystemSetup/`. `KnurLogger.service`
 points at `/home/chrum/bin/KnurLogger`, not at the build tree.
 
+> **⚠ A BINARY THAT ADDS A REQUIRED KEY CRASH-LOOPS THE PRODUCTION LOGGER.** `config.cxx` exits on
+> any missing key, the deploy never touches `~/bin/KnurLogger.ini`, and the service restarts every
+> 5 s forever (`Restart=always`). Before deploying a build that adds a key, hand-merge it into
+> `~/bin/KnurLogger.ini` — the pre-flight's diff of the two files shows what is missing — then
+> deploy and check `systemctl status KnurLogger`. The pressure correction of
+> `../ndLouvers/pressure-testing.md` §2.4 step 4 will be such a build.
+
 > **⚠ The production `.ini` is not in git, so nothing else backs up a calibration or a binding.**
 > After enrolling or entering offsets at the car, copy `~/bin/KnurLogger.ini` into the repo as
 > `build/KnurLogger.ini` and commit it. That is a deliberate act rather than a side effect, which
@@ -829,9 +846,9 @@ ssh KnurLogger '~/bin/KnurLogger --enroll'
    car on 2026-09-10 — but unplugging as you go costs three things that binding does not:
    1. **The four-probe star is never loaded**, so the run proves nothing the ESP32 bench rig had
       not already proved with single probes. All four together on the 4 × 5 m bus, enumerating
-      with CRC-clean reads, is the open acceptance criterion in plan thermal item 1, and it is
-      only met with all four connected at once.
-   2. **Step 5's map check becomes impossible**, because warming one probe and watching one
+      with CRC-clean reads, is the acceptance criterion of plan thermal item 1 (closed, rev 77),
+      and it is only met with all four connected at once.
+   2. **Step 6's map check becomes impossible**, because warming one probe and watching one
       channel move needs four live channels.
    3. **Every unplug leaves a ~100 s tail** of a channel that is present in sysfs and answering
       with nothing — see `CLAUDE.md` on `w1_slave_ttl`.
@@ -872,7 +889,7 @@ refused and logged as an event, and one ROM ID appearing on two channels is refu
 — a duplicate would otherwise produce two channels tracking each other perfectly, which is a
 mislabelling that looks like agreement.
 
-`Hardware/logger-perfboard-wiring.md` §5a is the human record of the resulting table, and it is
+`SystemSetup/logger-perfboard-wiring.md` §5a is the human record of the resulting table, and it is
 **filled** as of 2026-09-10. **Channel → role is a per-session record, never a channel name** — it
 is in every session file's `thermalBaseline`, which is where an analysis should take it from.
 
@@ -955,8 +972,8 @@ something is untestable:
 `filesDir` on the box is the sole home of every session until it is copied off. The workstation
 backup lives at `C:\_claude\KnurLoggerData\sessions\` — **deliberately outside both git
 repositories, because this one is public and session files are data.** It is **current as of
-2026-09-18**: all 32 sessions, including the 324 MB two-day track file. Before that date the card
-had carried both track days and a 21.7-hour continuous run as the only copy.
+2026-09-21**: 73 files, including the 324 MB two-day track file. **The 2026-09-22 ladder sessions
+are not yet copied** and exist only on the card.
 
 ```bash
 scp -r KnurLogger:KnurLoggerData/sessions/*.ndjson /c/_claude/KnurLoggerData/sessions/
@@ -997,7 +1014,10 @@ the phone:** run `Tools/rcz-channels.py` against the first `.rcz` carrying the n
 each one appears and none is all-`NaN`. **The sentinel check is not retired by passing** — re-run it
 after *any* edit to the channel list, and note it only works with the sensors disconnected.
 
-**Needing code: nothing pressure-side.** The SDP810 reader and the mux driver are written, built
+**Needing code: the pressure correction.** `../ndLouvers/pressure-testing.md` §2.4 step 4 requires
+a per-channel correction configured in `KnurLogger.ini`, multiplied by a live `P_abs`/96 600
+factor from the BME280 and applied to the RaceChrono feed only, and **none of it is implemented**
+(`CLAUDE.md` §"Where authority lives"). The SDP810 reader and the mux driver are written, built
 and bench-run — [`pressure-worker-plan.md`](pressure-worker-plan.md) carries what each step did.
 The protocol, settled by hand on 2026-09-19 and unchanged by the implementation: stop-continuous
 `0x3FF9`, identity `0x367C`/`0xE102`, then **`0x3615` started once** — never per sample — and a

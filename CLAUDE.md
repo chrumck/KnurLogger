@@ -18,7 +18,7 @@ narrative in this file.
 - **This repository owns software, host configuration and the box-2 hardware build sheet. It owns
   no measurement decision.**
   `../ndLouvers/CFD-Learning-Plan.md` Step 0b is the authority on channels, acceptance criteria,
-  calibration and commissioning. **`Hardware/logger-perfboard-wiring.md` is the authority on
+  calibration and commissioning. **`SystemSetup/logger-perfboard-wiring.md` is the authority on
   wiring, I2C addresses, mux channel numbering and bring-up order** — its §3a net list
   specifically, against which §3, §4 and §6 are views. It lives here rather than in `ndLouvers`
   (owner decision, 2026-09-10) because it describes this box's own hardware, and **moving it
@@ -33,25 +33,26 @@ narrative in this file.
   fixture's geometry and constants, and lets it own no measurement decision. **Adoption did not
   move that boundary** — what accuracy is demanded of it still belongs to `../ndLouvers/` Step 0b
   and `pressure-testing.md` §2.2. **IT IS NOW BUILT AND HAS DELIVERED PRESSURE** (2026-09-20) —
-  79 g, 53 minutes on `P0` at 26–32 Pa, `k_d` measured to 0.5 % of the as-built figure
+  79 g, 53 minutes on `P0` at 26–32 Pa
   (`../ndLouvers/pressure-testing.history.md` §3.3). **Two traps came out of that and both live in
   `calibrationBell.md` §"As built":** the bell that exists is **not** the rev F bell drawn — ID
   150.00 and wall 0.90 against 148.4/0.80, so **every nominal constant in that file is wrong for
-  it, `k_d` by 23 %** — and the **bare bell is metacentrically unstable** across its whole
+  it, `k_d` by ~12 %** — and the **bare bell is metacentrically unstable** across its whole
   reachable depth range, having capsized twice and lolled once on the bench, which contradicts that
   file's own "+0.041 N·m/rad, bare, stable" row.
   **A third trap came the same evening:** a leak test with the full line but no sensor showed **zero
   sinking in 10 minutes**, so the whole bleed is the sensor's own bypass and the tubing's loss is a
-  first-order term. **What eleven bell sessions then found is restated once in
+  first-order term. **What the bell sessions then found is restated once in
   `../ndLouvers/pressure-testing.md` §3.3 (rev 113; sessions in `../ndLouvers/pressure-testing.history.md` §3.3–§3.14), which owns the figures:** the bench tubing
-  loses 8.2 → 3.8 % of the bell's pressure across 38–386 Pa; the 8.6 m extension is 3.1 × 10⁷; and
+  loses 8.4 → 3.9 % of the bell's pressure across 38–386 Pa; the 8.6 m extension is 3.1 × 10⁷; and
   **all five SDP810s, read against the same bell on 2026-09-22/23, are inside their ±3 % spec** —
-  `P0` −1.03, `P1` −0.91, `P2` −1.53, `P3` −1.70, `P4` +0.50 %, a 2.2 pp spread.
+  `P0` −1.03, `P1` −0.91, `P2` −1.53, `P3` −1.70, `P4` +0.50 %, a 2.2 pp spread (reduced on the
+  wall-only `k_d`; each moves up by ≤ 0.3 pp on the rod-inclusive 0.2414).
   > **⚠ THE EARLIER "THREE SENSORS SPREAD TEN PERCENT, `P1` IS OUT OF SPEC, AND THE BELL IS THE
   > BEST ABSOLUTE IN THE ROOM" IS RETIRED — do not restore it.** Those figures were computed with a
   > `k_m` that assumed a perfectly circular bore (it is 1.6 % oval) and **with no barometric term at
   > all**. The bell's `A_eff` is now measured with water at 17 392 mm², `k_m` = **0.5639** and `k_d`
-  > = **0.2367**; `calibrationBell.md` §"As built" is the record.
+  > = **0.2414** (wall plus the M3 rod); `calibrationBell.md` §"As built" is the record.
   **AN SDP810 IS A THERMAL MASS-FLOW DEVICE AND ITS READING SCALES WITH ABSOLUTE PRESSURE.**
   Datasheet §2.1 footnote 1 calibrates at **966 mbar**; at the bench's 1006.5 that is **+4.19 %**,
   and across ordinary weather 990 → 1030 mbar is +2.5 → +6.6 %. This is the largest single term in
@@ -69,10 +70,10 @@ narrative in this file.
   **do not quote it as a property of the tubing**, and do not reinstate the three revisions of it
   withdrawn at rev 111 either. **`k_d` 0.2372 and the 0.891 mm wall are withdrawn as of 2026-09-23**
   — the slope was read through a sensor and the wall inverted from it; `calibrationBell.md` §"As
-  built" owns 0.2367 and 0.90 mm. **The add-mass
+  built" owns 0.2414 and 0.90 mm. **The add-mass
   check in `calibrationBell.md` cannot be performed on this build** (pan unreachable afloat) and is
   retired; a hand-placed bell needs two minutes after release before its first mark.
-  **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
+  **The `sensorHolder{S,L,XL,XXL}.stl` here supersede the `Long`/`Short`
   pair that used to be in `ndLouvers/3DPrinting`** — those were deleted rather than moved,
   because they were older files under colliding names; git history still has them.
 - **Cross-repo, not cross-directory.** `ndLouvers` is a separate git repository that happens to
@@ -80,10 +81,10 @@ narrative in this file.
   "fix" them by copying content across; a duplicated requirement is a requirement that will drift.
   This repository has a public upstream at `github.com/chrumck/KnurLogger`, so every link that
   climbs out of it into `ndLouvers` — `../ndLouvers/...` from the root, `../../ndLouvers/...` from
-  `Hardware/` and `SystemSetup/` — 404s there. That is accepted.
+  `SystemSetup/`, `3DPrinting/` and `Tools/` — 404s there. That is accepted.
 - **This repository is PUBLIC. Weigh that before writing host specifics into it.** It already
   carries the box's LAN IP, its username, its Bluetooth MAC and — since 2026-09-10 —
-  `Hardware/logger-perfboard-wiring.md`, the full perfboard net list. That file was checked for
+  `SystemSetup/logger-perfboard-wiring.md`, the full perfboard net list. That file was checked for
   host specifics before the move and carries none; it is component-level hardware detail, which is
   no more sensitive than the parts list of any hobby build. Nothing here is reachable from the
   internet (RFC1918 address, and the BT MAC is broadcast to anyone in range anyway), and no
@@ -111,10 +112,10 @@ narrative in this file.
 
 - **The sensor zone is ASSEMBLED** (owner, 2026-09-09), and **all five SDP810s are fitted and read
   correctly** (2026-09-19) — one per mux channel, each channel needing its own
-  pull-ups. **ALL FIVE ARE HARD-SOLDERED, THE ±125 Pa INCLUDED** (owner, 2026-09-23). **This
-  document, the build sheet and the plan all said the ±125 Pa was "connectorised rather than
-  hard-soldered" — that was wrong about the board**, and plan open item 38 was closed partly on the
-  strength of it. A sensor cannot be moved between mux channels with a plug, and no part can be
+  pull-ups. **ALL FIVE ARE HARD-SOLDERED DIRECTLY TO THE BOARD, THE ±125 Pa INCLUDED, WITH NO
+  `J7`–`J12` HEADERS** (owner, 2026-09-23). **Do not describe any of them as connectorised** —
+  plan open item 38 was closed partly on that wrong claim and is the owner's to revisit. A sensor
+  cannot be moved between mux channels with a plug, and no part can be
   separated from its channel for fault-finding without desoldering. **The ±125 Pa is on `P2`, not the specified `P4`** — the board won and the build sheet
   was corrected; §5 there is the record and carries all five serials. **An empty I2C scan is therefore no longer the correct
   result**, and neither is zero `28-*` devices (history §2.6 for what the acceptance criteria used
@@ -156,8 +157,8 @@ narrative in this file.
   5. **The pressure sensors have no such problem** — they sit on the perfboard and bench-test
      directly. They arrived 2026-09-17; the first was brought up on the bench 2026-09-18.
 - **THE FIRST I2C TRANSFER AFTER AN IDLE BUS IS REFUSED ON SOME BOOTS, AND A RETRY FIXES IT**
-  (measured 2026-09-10 against the BME280 at `0x77`; **"every time" corrected to "some boots"
-  2026-09-18**). This is the single most expensive thing to
+  (measured 2026-09-10 against the BME280 at `0x77`; found bimodal per boot 2026-09-18 — **do not
+  restate it as "every time"**). This is the single most expensive thing to
   not know on this board, because it presents as *the device is dead* and it is not.
   0. **It is bimodal per boot — on or off for the whole life of a boot, never in between.**
      Reading `i2cFirstAttemptFailures` across all 32 sessions on the card: most show **exactly one
@@ -179,8 +180,9 @@ narrative in this file.
      `i2cdetect` that a failing program has a bug in it** — that cost most of an afternoon.
      `i2ctransfer -y 1 w1@0x77 0xd0 r1` is the one-line check, and **run it several times**: a
      single result of either kind means nothing.
-  4. **The retry lives in `i2cBus.cxx` and is COUNTED, not swallowed** — `firstAttemptFailures`,
-     `recoveredTransfers` and `exhaustedTransfers` land in every `enclosure` record. **On a
+  4. **The retry lives in `i2cBus.cxx` and is COUNTED, not swallowed** — `appData.i2c`'s
+     `firstAttemptFailures`, `recoveredTransfers` and `exhaustedTransfers` land in every `enclosure`
+     and `pressure` record as `i2cFirstAttemptFailures`, `i2cRecovered` and `i2cExhausted`. **On a
      refusing boot, one recovered transfer per sample cycle is the normal; on a non-refusing boot
      the normal is zero** (item 0). A retry that hid this would have turned a hardware
      characteristic into folklore — and it is also the only thing that revealed the bimodality.
@@ -222,7 +224,7 @@ narrative in this file.
 - **All five SDP810s share one fixed I2C address (`0x25`) and cannot be strapped apart.** The mux
   is therefore mandatory, one sensor per channel. The mux does **not** pass pull-ups downstream, so
   every populated channel has its own pair.
-  **Identify a sensor by its product number, never by which header it is in** — `0x03020A01` is the
+  **Identify a sensor by its product number, never by which board position it is in** — `0x03020A01` is the
   ±500 Pa part and returns 60 counts/Pa, `0x03020B01` is the ±125 Pa and returns 240. That check is
   what caught the ±125 Pa being on `P2` rather than the specified `P4`. **Retain the returned scale
   factor per sensor; never hard-code 60.**
@@ -307,7 +309,7 @@ narrative in this file.
      — below the −0.5…−1.0 that had been estimated, but still 2–3× the 45–90 Pa
      measurands, and **not a single constant Cp**. Tolerable as a density term, disqualifying as a
      reference. Logged as `enclosurePressurePa`.
-     **That first drive is the only QUALIFIED cavity measurement of it there is.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). **Two track days add SEVEN sessions and they now CONTRADICT the first drive** — Cp −0.108 to −0.144, and flat when banded by speed (−0.122 to −0.134 from 40 to 200 km/h), which is a measured absence of the first drive's structure rather than an averaging artefact. `../ndLouvers/` open item 49 owns the disagreement and it is not settled. **The disqualification as a reference survives either answer**, which is the only part this repository needs. The second drive's box was
+     **That first drive is not the only cavity record, and the records disagree.** **A second cavity record exists from the third drive and is NOT a second Cp point** — right sign and order (−37 Pa mean at 60–100 km/h, r = −0.68) but the route's elevation change is the same order as the signal and the export carries no altitude channel (`../ndLouvers/thermals-testing.md` §3.6). **Two track days add SEVEN sessions and they now CONTRADICT the first drive** — Cp −0.108 to −0.144, and flat when banded by speed (−0.122 to −0.134 from 40 to 200 km/h), which is a measured absence of the first drive's structure rather than an averaging artefact. `../ndLouvers/` open item 49 owns the disagreement and it is not settled. **The disqualification as a reference survives either answer**, which is the only part this repository needs. The second drive's box was
      on the passenger seat, so its strongly speed-correlated pressure record is a **cabin** record;
      it was written up as a second Cp point and withdrawn. **This field is named for where the box
      is, not for where it was designed to be** — nothing in the session file says which.
@@ -319,12 +321,14 @@ narrative in this file.
      true and is no longer the whole story**: this channel must be logged with every session,
      bench or road, or that session cannot be reduced afterwards. It is the only reason the
      2026-09-20/21 bench sessions could be re-derived at all.
-  2. **Temperature is the CAVITY THERMOMETER** (plan item 1c), with Pi SoC temperature a
-     cross-check rather than the primary proxy, and item 1d wants it recorded across a full
-     session. **It is NOT the inlet density term** — that is `T_ambient`'s DS18B20, a probe in the
+  2. **Temperature is the CAVITY THERMOMETER** (plan item 1d, the hot-day envelope, which wants it
+     recorded across a full session), with Pi SoC temperature a cross-check rather than the primary
+     proxy. **It is NOT the inlet density term** — that is `T_ambient`'s DS18B20, a probe in the
      air the car drives through. Logged as `cavityTemperatureC`.
-  3. **Humidity is a seal and desiccant diagnostic** for items 1a and 1d, discarded by the
-     dry-air approximation. No measurement consumer. Logged as `enclosureHumidityPct`.
+  3. **Humidity is the enclosure's condensation diagnostic** — the enclosure is sealed with no
+     desiccant (plan item 1c, closed) — and it is discarded by the dry-air approximation. **Its
+     measurement consumer is the dewpoint margin** of `../ndLouvers/thermals-testing.md` §3.10.
+     Logged as `enclosureHumidityPct`.
   **It is read in forced mode at oversampling ×1 with the IIR filter off, and that is a
   measurement choice rather than a power one:** it is the datasheet's lowest-self-heating setting,
   and self-heating in the part that serves as the cavity thermometer is an error in the very
@@ -553,14 +557,14 @@ python3 Tools/rcz-channels.py session.rcz
    nothing to fix, and `bytestoint` differs from `bytestouint` by the single letter that decides
    signed against unsigned.
 7. **A resumed session has one fragment per stretch**, the first at the archive root and the rest
-   under `resume_<n>/`, and the tool reports them separately. It used to read the root only, which
-   silently dropped half of the 2026-09-13 track day. A channel edited between stretches
+   under `resume_<n>/`, and the tool reports them separately. **A reader of the root alone
+   silently drops every later stretch.** A channel edited between stretches
    legitimately differs across fragments, which is why they are not merged.
 
 ## The BLE worker needs its own main context BEFORE the D-Bus connection
 
 **`g_main_context_push_thread_default()` must come before `g_bus_get_sync()` and
-`binc_adapter_get_default()`, and it did not until 2026-09-10.** GDBus binds each signal
+`binc_adapter_get_default()`.** GDBus binds each signal
 subscription to whatever context is thread-default when the subscription is made, so an adapter
 created first subscribes against the global default context — and **nothing in this process
 iterates that context**, `main()` being a plain thread-join.
@@ -632,15 +636,14 @@ The platform has already been the culprit once and the logger looked guilty (his
      without the unit the owner must SSH in every morning to start it by hand.
   3. **The box is powered during cranking**, which it never was before. The HW-384's 6 V floor is
      well below a normal dip so this should be benign, but build sheet §10 step 3's crank watch was
-     bypassed rather than passed. A crank brownout shows up as a latched undervoltage bit, or as
+     retired unperformed at rev 105 (2026-09-20). A crank brownout shows up as a latched undervoltage bit, or as
      the session file splitting with a fresh `session` record if the Pi rebooted.
   4. **Battery drain is a new failure mode.** Estimated ~275 mA at 12 V, plausibly 330–430 mA once
      BLE and the workers are counted — ~3.3–5 Ah over a 12 h day
      against the ND's ~45 Ah, which is comfortable, but **~46 Ah over a week with the fuse left
-     in, i.e. a flat battery.** Estimated, not measured; plan item 5.3 still owes the real figure.
-     **That estimate predates the five SDP810s, which were drawing nothing in every session on
-     record**, and it predates the sixth worker. **Neither will be measured** — `../ndLouvers/`
-     Step 0b item 5.3 was dropped on 2026-09-20 with the rest of the electrical qualification
+     in, i.e. a flat battery.** Estimated, not measured, and it will stay that way.
+     **That estimate predates the five SDP810s and the sixth worker.** **Neither will be
+     measured** — `../ndLouvers/` Step 0b item 5.3 was dropped on 2026-09-20 with the rest of the electrical qualification
      programme, so this stays an estimate permanently. **Label it as one wherever it is quoted**;
      the practical rule it supports — a fuse left in for a week is a flat battery — does not need
      a figure to be true.
@@ -650,9 +653,8 @@ The platform has already been the culprit once and the logger looked guilty (his
   SD card, so `sudo poweroff` before pulling the fuse is free insurance.
   **A hard cut is recognisable when reading a session back** — no `BLE stopped` event, no closing
   record, the file simply stops. Every road-test session through 2026-09-11 ended that way.
-  **The two-day track session did NOT**: it closes with `BLE stopped, 55447 notifications sent`,
-  so the `poweroff`-before-pulling-the-fuse practice was followed and the note above is now
-  describing something that happens rather than something to start doing.
+  A session shut down with `poweroff` closes with a
+  `BLE stopped, <n> notifications sent` event.
 - **Two logger instances run happily side by side and BOTH advertise — nothing refuses, nothing
   warns** (measured 2026-09-10: `SupportedInstances` is 5, `ActiveInstances` went 1 → 2 with a
   log-mode and an `--enroll` instance up together). **`KnurLogger.service` is now installed and
@@ -680,6 +682,9 @@ The platform has already been the culprit once and the logger looked guilty (his
   `~/bin/KnurLogger.ini` is the **production** file carrying the real offsets and the real ROM ID
   bindings. `SystemSetup/deploy-logger.sh` always replaces the binary and only ever *creates* the
   `.ini`, never updates it, and `KnurLogger.service` points at `/home/chrum/bin/KnurLogger`.
+  **So a build that adds a required key crash-loops the car's logger** — `config.cxx` exits on a
+  missing key and the service restarts forever. Hand-merge new keys into `~/bin/KnurLogger.ini`
+  before deploying (README, "The dev copy and the production copy are two different files").
   1. **This is what makes the tar-over-ssh loop safe.** It overwrites everything under
      `~/KnurLogger`, which used to mean one sync silently destroyed an offset typed in at the car.
      Now it overwrites a template nothing reads.
@@ -713,8 +718,9 @@ The platform has already been the culprit once and the logger looked guilty (his
 - **Some channels the plan needs will never appear on box 2's SD card.** CAN ambient
   (`0x420` byte 7) and, if it is on the bus, **cooling-fan state** can only arrive through box 1's
   CAN broadcast into RaceChrono — not through this logger (`../ndLouvers/` §7 open item 35).
-  **"Can arrive" is not "does": the ambient one has no channel definition and therefore has never
-  arrived at all** (trap above; `../ndLouvers/` open item 47). So the
+  **"Can arrive" is not "does": a CAN byte is recorded only from the first session after its
+  channel was defined** — the ambient one from 2026-09-19 (trap above; `../ndLouvers/` open item
+  47). So the
   record for a session is **split across two devices, and RaceChrono is what reassembles it** —
   which is the whole reason BLE is the primary data path. The consequence: **a box-2 channel that
   never reaches the phone cannot be aligned to the fan state that explains it**, and the fan can
@@ -809,7 +815,7 @@ the rest of that subsystem, along with a fifth that was implemented and then **r
   with the retired session-start thermal sample recorded there too.
 - **Supply health is logged telemetry, read after a run** (owner decision, 2026-09-09), standing
   in for a bench instrument on commissioning item 5.7 — **not** for build sheet §10 step 2's
-  meter. What to record, and the traps:
+  meter, which was retired unperformed at rev 105. What to record, and the traps:
   1. **`vcgencmd get_throttled`** is the useful one, because bits 16–19 **latch** "has occurred
      since boot". That is what makes a 1 Hz sampler unable to miss a transient. Log the live bits
      *and* the sticky bits, and log the **first transition with a timestamp** — "something

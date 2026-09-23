@@ -22,7 +22,8 @@
 //      it: a sweep has to be impossible to write by accident.
 //   3. 0x3615 IS NAK'D WHEN THE PART IS ALREADY IN CONTINUOUS MODE, and a mux channel change does
 //      not end that mode. It is issued once per sensor and re-issued only after a failure, because
-//      a harness that re-armed every cycle lost 145 of 150 transfers and looked like a dying bus.
+//      a harness that re-armed every cycle had 145 of its 150 start-continuous commands refused
+//      and looked like a dying bus.
 //   4. THE SCALE FACTOR IS PER SENSOR AND ARRIVES IN EVERY FRAME. The +-125 Pa part returns 240
 //      where the others return 60, and it was found on mux channel 2 rather than the specified
 //      channel 4 only because it was asked what it was. Never hard-code 60.

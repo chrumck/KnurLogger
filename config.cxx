@@ -22,7 +22,7 @@
 
 // A LIST of populated mux channels, never a count. A count says "channels 0..n-1", which is a claim
 // about which channels are SAFE, and addressing an unpopulated or faulty one hangs the entire main
-// bus - mux and BME280 with it - recoverable only by a ~RESET pulse on GPIO17. Hardware/
+// bus - mux and BME280 with it - recoverable only by a ~RESET pulse on GPIO17. SystemSetup/
 // logger-perfboard-wiring.md 5 is the authority on which channels are populated.
 //
 // Channel 5 is rejected by name rather than by a range check, because "5 is out of range" would be
@@ -60,7 +60,7 @@ void loadPressureChannelsEnabled(GKeyFile* config) {
         if (channel == MUX_MAX_CHANNEL) {
             logErrorAndKill("Invalid config: '%s' names mux channel %d, whose pull-ups R13/R14 are"
                 " footprints only. Addressing an unpopulated channel hangs the whole main I2C bus."
-                " Fit them and amend Hardware/logger-perfboard-wiring.md before enabling it,"
+                " Fit them and amend SystemSetup/logger-perfboard-wiring.md before enabling it,"
                 " exiting...", CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, channel);
         }
 

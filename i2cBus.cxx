@@ -20,8 +20,9 @@
 // A failure is reported to the caller and never fatal: a logger that dies because a sensor
 // stopped answering loses the channels that were still working.
 //
-// Every transfer is retried, because on this board it has to be: the first transfer after an
-// idle bus is refused every time and the second one succeeds. That measurement, and why the
+// Every transfer is retried, because on this board it has to be: on some boots - it is bimodal
+// per boot - the first transfer after an idle bus is refused and the second one succeeds. That
+// measurement, and why the
 // retry is counted rather than swallowed, is on I2C_TRANSFER_MAX_ATTEMPTS in dataContracts.hpp.
 
 gint openI2cBus(gint busNumber) {

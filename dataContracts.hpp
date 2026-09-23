@@ -182,7 +182,7 @@ namespace chr = std::chrono;
 // Oversampling x1 on all three quantities, IIR filter off, and forced mode: one conversion per
 // sample, the part asleep in between. That is the datasheet's lowest-self-heating setting and the
 // choice is a MEASUREMENT one rather than a power one - this part is the cavity thermometer
-// (plan item 1c), so any heat it makes is an error in the quantity it exists to report. Higher
+// (plan item 1d), so any heat it makes is an error in the quantity it exists to report. Higher
 // oversampling would buy pressure noise this channel has no use for: it is a density term and is
 // disqualified as a reference, so 3.3 Pa RMS against ~101 kPa is already far past sufficient.
 #define BME280_OVERSAMPLING_X1 0x01
@@ -238,8 +238,8 @@ namespace chr = std::chrono;
 
 // Averaged, temperature-compensated differential pressure. ISSUED ONCE PER SENSOR, NEVER PER
 // SAMPLE: the part NAKs it when it is already in continuous mode, and selecting a different mux
-// channel does NOT take it out of that mode. A bring-up harness that re-armed it every cycle lost
-// 145 of 150 transfers and looked exactly like a failing bus.
+// channel does NOT take it out of that mode. A bring-up harness that re-armed it every cycle had
+// 145 of its 150 start-continuous commands refused and looked exactly like a failing bus.
 #define SDP810_CMD_START_CONTINUOUS 0x3615
 #define SDP810_CMD_STOP_CONTINUOUS 0x3FF9
 #define SDP810_CMD_READ_PRODUCT_ID_1 0x367C
@@ -279,9 +279,9 @@ namespace chr = std::chrono;
 // affordable precisely because the session file carries raw counts and the returned scale factor
 // at full resolution, so every past session can be reprocessed if this is ever revisited.
 //
-// -327.68 Pa is deliberately absurd rather than plausible, and the argument is STRONGER here than
-// for temperature: zero is a completely believable differential pressure, so a channel that has
-// never been read must not look like one reading nothing.
+// -3276.8 Pa (-3.2768 kPa on the phone) is deliberately absurd rather than plausible, and the
+// argument is STRONGER here than for temperature: zero is a completely believable differential
+// pressure, so a channel that has never been read must not look like one reading nothing.
 #define PRESSURE_DECI_PA_INVALID INT16_MIN
 #define PRESSURE_DECI_PA_PER_PA 10.0
 
@@ -295,7 +295,7 @@ namespace chr = std::chrono;
 // downstream channel hangs the ENTIRE main bus - mux and BME280 with it - and only a ~RESET pulse
 // on GPIO17 recovers it. Both bus lines read idle-high and i2cdetect still lists every device
 // while it is happening, so every cheap check says the bus is fine. CLAUDE.md has the diagnosis
-// and the two occurrences; Hardware/logger-perfboard-wiring.md 5 has which channels are populated.
+// and the two occurrences; SystemSetup/logger-perfboard-wiring.md 5 has which channels are populated.
 // Today channel 5 is the unpopulated one: its pull-ups are footprints only.
 //
 // This is why the config key is a LIST and why selectMuxChannel refuses anything outside it. A
@@ -303,16 +303,19 @@ namespace chr = std::chrono;
 
 #define I2C_BUS_PATH_FORMAT "/dev/i2c-{}"
 
-// THE FIRST TRANSFER AFTER AN IDLE BUS ALWAYS FAILS ON THIS BOARD, AND A RETRY ALWAYS FIXES IT.
-// Measured 2026-09-10 against the BME280 at 0x77: with an idle gap of 10 ms or more the first
-// I2C_RDWR is refused every single time, and a second attempt 500 us later succeeded 60 times out
-// of 60 across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the first attempt mostly works.
-// So this is a property of the bus rather than error recovery, and the retry below is what makes
-// a 1 Hz sampler work at all - at 1 Hz EVERY cycle starts with an idle bus.
+// ON SOME BOOTS THE FIRST TRANSFER AFTER AN IDLE BUS FAILS ON THIS BOARD, AND A RETRY FIXES IT.
+// It is bimodal per boot, latched at initialisation: a boot either refuses on every idle gap or
+// never does. Measured 2026-09-10 on a refusing boot against the BME280 at 0x77: with an idle gap
+// of 10 ms or more the first I2C_RDWR is refused every single time, and a second attempt 500 us
+// later succeeded 60 times out of 60 across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the
+// first attempt mostly works. So this is a property of the bus rather than error recovery, and
+// the retry below is what makes a 1 Hz sampler work at all on a refusing boot - at 1 Hz EVERY
+// cycle starts with an idle bus.
 //
 // It is retried rather than worked around, and COUNTED rather than swallowed: the expected
-// pattern is about one recovered transfer per sample cycle, so a count far above that is a bus
-// that has genuinely degraded, and the counter is the only thing that would show it.
+// pattern is about one recovered transfer per sample cycle on a refusing boot and zero on the
+// others, so a count far above that is a bus that has genuinely degraded, and the counter is the
+// only thing that would show it.
 //
 // TEN ATTEMPTS RATHER THAN FOUR, AND THAT WAS MEASURED, NOT GUESSED. A retry chain long enough
 // for the isolated chip-ID read is not long enough for a whole sample cycle: a cycle is eight

@@ -1,45 +1,64 @@
 """Evaluate calibration-bell marks against one pressure channel of a KnurLogger session.
 
-Usage:  CH=P1 python Tools/bell-marks.py <session.ndjson> <m_dry_g> <m_disp_g> HH:MM:SS@d_mm ...
-        (CH defaults to P0; mark times are LOCAL, CEST, on the session's local date)
+Usage:  CH=P1 R_PATH=2.01e6 python Tools/bell-marks.py <session.ndjson> <m_dry_g> <m_disp_g> MARK ...
+        MARK is HH:MM:SS@d_mm, optionally followed by ~HH:MM:SS@d0_mm giving the un-pinch time and
+        depth of the same charge, from which the sink rate and therefore Q are taken.
+        Mark times are LOCAL, CEST, on the session's local date. CH defaults to P0.
+        R_PATH defaults to the ladder's short unfiltered leg; set it for any other line.
 
-Method and constants: ../ndLouvers/pressure-testing.md 3.15 and 3.15d. Counters in a pressure
-record are cumulative session totals (CLAUDE.md), so the session total is the LAST record's value
-and per-cycle validity is each channel's valid flag. Averaging windows END at the mark (3.8a
-item 2); a straight-line fit at the mark beats the trailing mean printed here by ~0.17 Pa at heavy
-sag rates. Q is taken from the sink rate between marks; the tubing loss is Q x R_PATH.
+Constants, model and operating rules: ../ndLouvers/pressure-testing.md 2.2a, 2.2b and 3.3; the
+reduction is the run sheet's 7 (../ndLouvers/step0b-rig/sensor-ladder-runsheet.md). Counters in a
+pressure record are cumulative session totals (CLAUDE.md), so the session total is the LAST
+record's value and per-cycle validity is each channel's valid flag.
 """
 import json, sys, os, statistics as st
-CH = os.environ.get('CH', 'P0')
 from datetime import datetime, timezone, timedelta
+
+CH = os.environ.get('CH', 'P0')
+R_PATH = float(os.environ.get('R_PATH', '2.01e6'))   # Pa.s/m^3; run sheet 3, the ladder's short leg
 
 path = sys.argv[1]
 LOCAL = timedelta(hours=2)          # CEST; taiUs on this box equals unix UTC (checked vs isoTime)
 
-# as-built constants, calibrationBell.md "As built" / pressure-testing.md 3.5
-K_M = 0.5551      # Pa/g, rod fitted
-K_D = 0.2372      # Pa/mm, rod fitted
-A_O = 18146.0     # mm^2 outer, as used in 3.5b item 5
-A_I = 17671.0     # mm^2 inner (A_eff)
-R_PATH = 1.038e7  # Pa.s/m^3, 2x1.5 m + wands + 2 filters (3.8c item 8)
+# as built, pressure-testing.md 2.2a
+K_M = 0.5639      # Pa/g, g/A_eff on the water-measured A_eff
+K_D = 0.2414      # Pa/mm, rho.g.(A_wall + A_rod)/A_eff, rod fitted
+A_O = 18146.0     # mm^2 outer; sink rate x A_o = flow (2.2b item 8)
+P_CAL = 96600.0   # Pa; the SDP810's calibration pressure, reading = dp x P_abs/P_CAL (2.3a)
+FIT_S = 60        # s; straight-line fit over the window ending at the mark (2.2b item 7)
 
 m_dry, m_disp = float(sys.argv[2]), float(sys.argv[3])
 m_app = m_dry - m_disp
-marks = [(s.split('@')[0], float(s.split('@')[1])) for s in sys.argv[4:]]   # "HH:MM:SS@d_mm" local
+
+
+def parse_point(s):
+    hms, d = s.split('@')
+    return hms, float(d)
+
+
+marks = []
+for arg in sys.argv[4:]:
+    mark, _, start = arg.partition('~')
+    marks.append((parse_point(mark), parse_point(start) if start else None))
 
 recs = []
+baro = []
 counters_last = None
 first = last = None
 with open(path, encoding='utf-8') as f:
     for line in f:
         r = json.loads(line)
+        t = datetime.fromtimestamp(r['taiUs']/1e6, timezone.utc) if 'taiUs' in r else None
         if r['t'] == 'session':
             print('session', r['isoTime'], 'mode', r['mode'])
-        if r['t'] != 'pressure':
-            if r['t'] not in ('temp', 'enclosure', 'supply'):
-                print('event', r['t'], datetime.fromtimestamp(r['taiUs']/1e6, timezone.utc).isoformat(), {k: v for k, v in r.items() if k in ('message', 'note', 'reason', 'event', 'notifications')})
+        if r['t'] == 'enclosure':
+            if r.get('pressureValid'):
+                baro.append((t, r['enclosurePressurePa']))
             continue
-        t = datetime.fromtimestamp(r['taiUs']/1e6, timezone.utc)
+        if r['t'] != 'pressure':
+            if r['t'] not in ('temp', 'supply'):
+                print('event', r['t'], t.isoformat() if t else '', {k: v for k, v in r.items() if k in ('message', 'note', 'reason', 'event', 'notifications')})
+            continue
         ch = {c['ch']: c for c in r['channels']}
         recs.append((t, r, ch))
         counters_last = r
@@ -52,6 +71,10 @@ print(f'\npressure cycles {n}, {dur/60:.1f} min, {n/dur:.3f} Hz, local {(first+L
 c = counters_last
 print('session totals (last record): readErrors', c['readErrors'], 'crcFailures', c['crcFailures'],
       'i2cFirstAttemptFailures', c['i2cFirstAttemptFailures'], 'i2cRecovered', c['i2cRecovered'], 'i2cExhausted', c['i2cExhausted'])
+if baro:
+    print(f'P_abs (BME280) {min(p for _, p in baro)/100:.1f}-{max(p for _, p in baro)/100:.1f} mbar over the session')
+else:
+    print('P_abs: NO valid enclosure pressure in this session - the barometric factor cannot be applied')
 vm = {}
 for t, r, ch in recs:
     vm[r['validMask']] = vm.get(r['validMask'], 0) + 1
@@ -60,10 +83,12 @@ for p in ('P0', 'P1', 'P2', 'P3', 'P4'):
     inval = [(t+LOCAL).strftime('%H:%M:%S') for t, r, ch in recs if not ch[p]['valid']]
     vals = [ch[p]['pressurePa'] for t, r, ch in recs if ch[p]['valid']]
     temps = [ch[p]['sensorTemperatureC'] for t, r, ch in recs if ch[p]['valid']]
-    print(f'{p}: invalid cycles {len(inval)} {inval[:6]}; min {min(vals):.3f} max {max(vals):.3f} mean {st.mean(vals):.3f}; T {min(temps):.1f}-{max(temps):.1f} C')
+    if vals:
+        print(f'{p}: invalid cycles {len(inval)} {inval[:6]}; min {min(vals):.3f} max {max(vals):.3f} mean {st.mean(vals):.3f}; T {min(temps):.1f}-{max(temps):.1f} C')
+    else:
+        print(f'{p}: no valid cycles')
 
-# 10 s bins of P0 for the trace
-print('\n{CH} trace, 10 s bins (local):')
+print(f'\n{CH} trace, 10 s bins (local):')
 bins = {}
 for t, r, ch in recs:
     if ch[CH]['valid']:
@@ -74,37 +99,54 @@ for k in sorted(bins):
     tl = datetime.fromtimestamp(k, timezone.utc) + LOCAL
     print(f'{tl.strftime("%H:%M:%S")} n={len(v):3d} mean {st.mean(v):8.3f} sd {st.pstdev(v):.3f}')
 
-print(f'\nm_dry {m_dry} g, m_disp {m_disp} g, m_app {m_app} g, k_m*m_app = {K_M*m_app:.2f} Pa')
-print('mark(local)  d_mm  P_bell   reading30(sd)      reading60(sd)     f30      f60   Q*R_path(pred loss)')
-prev = None
-rows = []
-for hms, d in marks:
+
+def to_utc(hms):
     hh, mm, ss = map(int, hms.split(':'))
     lf = first + LOCAL
-    tm = datetime(lf.year, lf.month, lf.day, hh, mm, ss, tzinfo=timezone.utc) - LOCAL
-    def win(sec):
-        v = [ch[CH]['pressurePa'] for t, r, ch in recs if ch[CH]['valid'] and tm - timedelta(seconds=sec) <= t <= tm]
-        return (st.mean(v), st.pstdev(v), len(v)) if v else (float('nan'), float('nan'), 0)
-    r30, r60 = win(30), win(60)
-    pb = K_M*m_app - K_D*d
-    f30 = 1 - r30[0]/pb
-    f60 = 1 - r60[0]/pb
-    rows.append((tm, d, pb, r30[0], f30))
-    print(f'{hms}  {d:5.1f}  {pb:7.2f}  {r30[0]:8.3f} ({r30[1]:.3f},n{r30[2]})  {r60[0]:8.3f} ({r60[1]:.3f})  {f30*100:5.2f}%  {f60*100:5.2f}%')
-    if prev:
-        dt = (tm - prev[0]).total_seconds()
-        rate = (d - prev[1]) / dt * 60          # mm/min
-        for A, name in ((A_O, 'A_o'), (A_I, 'A_i')):
-            Q = rate/60 * A * 1e-9              # m^3/s
-            loss = Q * R_PATH
-            pb_mid = (pb + prev[2]) / 2
-            print(f'    interval sink {rate:.2f} mm/min -> Q({name}) {Q*1e6:.3f} mL/s, Q*R_path = {loss:.2f} Pa = {loss/pb_mid*100:.2f}% of P_bell; R_s = {(pb_mid-loss)/Q:.3e}')
-    prev = (tm, d, pb)
+    return datetime(lf.year, lf.month, lf.day, hh, mm, ss, tzinfo=timezone.utc) - LOCAL
 
-# slope/intercept check across marks (expect disagreement if f varies; here P moves ~6%)
-ds = [r[1] for r in rows]; rd = [r[3] for r in rows]
-if len(rows) >= 3:
-    xm, ym = st.mean(ds), st.mean(rd)
-    slope = sum((x-xm)*(y-ym) for x, y in zip(ds, rd)) / sum((x-xm)**2 for x in ds)
-    icpt = ym - slope*xm
-    print(f'\nfit reading = {icpt:.3f} + {slope:.4f} d;  f_slope = {(1+slope/K_D)*100:.2f}%  f_intercept = {(1-icpt/(K_M*m_app))*100:.2f}%')
+
+def fit_at(tm, sec):
+    """Straight-line fit of the channel over the window ending at tm, evaluated at tm."""
+    pts = [((t - tm).total_seconds(), ch[CH]['pressurePa']) for t, r, ch in recs
+           if ch[CH]['valid'] and tm - timedelta(seconds=sec) <= t <= tm]
+    if len(pts) < 3:
+        return float('nan'), float('nan'), len(pts)
+    xm, ym = st.mean(x for x, _ in pts), st.mean(y for _, y in pts)
+    slope = sum((x-xm)*(y-ym) for x, y in pts) / sum((x-xm)**2 for x, _ in pts)
+    resid = st.pstdev(y - (ym + slope*(x-xm)) for x, y in pts)
+    return ym - slope*xm, resid, len(pts)
+
+
+def p_abs_at(tm):
+    near = [p for t, p in baro if abs((t - tm).total_seconds()) <= FIT_S]
+    return st.mean(near) if near else float('nan')
+
+
+print(f'\nm_dry {m_dry} g, m_disp {m_disp} g, m_app {m_app} g, k_m*m_app = {K_M*m_app:.2f} Pa; '
+      f'k_d {K_D}, R_path {R_PATH:.3g} Pa.s/m^3')
+print('mark(local)  d_mm  P_bell   fit60 (resid,n)       P_abs    Q mL/s  loss Pa  f=1-rdg/P_bell  eps')
+prev = None
+for (hms, d), start in marks:
+    tm = to_utc(hms)
+    reading, resid, npts = fit_at(tm, FIT_S)
+    pb = K_M*m_app - K_D*d
+    pa = p_abs_at(tm)
+    baro_factor = pa / P_CAL
+    # Q from this charge's own un-pinch point when given, else from the previous mark
+    if start:
+        t0, d0 = to_utc(start[0]), start[1]
+    elif prev:
+        t0, d0 = prev
+    else:
+        t0 = None
+    if t0 is not None and (tm - t0).total_seconds() > 0:
+        rate = (d - d0) / (tm - t0).total_seconds()        # mm/s
+        q = rate * A_O * 1e-9                              # m^3/s
+    else:
+        q = float('nan')
+    loss = q * R_PATH
+    eps = reading / (baro_factor * (pb - loss)) - 1
+    print(f'{hms}  {d:5.1f}  {pb:7.2f}  {reading:8.3f} ({resid:.3f},n{npts})  {pa/100:7.1f}  {q*1e6:6.3f}  {loss:6.2f}  '
+          f'{(1 - reading/pb)*100:6.2f}%        {eps*100:+6.2f}%')
+    prev = (tm, d)

@@ -5,12 +5,11 @@
 
 // The BME280 on the main I2C bus at 0x77, behind no mux. It owns packet 0x600 and packet 0x601.
 //
-// It is the only sensor on this board that is fitted, answering and independent of the five
-// undelivered SDP810s, and it is here for a commissioning reason rather than a feature one. Its
+// It is here for a commissioning reason rather than a feature one. Its
 // three quantities have three different consumers and it is worth being explicit about all three,
 // because two of them are easy to point at the wrong thing:
 //
-//   1. TEMPERATURE IS THE CAVITY THERMOMETER (plan item 1c), and Pi SoC temperature is a
+//   1. TEMPERATURE IS THE CAVITY THERMOMETER (plan item 1d), and Pi SoC temperature is a
 //      cross-check against it rather than the primary proxy. Item 1d wants cavity temperature
 //      recorded across a full session before the installed pre/post envelope is trusted, which a
 //      thermals drive now answers for free.
@@ -21,8 +20,9 @@
 //      ten times the signal, and it is speed-correlated so it will not average out of a speed
 //      sweep. Tolerable as a density term, disqualifying as a reference. The field names carry
 //      the role so the value cannot be picked up as a zero.
-//   3. HUMIDITY IS A SEAL AND DESICCANT DIAGNOSTIC for the condensation risks in plan items 1a
-//      and 1d. It is discarded by the dry-air approximation and has no measurement consumer.
+//   3. HUMIDITY IS THE ENCLOSURE'S CONDENSATION DIAGNOSTIC - the enclosure is sealed with no
+//      desiccant (plan item 1c, closed). It is discarded by the dry-air approximation; its
+//      measurement consumer is the dewpoint margin (../ndLouvers/thermals-testing.md 3.10).
 //
 // Everything below the transport is transcribed from the Bosch BME280 datasheet (rev 1.6) rather
 // than derived: the register map, the fixed-point compensation, and the constraint that ctrl_hum
@@ -493,13 +493,14 @@ void writeBme280Baseline() {
             ? getBme280CalibrationJson(appData.bme280.calibration) : "null",
         appConfig.bme280IntervalMs,
         "forced mode, oversampling x1 on all three quantities, IIR filter off, for lowest self-heating",
-        "the first I2C transfer after an idle bus is refused on this board and a retry 500 us"
-            " later succeeds (measured 2026-09-10); about one recovered transfer per sample cycle"
-            " is normal, and i2cExhausted moving off zero is the signal that matters",
+        "on some boots (bimodal per boot) the first I2C transfer after an idle bus is refused on"
+            " this board and a retry 500 us later succeeds (measured 2026-09-10); about one"
+            " recovered transfer per sample cycle is normal on a refusing boot and zero on the"
+            " others, and i2cExhausted moving off zero is the signal that matters",
         "ENCLOSURE pressure, never a static reference: the cavity is aerodynamically live and at"
             " Cp -1 the offset is ~464 Pa against 45-90 Pa measurands. Density term only",
-        "cavity thermometer (plan item 1c); NOT the inlet density term, which is T_ambient's DS18B20",
-        "seal and desiccant diagnostic (plan items 1a and 1d); no measurement consumer"));
+        "cavity thermometer (plan item 1d); NOT the inlet density term, which is T_ambient's DS18B20",
+        "condensation diagnostic for the sealed enclosure (no desiccant); consumer: dewpoint margin"));
 }
 
 gpointer bme280SensorLoop(gpointer _) {

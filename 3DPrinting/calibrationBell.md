@@ -6,9 +6,10 @@ which is now the documented fallback (`../../ndLouvers/pressure-testing.md` §2.
 decision and the reasoning).
 
 **A bell exists, it is weighed at 79 g, and it ran 53 minutes on `P0` at 26–32 Pa**
-(`../../ndLouvers/pressure-testing.history.md` §3.3). The force balance holds: the measured `k_d` is
-**0.2367 Pa/mm** (2026-09-23), from geometry on an `A_eff` measured with water — see §"As built".
-**The earlier 0.2372, and the 0.891 mm wall inverted from it, are WITHDRAWN**: that slope was read
+(`../../ndLouvers/pressure-testing.history.md` §3.3). `k_d` is **0.2414 Pa/mm**, from geometry on
+an `A_eff` measured with water, the wall plus the M3 rod that hangs from the bell and sinks with it —
+see §"As built". **0.2367 (wall only) is withdrawn, and so are the earlier 0.2372 and the 0.891 mm
+wall inverted from it**: that slope was read
 *through a sensor*, so it carried the sensor's span and the barometric term, and inverting a wall
 from it made the pair circular.
 **An earlier figure of 0.2615 ± 0.013, from eyeballed depths on an unballasted bell, is
@@ -17,7 +18,7 @@ withdrawn.**
 no repeats, no independent reference. What it produced was the fixture's own constants and four
 error terms this file did not carry.
 **A ladder on 2026-09-22/23 settled the fixture and overturned its constants.** `A_eff` was measured
-with water (above), so **`k_m` moved 0.5551 → 0.5639 and `k_d` 0.2372 → 0.2367**, and with the
+with water (above), so **`k_m` moved 0.5551 → 0.5639 and `k_d` 0.2372 → 0.2414**, and with the
 SDP810's barometric dependency applied (`../../ndLouvers/pressure-testing.md` §2.3a) **all five
 sensors read within ±1.7 % of this bell** — spread 2.2 pp, every part inside its ±3 % spec.
 **The earlier "three sensors spread ten percent and the bell sits inside them to ~1–2 %" is
@@ -29,9 +30,10 @@ The add-mass test below cannot be performed on this build and is retired.
 > **⚠ THE BELL THAT EXISTS IS NOT THE BELL DRAWN BELOW.** It was printed from
 > `calibrationBell.stl`: plain skirt, **six radial lid ribs**, small central boss, **no collar, no
 > graduations, no rod and no pan** — with an **ID of 150.00 and a wall of 0.90** against rev F's
-> ID 148.4 / wall 0.80. (**"No ribs" was wrong and is corrected 2026-09-23** — a ray-cast of the
+> ID 148.4 / wall 0.80. **The M3 rod, the hanging ballast and the skirt graduations (zeroed at the
+> rim, ±0.2 mm) were added afterwards**, and it weighs 81 g with the graduations. (**"No ribs" was wrong and is corrected 2026-09-23** — a ray-cast of the
 > mesh finds six ribs on the lid's inner face, ~3 mm tall and tapering, reaching r ≈ 73.) **Every nominal constant in this file is therefore
-> wrong for it**, `k_d` by 23 %. Use §"As built" below, and read the rev F constants as what a rev F
+> wrong for it**, `k_d` by ~12 % (0.2155 rev F with the rod, against 0.2414). Use §"As built" below, and read the rev F constants as what a rev F
 > bell would give.
 
 > **⚠ LIVING IN THIS REPOSITORY CHANGES NOTHING ABOUT WHAT IT MAY DECIDE.** `CLAUDE.md` here is
@@ -59,31 +61,33 @@ Printed parts live beside them: `calibrationBell.stl`, `calibrationBellPan.stl`,
 
 **These supersede every nominal figure in this file and on the drawing, for this part.** Geometry
 read directly from `calibrationBell.stl`; wall and ID confirmed on the printed part with calipers;
-`k_d` confirmed independently from the pressure record.
+`A_eff` measured with water. `k_d` is computed, not measured — a slope read through a sensor carries
+that sensor's span and the barometric term, which is why the one attempt at measuring it is withdrawn.
 
 | | STL | printed, measured | rev F nominal |
 |---|---|---|---|
 | OD | 151.80 | 152 | 150.0 |
 | **ID** | **150.00** | **150.0 ± 0.2** | 148.4 |
-| **wall** | 0.90 | **1.00** | 0.80 |
+| **wall** | 0.90 | **0.90** away from the rim; the caliper's 1.00 is the squished rim-down first layer | 0.80 |
 | skirt, lid to rim | 113.5 | — | 115 |
 | CG above the rim | **71.65** | — | — |
 | features | plain skirt, 0.803 lid, **six lid ribs (2.2 cm³)**, Ø10 × 7 boss (0.5 cm³) | as STL | collar, 6 ribs, Ø16 × 25 tapped hub |
-| graduations | **none** | **none** | every 5, zero at the rim |
-| mass | 80.7 g at 1.24 | **79 g** weighed, **78 g** slicer | 88 g rod-less |
+| graduations | **none** | none as printed; **since added**, zeroed at the rim, ±0.2 mm (`../../ndLouvers/step0b-rig/sensor-ladder-runsheet.md` §4) | every 5, zero at the rim |
+| mass | 80.7 g at 1.24 | **79 g** weighed, **78 g** slicer; **81 g** with graduations | 88 g rod-less |
 
 | constant | **as built** | superseded | rev F rod-less nominal |
 |---|---|---|---|
 | `A_eff` | **17 392 mm² — MEASURED WITH WATER** | 17 671 (from ID 150.00) | 17 296 mm² |
-| `A_wall` | **421 mm²** (perimeter 467.5 × 0.90) | 474 | 375 mm² |
+| `A_wall` | **423.3 mm²** (0.90 × 467.5 perimeter + π·0.90²) | 474 | 375 mm² |
+| `A_rod` | **5.62 mm²** (M3 pitch diameter; the rod hangs from the bell) | — | — |
 | **`k_m`** | **0.5639 Pa/g** | 0.5551 / 0.5549 | 0.5670 Pa/g |
-| **`k_d`** | **0.2367 Pa/mm** | 0.2372 measured, 0.2337 rod-less | 0.2122 Pa/mm |
+| **`k_d`** | **0.2414 Pa/mm** (wall + rod) | 0.2367 wall only; 0.2372 measured, 0.2337 rod-less | 0.2122 Pa/mm |
 | `ΔP/Δm` at constant volume | **0.5405 Pa/g** (`g/A_o`) | — | — |
 
 > **⚠ `A_eff` IS MEASURED, NOT COMPUTED FROM THE ID — AND IT IS 1.6 % BELOW π/4·150²**
 > (2026-09-22). A **datum-free two-fill difference**, 1215 g of water between the 30 mm and 100 mm
 > marks, gives **17 392 mm²**; a 50 mm single fill corroborates it to **0.08 %**. The equivalent
-> circular bore is 148.8 mm, i.e. about **150.0 × 147.6 as an oval** — which is what a 0.89 mm-walled
+> circular bore is 148.8 mm, i.e. about **150.0 × 147.6 as an oval** — which is what a 0.90 mm-walled
 > printed cylinder does, and a caliper reports whichever axis it is handed. **Measure the ID on two
 > axes before trusting a single number.**
 >
@@ -95,8 +99,8 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
 > **`k_d` = 0.2372 is WITHDRAWN as a measurement.** It was the slope of *reading* against depth, so
 > it carried the reading sensor's span and the barometric term of `../../ndLouvers/pressure-testing.md`
 > §2.3a. **And the 0.891 mm wall was inverted from it, which makes that pair circular** — do not
-> re-derive either from the other. 0.2367 comes from geometry on the measured `A_eff` and the STL's
-> 0.90 mm wall.
+> re-derive either from the other. 0.2414 comes from geometry on the measured `A_eff`, the STL's
+> 0.90 mm wall and the rod's pitch-diameter area.
 
 1. **The print over-extruded ~0.1 mm on the wall, outward**, OD 151.80 → 152. **But "`A_eff` and
    `k_m` are unaffected" was wrong** (corrected 2026-09-23): `A_eff` is **1.6 % below** π/4·150²
@@ -109,34 +113,16 @@ read directly from `calibrationBell.stl`; wall and ID confirmed on the printed p
 2. **Three independent mass figures agree to 2.5 g** — 80.7 g from STL volume at 1.24, 78 g from
    the slicer, 79 g on the scale. The slicer's does not come from the scale, so **this bounds the
    scale's span error at about ±1 g = ±0.55 Pa** at the bare-bell working point.
-3. **No graduations were printed**, so `d` is read by eye against a plain skirt. history §3.3c measured that
-   as **±1 mm of scatter plus a ~1.7 mm systematic**, against the ±1 mm this file's budget assumes.
-   **Print the graduations, or set `d` against the grounded position**, which is the only repeatable
-   datum this bell currently has.
-4. **A consistent −0.42 ± 0.19 Pa residual remains** after all of the above. It is exactly
-   equivalent to reading `d` 1.6 mm shallow, to 0.75 g of mass, or to a skirt meniscus force at a
-   contact angle near 97°, and **those three cannot be separated by any bare-bell run.** The
-   add-mass test in §"Use it differentially" is what separates them.
-   **Seen a third time on 2026-09-21, at +3.3 Pa = 6 g on a 347 g bell, with the masses, the
-   scale (500 g of reference weights, within 1 g), the ID and the rig — standpipe, nothing touching
-   — all confirmed** (`../../ndLouvers/pressure-testing.history.md` §3.9, plan open item 57). The
-   sightings are **−0.4 Pa bare, +0.6 Pa light, +3.3 Pa at 347 g and +14 Pa at 726 g (history §3.10)**:
-   it grows with the pressure, so **it is not a zero error and this item has been mis-filed since it
-   was written** — the shape is a span, and the two spans in the chain are this bell's `k_m` and the
-   SDP810's own ±3 % of reading, which no derivation has budgeted. **The reference weights now
-   exist but the add-mass test cannot be performed on this build** (below); what told the reference
-   from the instrument was a second and third sensor on the bell. **Done the same night** (history §3.11): the two ±500 Pa parts disagree by 2.5 % and both
-   read above the model. **Then the length-change pair (history §3.12) measured the extension and the record
-   re-solved with NO bell residual** — the sensors read high, `P0` by ~2–4 % and `P1` by ~6 %, and
-   the residual this item has carried since it was written was their span at every load it was
-   seen. What the bell still owes is a ≤ 1 % common span (`A_eff`, displacement) that two identical
-   sensors cannot exclude; `P2`'s independent scale factor at the light load is the check — **and
-   it came in 3–4 % LOW (history §3.14)** — **and that reading is now retired**. The ladder of
-   2026-09-22/23 put `P2` at **−1.53 %** alongside every other part: there was never a straddle,
-   there was a **1.6 % bore error** (fixed by measuring `A_eff` with water) and a **4.2 % barometric
-   term** (`../../ndLouvers/pressure-testing.md` §2.3a). All five parts are inside ±3 %.
-   **The fixture did do what it was built for** — but only once its own area was measured rather
-   than assumed.
+3. **No graduations were printed**, and reading `d` by eye against the plain skirt measured
+   **±1 mm of scatter plus a ~1.7 mm systematic** (history §3.3c). **Graduations have since been
+   added** — zeroed at the rim, ±0.2 mm (`../../ndLouvers/step0b-rig/sensor-ladder-runsheet.md` §4).
+4. **There is no bell residual.** The "residual" this item carried — sighted from −0.4 Pa bare to
+   +14 Pa at 726 g, growing with pressure — was the reading sensors' span, a **1.6 % bore error**
+   (fixed by measuring `A_eff` with water) and the **4.2 % barometric term**
+   (`../../ndLouvers/pressure-testing.md` §2.3a). With those applied all five parts are inside ±3 %
+   (`pressure-testing.md` §3.3b). **The sightings and the per-sensor figures drawn from them are
+   superseded — do not quote them**; they are in `../../ndLouvers/pressure-testing.history.md` §1
+   (§3.3c, "the bell residual") and its sessions §3.9–§3.14.
    **THE ADD-MASS TEST CANNOT BE PERFORMED ON THIS BUILD** (owner, 2026-09-21): the pan is not
    reachable with the bell afloat, and changing weights means lifting the bell out, which resets
    the trapped volume the derivation in §"Use it differentially" depends on. **Retired as
@@ -249,12 +235,12 @@ stability, which is exactly what hanging it does.
     P = k_m · m_app  −  k_d · d
 
 - `m_app` — **apparent** mass, in grams (below)
-- `d` — rim immersion, read off the skirt graduations at the outer water line, in mm
+- `d` — rim immersion, read off the skirt graduations at the axis waterline (mean of the high and low sides, `pressure-testing.md` §2.2b item 5), in mm
 - `k_m = g / A_eff` — nominal **0.5672 Pa/g**
 - `k_d = ρ·g·(A_wall + A_rod) / A_eff` — nominal **0.2155 Pa/mm**
 
 **Those two numbers are rev F NOMINAL and are not the bell that exists** — see §"As built", where
-`k_m` is **0.5639** and `k_d` **0.2367** (§"As built"; the 0.5549–0.5551 and 0.2337/0.2372 pairs are
+`k_m` is **0.5639** and `k_d` **0.2414** (§"As built"; the 0.5549–0.5551 and 0.2337/0.2372 pairs are
 withdrawn). The formula itself is
 unchanged; only the constants move.
 Nominal `ID 148.4` with an M3 rod → `A_eff = 17 289 mm²`, `A_wall = 375 mm²`, water at 20 °C.
@@ -313,7 +299,12 @@ weights add and each ratio applies to any subset. The caliper route is the one t
 
 `P = k_m·m_app − k_d·d` has three unknowns that all enter as a single constant: the tare mass, the
 `d` datum and the skirt meniscus force. **No absolute reading can separate them**, and 2026-09-20
-left a −0.42 ± 0.19 Pa residual that is equally well explained by any of the three.
+left a −0.42 ± 0.19 Pa residual that none of the three could be told apart from — since shown to
+be the sensor's span, not a bell term (§"As built" item 4).
+
+> **⚠ THE ADD-MASS CHECK CANNOT BE PERFORMED ON THIS BUILD — RETIRED** (owner, 2026-09-21): the pan
+> is unreachable with the bell afloat (§"As built" item 4). The procedure is kept for a rebuild with
+> a load path reachable from outside the skirt; do not schedule it on this bell.
 
 **Adding a known mass does separate them.** At constant trapped volume the bell sinks until the
 extra displacement carries the extra weight, and the algebra collapses to
@@ -374,7 +365,7 @@ Budget at 500 Pa (`m_app` ≈ 906 g), RSS:
 > | **wetted-bell film** after any handling, decaying ~80 s | 2.5 g = **1.4 Pa** | 0.28 % | **3.3 %** |
 > | **skirt meniscus force**, contact angle unknown | 0 to **±3.9 Pa** | 0.78 % | **9 %** |
 > | **tilt**, `P → Mg/(A_eff·cos θ)`, 10° | **0.44 Pa** | 0.09 % | 1.0 % |
-> | **`d` read by eye, no graduations** | ±1 mm scatter **+1.7 mm systematic** | 0.15 % | 1.0 % |
+> | **`d` read by eye, no graduations** (as on 2026-09-20; since added, ±0.2 mm) | ±1 mm scatter **+1.7 mm systematic** | 0.15 % | 1.0 % |
 >
 > **The film is the one that bites in practice** — five replications in one session, and the
 > before-and-after weighing in §"Measure the finished part" **cannot see it**, because that check is
@@ -444,7 +435,7 @@ water temperature, so carry it.
 
 Print shrinkage does not matter, because nothing here is made *to* the drawing — it is measured
 after printing and the constants recomputed. **§"As built" is that measurement for the bell that
-exists, and it is what caught a 23 % error in `k_d`.** Repeat all of it for any new print.
+exists, and it is what caught a ~12 % error in `k_d`.** Repeat all of it for any new print.
 
 1. Two **perpendicular** inside diameters at the rim: `A_eff = π·d₁·d₂/4 − π·d_rod²/4`. The first
    term is exact for an ellipse, so ovality costs nothing as long as both are measured.
@@ -456,7 +447,7 @@ exists, and it is what caught a 23 % error in `k_d`.** Repeat all of it for any 
 
 | | |
 |---|---|
-| Range, **as built and demonstrated** | **38.2 Pa → 387.8 Pa** — the six ladder rungs of `../../ndLouvers/pressure-testing.md` §2.4, `m_app` 98.8 → 728.5 g read at d = 70 mm |
+| Range, **as built and demonstrated** | **~39 Pa → ~394 Pa** — the six ladder rungs of `../../ndLouvers/pressure-testing.md` §2.4, which owns the figures; `m_app` 98.8 → 728.5 g read at d = 70 mm |
 | Range, rev F nominal | 42.8 Pa → 500 Pa (36.3 Pa rod-less, below) — **not this bell** |
 | Resolution | 1 g = 0.567 Pa; a 0.1 g scale resolves 0.06 Pa |
 | Dry stainless at 500 Pa | 923 g — 24 mm of Ø80 stack |
@@ -487,12 +478,12 @@ is what makes the exercise worth doing at all.
 **The floor is the lid, hub, rod and pan, not the skirt.** PLA is only 1.24× the density of water,
 so submerged PLA is nearly weightless and a taller skirt costs almost nothing.
 
-> **⚠ THE AS-BUILT FLOOR IS 38.2 Pa, NOT 42.8.** The 42.8 is rev F nominal — `k_m` 0.5672 on a 100 g
+> **⚠ THE AS-BUILT FLOOR IS LADDER RUNG 1, ~39 Pa, NOT 42.8.** The 42.8 is rev F nominal — `k_m` 0.5672 on a 100 g
 > tare — and this bell is lighter with a lower `k_m` and a deeper usable `d`: `m_app` **98.8 g** at
-> `k_m` **0.5639** read at **d = 70 mm** gives **38.8 Pa**, which is ladder rung 1 of
+> `k_m` **0.5639** read at **d = 70 mm** is ladder rung 1 of
 > `../../ndLouvers/pressure-testing.md` §2.4. **It is reached with hung load, not bare** — that is
 > the whole difference from the warning above, which is about the bare configuration and stands.
-> Quote 38.2; the rev F figure describes a bell that was never built.
+> Quote rung 1 from §2.4; the rev F figure describes a bell that was never built.
 
 Below the floor,
 rely on the part's own **0.08 Pa zero accuracy** and `< 0.05 Pa/year` offset stability. Since span
@@ -534,11 +525,12 @@ holds air stubbornly once it starts dry, so tap the rod once under water and it 
 | 3 Pan | flat | trivial |
 
 Wall 0.80 on the skirt is two perimeters at a 0.4 nozzle, no top/bottom layers, no infill.
-**The bell that exists came out at 1.00**, against 0.90 in its own STL and 0.80 here — so **a thin
-wall does not print to its nominal, and `k_d` is proportional to it.** Measure it; do not assume it.
-**Print the graduations.** The existing bell has none, so its immersion depth is read by eye against
-a plain skirt, which measured ±1 mm of scatter plus a ~1.7 mm systematic — the single largest
-avoidable term in §"As built" item 4.
+**The bell that exists has the 0.90 of its own STL**, against 0.80 here; the caliper's 1.00 at the
+rim is the squished rim-down first layer, not the wall. **`k_d` is proportional to the wall**, so
+measure it away from the rim; do not assume it.
+**Print the graduations.** The existing bell was printed without them and read by eye against a
+plain skirt measured ±1 mm of scatter plus a ~1.7 mm systematic (§"As built" item 3); they have
+since been added.
 
 **Airtightness is not an accuracy requirement.** A pinhole costs supply flow, not pressure — the
 pressure is set by weight over area whatever leaks. Do glue the skirt-to-collar joint, because a
@@ -592,9 +584,8 @@ since rev B needed the load centred to 1 mm to keep bearing friction down.
 Unscrewing the rod and fitting an M3×6 grub screw in its place gives a **second configuration**
 with its own constants, because removing the rod changes `A_eff` *and* `k_d` together:
 
-**All four constants in the table below are rev F NOMINAL**, and the bell that exists is rod-less
-with `k_m` **0.5639** and `k_d` **0.2367** — see §"As built". The rod-less *row* is the closest
-match to it and is still 23 % out on `k_d`.
+**All four constants in the table below are rev F NOMINAL**, and the bell that exists carries the
+rod, with `k_m` **0.5639** and `k_d` **0.2414** — see §"As built". Neither row describes it.
 
 | | `k_m` | `k_d` | tare | floor |
 |---|---|---|---|---|
@@ -644,7 +635,7 @@ reading as the only rod-less one.
    Measured demand: **0.32 mL/s at ~28 Pa, rising to ~5.5 mL/s at 500 Pa** (2026-09-20). **A leak
    test with the sensor removed showed zero sinking in 10 minutes**, so essentially all of it is the
    sensor's bypass rather than a leak in the bell or its lines. Unsupplied, the bell sags
-   **0.19–0.3 Pa/min** at 28 Pa, which is **0.7–1.0 mm/min of sinking**.
+   **0.17–0.24 Pa/min** at 28 Pa, which is **0.7–1.0 mm/min of sinking**.
 2. **Nothing has to be pumped to a commanded pressure.** Read `m_app` and `d` at the moment the
    sensor is read, and record where it landed — §2.4's ladder values are targets to land near.
    **Within 30 s**: at 0.8 mm/min a two-minute gap is 1.6 mm = 0.4 Pa.

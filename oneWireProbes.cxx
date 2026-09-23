@@ -824,7 +824,8 @@ void sampleProbes() {
         if (appData.shutdownRequested) { isAbandoned = TRUE; }
 
         // The record is still emitted for an abandoned cycle, with the flag, rather than dropped.
-        // Shutdown arrives at ignition-off and the last cycle before it is the one worth having.
+        // Shutdown arrives at the end of the day (a service stop before the fuse is pulled; the feed
+        // is constant 12 V) and the last cycle before it is the one worth having.
         if (isAbandoned) {
             ProbeReading skipped = {};
             skipped.centiC = TEMP_CENTI_C_INVALID;

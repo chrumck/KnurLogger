@@ -85,7 +85,8 @@ than an omission:
 
 **An all-empty channel is not necessarily a broken one.** RaceChrono renders a deliberate
 out-of-range marker as no value at all. Box 1's `0x7F0` channels `lowPass(E,254)*4` and
-`lowPass(F,254)-50` are `NaN` in every sample of every recording so far, and **that is by design**
-(owner, 2026-09-11): those sensors were outside their calibration range throughout, and the marker
-is how that is signalled. They are working. `../Tools/rcz-channels.py` reports such channels without
+`lowPass(F,254)-50` are `NaN` whenever their sensors are outside their calibration range, and
+**that is by design** (owner, 2026-09-11): the marker is how that is signalled. They are working —
+on the 2026-09-13 track day both read normally once the car was warm and were empty only for the
+first 200–550 s of each session, so "empty" is a property of the session, not of the channel. `../Tools/rcz-channels.py` reports such channels without
 calling them faults — **ask what the sensor was doing before changing an equation.**

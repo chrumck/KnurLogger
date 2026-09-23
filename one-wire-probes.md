@@ -26,7 +26,7 @@ warming each probe in installed order, which moved them in that order with clean
 once at enrollment. **All four are bound as of 2026-09-10** — `temp0` `28-06254385da1f`,
 `temp1` `28-0625424044b7`, `temp2` `28-062542ac86b6`, `temp3` `28-0625424e16c9` — in
 `~/bin/KnurLogger.ini` on the box, in `build/KnurLogger.ini` in git, and in
-`Hardware/logger-perfboard-wiring.md` §5a as the human record. **An earlier attempt the same day
+`SystemSetup/logger-perfboard-wiring.md` §5a as the human record. **An earlier attempt the same day
 bound three in a different order and was discarded** (history §1.11); do not reconcile anything
 against it.
 **The channel → role map IS independently confirmed** (2026-09-10): warming each probe by hand
@@ -77,8 +77,7 @@ either.**
    `size == sizeof("trigger")`, which is 8. `oneWireProbes.cxx` wrote `strlen("trigger")` = 7,
    so the command was never parsed and `trigger_bulk_read()` was never called — for a day
    that looked like a permission fix that had not worked. `ONE_WIRE_BULK_TRIGGER_CMD` now
-   carries the `
-`; **do not "tidy" it away.**
+   carries the `\n`; **do not "tidy" it away.**
 **A successful write is not a conversion, and cannot be**: `therm_bulk_read_store` returns the
 write size unconditionally and reports its refusal only with `dev_info`. The evidence is
 therefore the readback and the kernel log, never `write()`'s return value —
@@ -169,8 +168,9 @@ says the cause "points at power or a marginal pull-up rather than at a hot probe
    value; a transit sits between neighbours a resolution step away. The previous valid reading per
    channel is already in hand.
 
-**This file owns the requirement; the decision is the plan's** — `../ndLouvers/` open item 53, with
-open item 52 for the measurement-accuracy half. **At minimum the reason code must stop asserting
+**This file owns the requirement; the decision is the plan's** — `../ndLouvers/` open item 53.
+The measurement-accuracy half, open item 52, was **dropped** (2026-09-20): every `T_aft` sample
+above 85 °C is permanently an indication, not a measurement. **At minimum the reason code must stop asserting
 power or the pull-up.** Until it changes, read `powerOnDefault` on `temp3` as "the probe was at
 85 °C" unless the neighbouring samples say otherwise, and note that `0x603` bytes 2–3 counts these,
 so **that counter is not a bus-quality figure on its own** (`../ndLouvers/thermals-testing.md`
@@ -210,7 +210,7 @@ missing by accident.
 (owner decision, 2026-09-09). The owner plugs the four DS18B20s in one at a time, lowest channel
 first; the logger notices each new `28-*` ROM ID and writes the binding to a store that survives
 restarts. This replaces reading ROM IDs off a bench rig and typing them into a config by hand.
-Seven things make it correct rather than merely convenient, and skipping any of them produces
+Eight things make it correct rather than merely convenient, and skipping any of them produces
 silently mislabelled temperature data — which is worse than no data, because ΔT_preheat rests on
 the *differences* between these four probes:
 1. **`28-*` only.** The bare bus invents churning `00-*` phantoms (see the family-filter trap
@@ -245,16 +245,17 @@ the *differences* between these four probes:
    becomes indistinguishable from the logger not having run — which destroys the one property the
    SD file exists for, namely that a gap in the local stream is the only evidence a sample was
    missing rather than held. The sentinel goes out on `0x602` for it, and `reason` in the session
-   record separates `unbound`, `absent`, `crc`, `powerOnDefault`, `outOfRange` and `readFailed`.
+   record separates `unbound`, `absent`, `notAnswering`, `unparseable`, `crc`, `powerOnDefault`,
+   `outOfRange`, `readFailed` and `cycleAbandoned`.
    **`absent` must not increment the read-error counter.** A dropped lead and a marginal bus send
    you to different parts of the car, and inflating `0x603` byte 2–3 with absences would bury the
    bus-quality signal it exists to carry.
 7. **Every probe stays plugged in once it is in** (owner procedure, corrected 2026-09-10 after
    the first attempt at the car did the opposite; history §1.11). Unplugging each probe as the
    next goes in *binds correctly*, which is what makes it easy to get wrong, and costs three
-   things binding does not: the four-probe star is never loaded, so plan thermal item 1's open
-   acceptance criterion is untouched and the run proves nothing the ESP32 bench rig had not
-   already proved with single probes; rule 5's warm-one-probe map check needs four live channels
+   things binding does not: the four-probe star is never loaded, so plan thermal item 1's star
+   acceptance criterion (closed rev 77, on a run with every probe connected) is untouched and the
+   run proves nothing the ESP32 bench rig had not already proved with single probes; rule 5's warm-one-probe map check needs four live channels
    and becomes impossible; and every unplug leaves a ~100 s tail of a channel present in sysfs
    and answering with nothing.
 8. **Enrollment must keep running after the fourth bind** (owner, 2026-09-10). Requirement 5's

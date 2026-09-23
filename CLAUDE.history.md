@@ -1120,7 +1120,7 @@ shape, so normalising it would trade a reviewable diff for an untested restore p
 
 **Owner decision, taken in `../ndLouvers/` and recorded here because it retires work this
 repository's build sheet was carrying.** `../ndLouvers/CFD-Learning-Plan.md` risk 14, Step 0b
-item 5 and open item 1a-ii own it; `CFD-Learning-Plan.history.md` §1 item 39f holds the full
+item 5 and open item 1a-ii own it; `CFD-Learning-Plan.history.md` §1 item 39af holds the full
 reasoning for each retired check.
 
 **What was retired.** Build-sheet §10 **steps 2, 3, 5 and 6** are closed **unperformed** — the
@@ -1304,3 +1304,31 @@ that `appData.i2c.*` is shared by all three I2C workers, so a count taken from o
 is a whole-bus count. And `i2cRecovered = 0` alongside `i2cExhausted > 0` is not a contradiction to
 explain away: on a non-refusing boot nothing needs recovering, so the rare failure that does occur
 exhausts outright rather than recovering on the second attempt.
+
+## 2026-09-23 — the SDP810s are hard-soldered, and a documentation review of both repositories
+
+**"The ±125 Pa is connectorised, so no copper changed" was wrong** (owner): all five SDP810s are
+soldered directly to the perfboard with no `J7`–`J12` headers. `CLAUDE.md`, the build sheet (§3a,
+§8, §9) and `../ndLouvers/` all said otherwise. The `P3`/`P4` swap proposed the same day went with
+it; `P4` is inspected and watched instead. The build sheet's "must be CONNECTORISED" now reads as
+required and not done, and whether that requirement stands is `../ndLouvers/` open item 38.
+
+**The review** (`../ndLouvers/CFD-Learning-Plan.history.md` §2, rev 119) changed this repository
+as follows:
+1. **`Tools/bell-marks.py` was on withdrawn constants** — `k_m` 0.5551, `k_d` 0.2372, `A_eff` 17 671,
+   no barometric factor — so any reduction through it read ~6 % off, and its docstring cited
+   `pressure-testing.md` §3.15, which no longer exists. It now carries `k_m` 0.5639 and `k_d`
+   0.2414 (the M3 rod hangs from the bell, so `k_d` includes it), reads `P_abs` from the session's
+   `enclosure` records, fits the 60 s window ending at each mark and takes `Q` from the charge's own
+   un-pinch point; `R_PATH` defaults to the ladder's short leg.
+2. **The build sheet moved from `Hardware/` to `SystemSetup/` and ~30 links did not follow** — one of
+   them in a `config.cxx` runtime error message.
+3. **A build that adds a required ini key crash-loops the production logger**, since `config.cxx`
+   exits on a missing key and the deploy never updates `~/bin/KnurLogger.ini`. The only record of
+   the hand-merge was `pressure-worker-plan.md` step 8; README and `CLAUDE.md` now carry it, ahead
+   of the pressure correction that will add keys.
+4. **Rev 105's retirements** (crank watch, `TP2`, §10 steps 2, 3, 5 and 6) and item 1c's closure
+   were carried into the build sheet, the setup runbook, `CLAUDE.md`, README and the BME280's
+   role strings, which also moved the cavity thermometer to item 1d and gave humidity its
+   measurement consumer. Comments and strings saying the idle-bus refusal happens "every time"
+   now say bimodal per boot; the pressure sentinel comment said −327.68 Pa and is −3276.8 Pa.
