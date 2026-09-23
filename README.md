@@ -183,7 +183,7 @@ Read, in this order, before changing anything here:
    is still unbuilt**: no line is on the car, no wand is sited and no hole-plane coordinate is
    recorded. **What exists is bench hardware** — two wands, two filtered lines and the calibration
    bell — which delivered pressure to `P0` on 2026-09-20 (`../ndLouvers/pressure-testing.history.md` §3.3);
-   the filter pair is measured and ladder rungs 1, 3 and 6 have run (`pressure-testing.md` §3.3).
+   the filter pair is measured and all six ladder rungs have run (`pressure-testing.md` §3.3).
    **The pressure worker exists as of 2026-09-19 and satisfies none of that file** — it produces
    the channel, not the measurement — and that session qualifies no channel either. Read it before reading
    any pressure number as one, and note that the five SDP810s share the I2C bus whose
