@@ -45,17 +45,31 @@ narrative in this file.
   first-order term. **What eleven bell sessions then found is restated once in
   `../ndLouvers/pressure-testing.md` §3.3 (rev 113; sessions in `../ndLouvers/pressure-testing.history.md` §3.3–§3.14), which owns the figures:** the bench tubing
   loses 8.2 → 3.8 % of the bell's pressure across 38–386 Pa; the 8.6 m extension is 3.1 × 10⁷; and
-  **three of the five SDP810s, read against the same bell, spread ten percent** — `P2` −3.5 %, `P0`
-  +2 to +4 % and nonlinear, `P1` ~+6 % and outside its ±3 % spec — so **each channel needs its own
-  gain from a ladder on the bell, and the bell (~1–2 %) is the best absolute in the room.** **A
-  logger requirement follows and is NOT yet implemented** (owner regime, 2026-09-22,
+  **all five SDP810s, read against the same bell on 2026-09-22/23, are inside their ±3 % spec** —
+  `P0` −1.03, `P1` −0.91, `P2` −1.53, `P3` −1.70, `P4` +0.50 %, a 2.2 pp spread.
+  > **⚠ THE EARLIER "THREE SENSORS SPREAD TEN PERCENT, `P1` IS OUT OF SPEC, AND THE BELL IS THE
+  > BEST ABSOLUTE IN THE ROOM" IS RETIRED — do not restore it.** Those figures were computed with a
+  > `k_m` that assumed a perfectly circular bore (it is 1.6 % oval) and **with no barometric term at
+  > all**. The bell's `A_eff` is now measured with water at 17 392 mm², `k_m` = **0.5639** and `k_d`
+  > = **0.2367**; `calibrationBell.md` §"As built" is the record.
+  **AN SDP810 IS A THERMAL MASS-FLOW DEVICE AND ITS READING SCALES WITH ABSOLUTE PRESSURE.**
+  Datasheet §2.1 footnote 1 calibrates at **966 mbar**; at the bench's 1006.5 that is **+4.19 %**,
+  and across ordinary weather 990 → 1030 mbar is +2.5 → +6.6 %. This is the largest single term in
+  the chain and it was missing from every figure before 2026-09-22.
+  **`0x3615` is the RIGHT command** — datasheet §6.3.1 lists it as *differential pressure*
+  temperature compensation, not the mass-flow variant — so **do not switch to `0x3603`/`0x3608`**,
+  whose compensation is what §5.3 means by "no absolute pressure compensation is required".
+  **A logger requirement follows and is NOT yet implemented** (owner regime, 2026-09-22,
   `../ndLouvers/pressure-testing.md` §2.4 step 4): a per-channel pressure correction configured in
-  `KnurLogger.ini` from the bench curves and the measured route length, applied to the RaceChrono
-  feed only, raw counts always logged, parameters written into the session header — the same shape
-  as the thermal offsets. The
+  `KnurLogger.ini` from the bench curves and the measured route length, **multiplied by a live
+  `P_abs`/96 600 factor read from the BME280**, applied to the RaceChrono feed only, raw counts
+  always logged, parameters — including the `P_abs` in force — written into the session header, the
+  same shape as the thermal offsets. The
   "5.1 % rising to 9.5 %" line-loss curve of rev 110–111 was `P0`'s deficit with its span inside;
   **do not quote it as a property of the tubing**, and do not reinstate the three revisions of it
-  withdrawn at rev 111 either. `k_d` 0.2372 and the 0.891 mm wall are unchanged. **The add-mass
+  withdrawn at rev 111 either. **`k_d` 0.2372 and the 0.891 mm wall are withdrawn as of 2026-09-23**
+  — the slope was read through a sensor and the wall inverted from it; `calibrationBell.md` §"As
+  built" owns 0.2367 and 0.90 mm. **The add-mass
   check in `calibrationBell.md` cannot be performed on this build** (pan unreachable afloat) and is
   retired; a hand-placed bell needs two minutes after release before its first mark.
   **The `tempSensorHolder*.stl` here supersede the `Long`/`Short`
@@ -294,6 +308,14 @@ narrative in this file.
      on the passenger seat, so its strongly speed-correlated pressure record is a **cabin** record;
      it was written up as a second Cp point and withdrawn. **This field is named for where the box
      is, not for where it was designed to be** — nothing in the session file says which.
+     **IT NOW HAS A SECOND CONSUMER, AND THAT ONE IS LOAD-BEARING** (2026-09-23): it is **the five
+     SDP810s' density correction**. Their reading scales with absolute pressure because they are
+     thermal mass-flow devices calibrated at 966 mbar, so `P_abs`/96 600 is a multiplicative term on
+     every pressure channel — +4.19 % at the bench and swinging 4 pp across ordinary weather
+     (`../ndLouvers/pressure-testing.md` §2.3a). **So "disqualified as a static reference" is still
+     true and is no longer the whole story**: this channel must be logged with every session,
+     bench or road, or that session cannot be reduced afterwards. It is the only reason the
+     2026-09-20/21 bench sessions could be re-derived at all.
   2. **Temperature is the CAVITY THERMOMETER** (plan item 1c), with Pi SoC temperature a
      cross-check rather than the primary proxy, and item 1d wants it recorded across a full
      session. **It is NOT the inlet density term** — that is `T_ambient`'s DS18B20, a probe in the

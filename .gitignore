@@ -19,3 +19,6 @@ sessions/
 *.log
 
 boot-audit-*.txt
+
+# Office lock files.
+~$*
