@@ -145,36 +145,31 @@ charged **186 read errors to a bus that had not failed once** (history §1.12).
    first version threw the bytes away, which is why the fault at the car could not be told
    apart from a marginal bus without going back.
 
-## The `powerOnDefault` check asserts a cause it cannot establish
+## 85.00 °C is a reading, and the power-on default is deliberately not detected
 
-**85.00 °C is the DS18B20's power-on scratchpad default AND a temperature a probe can be at, and
-the scratchpad is byte-identical in both cases** — `50 05 4b 46 7f ff 0c 10 1c`, with a valid CRC.
-`oneWireProbes.cxx` treats `centiC == TEMP_POWER_ON_DEFAULT_CENTI_C` as a reset and its comment
-says the cause "points at power or a marginal pull-up rather than at a hot probe". **Measured
-2026-09-18 against the two-day SD record, that inference is wrong in every instance on file.**
+**A reading of exactly 85.00 °C is accepted like any other temperature** (owner, 2026-09-23;
+`../ndLouvers/` open item 53, closed). 85.00 °C is the DS18B20's power-on scratchpad default AND a
+temperature a probe can be at, and the scratchpad is byte-identical in both cases —
+`50 05 4b 46 7f ff 0c 10 1c`, with a valid CRC — so nothing in the reading can separate them.
+`T_aft` peaks at **101.25 °C** and spends 2 351 samples above 85 °C in post-run heat soak; **the aft
+probe lives in this band**, so a check keyed on the value flags a hot probe far more often than a
+reset one. The owner prefers keeping every reading over flagging.
 
-1. **All 17 flagged samples are `temp3` transiting 85.000 °C on a smooth ramp**, e.g.
-   84.94 → 85.00 → 85.06, with neighbours ~60 mK away and `crcOk = true` throughout. `T_aft` peaks
-   at **101.25 °C** and spends 2 351 samples above 85 °C, in nine post-run heat-soak stretches.
-   **The aft probe lives in this band; it does not visit it.**
-2. **The rejection itself is defensible and the reason code is not.** Discarding one sample per
-   85 °C crossing costs 0.013 % of the session and is the conservative choice, since the logger
-   genuinely cannot vouch for that reading. What is not defensible is naming a cause: the record
-   sent a reader to the power rail and the pull-ups, and there was nothing there.
-3. **The inverse error is the one that will cost something.** A probe that genuinely resets while
-   sitting in the 80–90 °C band produces exactly this record, so the check that was meant to catch
-   resets is now blind in the one place resets would be hardest to spot.
-4. **The discriminator available is context, not content.** A reset is a step from an unrelated
-   value; a transit sits between neighbours a resolution step away. The previous valid reading per
-   channel is already in hand.
+1. **The accepted blind spot:** a genuine power-on reset now passes as a plausible 85.00 °C
+   reading, with `valid` true and no reason code. One is on record — all four probes in the first
+   cycle after boot, 14.1 s in, in the two-day session `2026-09-11T18-08-06`. **Four probes
+   reading exactly 85.00 °C together in a session's first cycle is the signature**; a transit sits
+   between neighbours a resolution step (~60 mK) away.
+2. **There is no `powerOnDefault` reason code**, and `TEMP_POWER_ON_DEFAULT_CENTI_C` is gone. **Do
+   not reinstate the check** — `CLAUDE.history.md`, 2026-09-23.
+3. **Sessions recorded before 2026-09-23 still carry `powerOnDefault` flags**, and they are the
+   historical record: in the two-day session 21 of them, four the genuine boot-cycle reset and 17
+   `temp3` transiting 85.000 °C with a good CRC — none a bus fault. **In those sessions `0x603`
+   bytes 2–3 counted the flags too**, so there it is not a bus-quality figure on its own
+   (`../ndLouvers/thermals-testing.md` §2.5 item 3, §3.11).
 
-**This file owns the requirement; the decision is the plan's** — `../ndLouvers/` open item 53.
-The measurement-accuracy half, open item 52, was **dropped** (2026-09-20): every `T_aft` sample
-above 85 °C is permanently an indication, not a measurement. **At minimum the reason code must stop asserting
-power or the pull-up.** Until it changes, read `powerOnDefault` on `temp3` as "the probe was at
-85 °C" unless the neighbouring samples say otherwise, and note that `0x603` bytes 2–3 counts these,
-so **that counter is not a bus-quality figure on its own** (`../ndLouvers/thermals-testing.md`
-§2.5 item 3).
+The measurement-accuracy question, open item 52, was **dropped** (2026-09-20): every `T_aft` sample
+above 85 °C is permanently an indication, not a measurement.
 
 ## Testing the whole path without probes
 
@@ -185,7 +180,7 @@ no risk to the real box, and nothing to undo** since the namespace dies with the
 Populate it with `w1_bus_master1/`, `28-…/w1_slave` files in the kernel's two-line
 `crc=xx YES` / `t=<millidegrees>` format, and a `00-…` entry to prove the family filter drops
 it. Enrollment order, the ambiguous-step refusal, the store's family and duplicate guards,
-bound-but-absent, CRC failure, the 85.00 °C default, out-of-range rejection and the
+bound-but-absent, CRC failure, out-of-range rejection and the
 application of a hand-entered offset were all verified this way. **Reach for this before
 concluding a sysfs-driven path is untestable.**
 
@@ -245,7 +240,7 @@ the *differences* between these four probes:
    becomes indistinguishable from the logger not having run — which destroys the one property the
    SD file exists for, namely that a gap in the local stream is the only evidence a sample was
    missing rather than held. The sentinel goes out on `0x602` for it, and `reason` in the session
-   record separates `unbound`, `absent`, `notAnswering`, `unparseable`, `crc`, `powerOnDefault`,
+   record separates `unbound`, `absent`, `notAnswering`, `unparseable`, `crc`,
    `outOfRange`, `readFailed` and `cycleAbandoned`.
    **`absent` must not increment the read-error counter.** A dropped lead and a marginal bus send
    you to different parts of the car, and inflating `0x603` byte 2–3 with absences would bury the

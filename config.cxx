@@ -22,8 +22,7 @@
 
 // A LIST of populated mux channels, never a count. A count says "channels 0..n-1", which is a claim
 // about which channels are SAFE, and addressing an unpopulated or faulty one hangs the entire main
-// bus - mux and BME280 with it - recoverable only by a ~RESET pulse on GPIO17. SystemSetup/
-// logger-perfboard-wiring.md 5 is the authority on which channels are populated.
+// bus - mux and BME280 with it - recoverable only by a ~RESET pulse on GPIO17.
 //
 // Channel 5 is rejected by name rather than by a range check, because "5 is out of range" would be
 // a lie: it is wired, it is a legitimate mux channel, and the only thing missing is its pull-up
@@ -60,7 +59,7 @@ void loadPressureChannelsEnabled(GKeyFile* config) {
         if (channel == MUX_MAX_CHANNEL) {
             logErrorAndKill("Invalid config: '%s' names mux channel %d, whose pull-ups R13/R14 are"
                 " footprints only. Addressing an unpopulated channel hangs the whole main I2C bus."
-                " Fit them and amend SystemSetup/logger-perfboard-wiring.md before enabling it,"
+                " Fit them before enabling it,"
                 " exiting...", CONFIG_KEY_PRESSURE_CHANNELS_ENABLED, channel);
         }
 
@@ -100,14 +99,14 @@ void loadConfig()
     while (filesDir.size() > 1 && filesDir.back() == '/') { filesDir.pop_back(); }
     appConfig.sessionsDirPath = std::format("{}/sessions", filesDir);
 
-    // The plan fixes the cadence at ~1 s and gives the reasoning: flushing per sample at 10 Hz
-    // shortens the loss window at the price of write amplification without changing the failure
-    // mode. The bounds here allow experiment, not a different design.
+    // The cadence is ~1 s by design: flushing per sample at 10 Hz shortens the loss window at the
+    // price of write amplification without changing the failure mode. The bounds here allow
+    // experiment, not a different design.
     getConfigInteger(fsyncIntervalMs, CONFIG_GROUP_SYSTEM, CONFIG_KEY_FSYNC_INTERVAL_MS, 100, 10000);
     getConfigInteger(supplyIntervalMs, CONFIG_GROUP_SYSTEM, CONFIG_KEY_SUPPLY_INTERVAL_MS, 200, 60000);
 
-    // Thermal item 2: start around 1 Hz. The DS18B20 needs up to 750 ms at 12 bits, so anything
-    // much faster leaves no idle bus time.
+    // Around 1 Hz. The DS18B20 needs up to 750 ms at 12 bits, so anything much faster leaves no
+    // idle bus time.
     getConfigInteger(tempIntervalMs, CONFIG_GROUP_THERMAL, CONFIG_KEY_TEMP_INTERVAL_MS, 500, 60000);
 
     // One calibration offset per channel SLOT, applied to the value sent to RaceChrono. Absent
@@ -127,8 +126,8 @@ void loadConfig()
     // Bus 1 is the perfboard. /dev/i2c-20 and /dev/i2c-21 also exist and are the VC4 display DDC
     // buses, nothing to do with this board.
     getConfigInteger(i2cBus, CONFIG_GROUP_SENSORS, CONFIG_KEY_I2C_BUS, 0, 20);
-    // 0x77 as built, not the 0x76 the build sheet originally specified: the breakout's own SDO
-    // pull-up wins and the owner amended the document rather than the board.
+    // 0x77 as built, not the 0x76 originally specified: the breakout's own SDO pull-up wins, and
+    // the specification was amended rather than the board.
     getConfigInteger(bme280Address, CONFIG_GROUP_SENSORS, CONFIG_KEY_BME280_ADDRESS, 0x08, 0x77);
     // Cavity conditions move slowly and the part is the cavity thermometer, so the cadence is
     // set by what the record needs rather than by what the sensor can do. 1 Hz matches the other
@@ -136,9 +135,9 @@ void loadConfig()
     getConfigInteger(bme280IntervalMs, CONFIG_GROUP_SENSORS, CONFIG_KEY_BME280_INTERVAL_MS, 200, 60000);
     getConfigInteger(muxAddress, CONFIG_GROUP_SENSORS, CONFIG_KEY_MUX_ADDRESS, 0x08, 0x77);
 
-    // Step 0b item 4 targets 10 Hz. A five-sensor cycle costs 15.4 ms measured, so the constraint
-    // is session-file bytes and the fsync cadence rather than CPU; the bounds allow experiment,
-    // not a different design.
+    // The target is 10 Hz. A five-sensor cycle costs 15.4 ms measured, so the constraint is
+    // session-file bytes and the fsync cadence rather than CPU; the bounds allow experiment, not a
+    // different design.
     getConfigInteger(pressureIntervalMs, CONFIG_GROUP_PRESSURE, CONFIG_KEY_PRESSURE_INTERVAL_MS,
         50, 60000);
     loadPressureChannelsEnabled(config);

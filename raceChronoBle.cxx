@@ -53,6 +53,8 @@ const char* onCharRead(const Application* app, const char* address,
         return BLUEZ_ERROR_NOT_PERMITTED;
     }
 
+    reportPressureStall();
+
     // Serve the oldest unsent packet, so a polling central sees every frame in turn rather than
     // whichever one happens to be freshest.
     BlePacket* toSend = NULL;
@@ -77,6 +79,8 @@ gboolean sendPacketToBt(gpointer data) {
         packet->notifySourceId = 0;
         return G_SOURCE_REMOVE;
     }
+
+    if (packet == &appData.bluetooth.pressureStatus) { reportPressureStall(); }
 
     if (!appData.bluetooth.isNotifying || packet->wasSent) { return G_SOURCE_CONTINUE; }
 
@@ -106,8 +110,8 @@ void removeNotifySource(GMainContext* context, BlePacket* packet) {
 }
 
 // Recorded once per link. The negotiated MTU bounds what a single notify can carry, and a 12-byte
-// packet fits even the 23-byte ATT default, so this is evidence for item 5a's link qualification
-// rather than a constraint to design around.
+// packet fits even the 23-byte ATT default, so this is evidence for qualifying the link rather
+// than a constraint to design around.
 void logNegotiatedMtu(guint16 mtu) {
     static guint16 lastLoggedMtu = 0;
     if (mtu == lastLoggedMtu) { return; }
@@ -179,9 +183,9 @@ const char* onCharWrite(const Application* app, const char* address, const char*
 
     if (isAllowAll) {
         g_message("Bluetooth: RaceChrono requested all frames at %u ms", intervalMs);
-        // The requested interval is recorded because it IS the sample rate of the primary data
-        // path — item 4's 10 Hz target is met or missed by what the phone asks for here and by
-        // whether the link sustains it, not by anything the logger decides.
+        // The requested interval is recorded because it IS the sample rate of the primary data path
+        // — the 10 Hz target is met or missed by what the phone asks for here and by whether the
+        // link sustains it, not by anything the logger decides.
         writeEventRecord("info", std::format("BLE filter: allow all at {} ms", intervalMs));
 
         forEachBlePacket(packet) {

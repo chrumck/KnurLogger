@@ -210,7 +210,7 @@ echo "  + writing $SSHD_DROPIN"
 if [[ "$DRY_RUN" == false ]]; then
     sudo mkdir -p /etc/ssh/sshd_config.d
     {
-        echo "# KnurLogger. Key-only access; see SystemSetup/pi-headless-setup.md."
+        echo "# KnurLogger. Key-only access."
         echo "PasswordAuthentication no"
         echo "KbdInteractiveAuthentication no"
         echo "PermitRootLogin no"

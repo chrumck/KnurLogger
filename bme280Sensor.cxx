@@ -9,10 +9,10 @@
 // three quantities have three different consumers and it is worth being explicit about all three,
 // because two of them are easy to point at the wrong thing:
 //
-//   1. TEMPERATURE IS THE CAVITY THERMOMETER (plan item 1d), and Pi SoC temperature is a
-//      cross-check against it rather than the primary proxy. Item 1d wants cavity temperature
-//      recorded across a full session before the installed pre/post envelope is trusted, which a
-//      thermals drive now answers for free.
+//   1. TEMPERATURE IS THE CAVITY THERMOMETER, and Pi SoC temperature is a cross-check against it
+//      rather than the primary proxy. Cavity temperature has to be recorded across a full session
+//      before the installed pre/post envelope is trusted, which a thermals drive now answers for
+//      free.
 //      **It is NOT the inlet density term.** That is T_ambient's DS18B20 - a probe in the air
 //      the car drives through, not one sealed in a box bolted behind a wheel.
 //   2. PRESSURE IS ENCLOSURE PRESSURE AND NEVER A STATIC REFERENCE. The cavity is
@@ -21,14 +21,15 @@
 //      sweep. Tolerable as a density term, disqualifying as a reference. The field names carry
 //      the role so the value cannot be picked up as a zero.
 //   3. HUMIDITY IS THE ENCLOSURE'S CONDENSATION DIAGNOSTIC - the enclosure is sealed with no
-//      desiccant (plan item 1c, closed). It is discarded by the dry-air approximation; its
-//      measurement consumer is the dewpoint margin (../ndLouvers/thermals-testing.md 3.10).
+//      desiccant. It is discarded by the dry-air approximation; its measurement consumer is the
+//      dewpoint margin.
 //
 // Everything below the transport is transcribed from the Bosch BME280 datasheet (rev 1.6) rather
 // than derived: the register map, the fixed-point compensation, and the constraint that ctrl_hum
 // takes effect only when ctrl_meas is written afterwards.
 //
-// Three rules follow from commissioning item 4, and they are why this is longer than a driver:
+// Three rules follow from never presenting an untrustworthy value as a measurement, and they are
+// why this is longer than a driver:
 // a quantity the part could not measure is reported as invalid rather than compensated; a
 // temperature the part reports as skipped invalidates pressure and humidity too, because t_fine
 // feeds both; and no value is ever carried forward from a cycle that failed.
@@ -173,7 +174,7 @@ gboolean initialiseBme280() {
     // 0x60 is the BME280 signature; 0x58 is a BMP280, which has no humidity and different
     // calibration. Answering at the right address is not the same as being the right part, and
     // the whole reason 0x77 rather than 0x76 is the specified address here is that the board did
-    // something the build sheet did not expect.
+    // something its design did not expect.
     if (chipId != BME280_CHIP_ID) {
         appData.bme280.isPresent = FALSE;
         if (!appData.bme280.isChipIdMismatchReported) {
@@ -451,9 +452,9 @@ void sampleBme280() {
         reading.isPressureValid ? "true" : "false",
         reading.isTemperatureValid ? "true" : "false",
         reading.isHumidityValid ? "true" : "false",
-        // The raw ADC counts, kept beside the compensated values because commissioning item 4
-        // asks for both: a calibration coefficient read wrong once at boot corrupts every
-        // compensated value for the session, and the counts are the only way to reprocess it.
+        // The raw ADC counts, kept beside the compensated values because a calibration coefficient
+        // read wrong once at boot corrupts every compensated value for the session, and the counts
+        // are the only way to reprocess it.
         reading.isPresent ? std::format("{}", reading.rawPressure) : "null",
         reading.isPresent ? std::format("{}", reading.rawTemperature) : "null",
         reading.isPresent ? std::format("{}", reading.rawHumidity) : "null",
@@ -472,10 +473,10 @@ void sampleBme280() {
     publishEnclosureStatusPacket(reading);
 }
 
-// Commissioning item 2 asks for identity and calibration data at boot. For an SDP810 that is
-// product, revision and serial with a CRC; the BME280 has no serial and no CRC, so its identity
-// is the chip ID and its calibration IS the coefficient block - which is the part of the record
-// that actually matters, because every compensated value in the session is a function of it.
+// Identity and calibration data are logged at boot. For an SDP810 that is product, revision and
+// serial with a CRC; the BME280 has no serial and no CRC, so its identity is the chip ID and its
+// calibration IS the coefficient block - which is the part of the record that actually matters,
+// because every compensated value in the session is a function of it.
 void writeBme280Baseline() {
     writeSessionRecord("enclosureBaseline", std::format(
         "\"i2cBus\":{},\"devicePath\":\"{}\",\"address\":{},\"present\":{},"
@@ -499,7 +500,7 @@ void writeBme280Baseline() {
             " others, and i2cExhausted moving off zero is the signal that matters",
         "ENCLOSURE pressure, never a static reference: the cavity is aerodynamically live and at"
             " Cp -1 the offset is ~464 Pa against 45-90 Pa measurands. Density term only",
-        "cavity thermometer (plan item 1d); NOT the inlet density term, which is T_ambient's DS18B20",
+        "cavity thermometer; NOT the inlet density term, which is T_ambient's DS18B20",
         "condensation diagnostic for the sealed enclosure (no desiccant); consumer: dewpoint margin"));
 }
 

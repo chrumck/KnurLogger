@@ -6,26 +6,24 @@ Usage:  CH=P1 R_PATH=2.01e6 python Tools/bell-marks.py <session.ndjson> <m_dry_g
         Mark times are LOCAL, CEST, on the session's local date. CH defaults to P0.
         R_PATH defaults to the ladder's short unfiltered leg; set it for any other line.
 
-Constants, model and operating rules: ../ndLouvers/pressure-testing.md 2.2a, 2.2b and 3.3; the
-reduction is the run sheet's 7 (../ndLouvers/step0b-rig/sensor-ladder-runsheet.md). Counters in a
-pressure record are cumulative session totals (CLAUDE.md), so the session total is the LAST
+Counters in a pressure record are cumulative session totals, so the session total is the LAST
 record's value and per-cycle validity is each channel's valid flag.
 """
 import json, sys, os, statistics as st
 from datetime import datetime, timezone, timedelta
 
 CH = os.environ.get('CH', 'P0')
-R_PATH = float(os.environ.get('R_PATH', '2.01e6'))   # Pa.s/m^3; run sheet 3, the ladder's short leg
+R_PATH = float(os.environ.get('R_PATH', '2.01e6'))   # Pa.s/m^3; the ladder's short leg
 
 path = sys.argv[1]
 LOCAL = timedelta(hours=2)          # CEST; taiUs on this box equals unix UTC (checked vs isoTime)
 
-# as built, pressure-testing.md 2.2a
+# as built
 K_M = 0.5639      # Pa/g, g/A_eff on the water-measured A_eff
 K_D = 0.2414      # Pa/mm, rho.g.(A_wall + A_rod)/A_eff, rod fitted
-A_O = 18146.0     # mm^2 outer; sink rate x A_o = flow (2.2b item 8)
-P_CAL = 96600.0   # Pa; the SDP810's calibration pressure, reading = dp x P_abs/P_CAL (2.3a)
-FIT_S = 60        # s; straight-line fit over the window ending at the mark (2.2b item 7)
+A_O = 18146.0     # mm^2 outer; sink rate x A_o = flow
+P_CAL = 96600.0   # Pa; the SDP810's calibration pressure, reading = dp x P_abs/P_CAL
+FIT_S = 60        # s; straight-line fit over the window ending at the mark
 
 m_dry, m_disp = float(sys.argv[2]), float(sys.argv[3])
 m_app = m_dry - m_disp

@@ -3,8 +3,7 @@
 #
 # Without it a four-probe cycle costs ~3.2 s instead of ~1 s, because each probe's read pays its
 # own ~800 ms conversion. It is NOT the whole story: the logger must also write the trigger as
-# eight bytes (`"trigger
-"`), or the attribute is writable and still converts nothing.
+# eight bytes (`"trigger\n"`), or the attribute is writable and still converts nothing.
 # Measured on this box 2026-09-10: the write to `therm_bulk_read` is
 # refused with EACCES, the attribute being 0644 root:root while the logger runs as `chrum`.
 # `60-knurlogger-w1-bulk-read.rules` carries the reasoning; read it before changing anything here.

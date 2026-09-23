@@ -59,7 +59,7 @@ std::optional<guint32> readThrottled() {
 
 // NOT the supply rail. This is the regulated SoC core voltage, ~0.906 V, and it says nothing about
 // the 5 V input. The field name carries `socCore` precisely so it cannot be read as a rail
-// measurement — the rail is build sheet §10 step 2's meter at TP2 and nothing here substitutes.
+// measurement; nothing in this telemetry measures the rail.
 std::optional<gdouble> readSocCoreVolts() {
     static const gchar* const argv[] = { "vcgencmd", "measure_volts", "core", NULL };
 
@@ -97,7 +97,7 @@ std::optional<gint> readUndervoltageAlarm() {
 // A sticky bit that is set the moment this session starts was earned by an EARLIER session on the
 // same boot, because the latch is since-boot. Reporting the first transition against the
 // session-start baseline is what separates "it happened during this run" from "it happened before
-// it", and the plan's whole argument for sampled telemetry rests on that distinction.
+// it", and that distinction is the whole argument for sampled telemetry.
 void recordStickyTransitions(guint32 sticky) {
     auto newlySet = sticky & ~appData.supply.throttledSticky;
     if (newlySet == 0) { return; }
@@ -118,8 +118,7 @@ void recordStickyTransitions(guint32 sticky) {
     }
 }
 
-// Every field big-endian, matching the ESP32 rig's 0x604 sibling layout conventions. Named fields
-// are documented in the README so the RaceChrono channel definitions can be written by hand.
+// Every field big-endian, matching the ESP32 rig's 0x604 sibling layout conventions.
 void publishSupplyPacket() {
     auto socMillivolts = (guint16)0;
     auto socCentiC = (gint16)0;
@@ -134,10 +133,10 @@ void publishSupplyPacket() {
 
     // Byte 7 is a free-running 1 Hz counter and it is the most useful field in this packet for
     // diagnosis, which is not obvious. Every other field is a physical quantity that may
-    // legitimately sit still — SoC core voltage reads a constant 0.840 V on an idle box for hours
-    // — so none of them can distinguish "the link is alive and the value is steady" from "the
-    // link died". A monotonic counter can, and it makes a notify GAP visible on the phone, which
-    // is what commissioning item 5a asks to be logged. The ESP32 rig reached the same conclusion.
+    // legitimately sit still — SoC core voltage reads a constant 0.840 V on an idle box for hours —
+    // so none of them can distinguish "the link is alive and the value is steady" from "the link
+    // died". A monotonic counter can, and it makes a notify GAP visible on the phone, which is what
+    // a link check needs to see. The ESP32 rig reached the same conclusion.
     static guint8 heartbeat = 0;
     heartbeat++;
 

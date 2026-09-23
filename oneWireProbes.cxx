@@ -11,7 +11,7 @@
 // no data, because dT_preheat rests on the DIFFERENCES between these four probes and a swapped
 // pair inverts the quantity the whole thermal workstream exists to produce.
 //
-// Five rules make that safe, and all five come from the plan rather than from taste:
+// Five rules make that safe, and none of them is a matter of taste:
 //
 //   1. `28-*` and nothing else, at enumeration, at binding and at every read. The bare bus
 //      invented churning `00-*` phantoms on a 10 s cycle while GPIO4 floated; anything that
@@ -25,9 +25,8 @@
 //      arrival order between them is unknowable - sysfs order is not arrival order - so the step
 //      is refused out loud rather than guessed.
 //   4. The binding carries provenance: the ROM ID, the channel and the bind timestamp. It lives in
-//      KnurLogger.ini beside the binary, in the same [thermal] section as the calibration offsets
-//      (owner decision, 2026-09-10, replacing a separate channels.ini in the data directory). One
-//      file holds the whole logger configuration, and the slot-keyed offsets sit next to the
+//      KnurLogger.ini beside the binary, in the same [thermal] section as the calibration offsets.
+//      One file holds the whole logger configuration, and the slot-keyed offsets sit next to the
 //      bindings that decide which probe each slot holds - which is where the "re-check the offsets
 //      after any re-enrollment" consequence is visible rather than filed elsewhere.
 //   5. Enrollment reports which ROM ID it bound, so the binding can be checked against the lead
@@ -277,10 +276,10 @@ void reportProbeCapabilities(const OneWireScan& scan) {
 }
 
 // w1_therm's `w1_slave` attribute in preference to its `temperature` attribute, because it carries
-// the nine scratchpad bytes and an explicit CRC verdict alongside the value. Commissioning item 4
-// asks for the raw reading and a per-sample validity flag, and `temperature` gives neither - it
-// returns a bare number or an error, which throws away the evidence that separates a marginal bus
-// from a hot probe.
+// the nine scratchpad bytes and an explicit CRC verdict alongside the value. The record needs the
+// raw reading and a per-sample validity flag, and `temperature` gives neither - it returns a bare
+// number or an error, which throws away the evidence that separates a marginal bus from a hot
+// probe.
 ProbeReading readProbe(const std::string& romId) {
     ProbeReading reading = {};
     reading.centiC = TEMP_CENTI_C_INVALID;
@@ -348,16 +347,6 @@ ProbeReading readProbe(const std::string& romId) {
 
     auto centiC = (reading.milliC >= 0 ? reading.milliC + 5 : reading.milliC - 5) / 10;
 
-    // 85.00 C is the DS18B20's power-on scratchpad default: the probe answered but never
-    // converted, which points at power or a marginal pull-up rather than at a hot probe. Flagged
-    // with its own reason rather than lumped in with a CRC failure, because the two send whoever
-    // reads the record to different parts of the board.
-    if (centiC == TEMP_POWER_ON_DEFAULT_CENTI_C) {
-        reading.invalidReason = "powerOnDefault";
-        reading.isReadError = TRUE;
-        return reading;
-    }
-
     if (centiC < TEMP_VALID_MIN_CENTI_C || centiC > TEMP_VALID_MAX_CENTI_C) {
         reading.invalidReason = "outOfRange";
         reading.isReadError = TRUE;
@@ -372,10 +361,9 @@ ProbeReading readProbe(const std::string& romId) {
 }
 
 // The bindings live in the [thermal] section of KnurLogger.ini beside the binary, alongside the
-// calibration offsets, so that one file holds the whole logger configuration (owner decision,
-// 2026-09-10, replacing a separate machine-written channels.ini in the data directory). A missing
-// or empty `temp<N>RomId` is an unbound channel and a legitimate state, unlike a missing offset,
-// which is a startup failure: a logger that has never been to the car has no bindings to have.
+// calibration offsets, so that one file holds the whole logger configuration. A missing or empty
+// `temp<N>RomId` is an unbound channel and a legitimate state, unlike a missing offset, which is a
+// startup failure: a logger that has never been to the car has no bindings to have.
 void loadChannelStore() {
     auto* store = g_key_file_new();
 
@@ -561,7 +549,7 @@ gboolean saveChannelStore() {
         // a broken clock in the one field whose job is provenance.
         wanted.emplace_back(std::format(CONFIG_KEY_TEMP_BOUND_ISO_FORMAT, i),
             !channel.isBound ? ""
-                : channel.boundTaiUs == 0 ? "unknown" : getIsoTimestamp(channel.boundTaiUs));
+            : channel.boundTaiUs == 0 ? "unknown" : getIsoTimestamp(channel.boundTaiUs));
     }
 
     std::vector<gboolean> isPlaced(wanted.size(), FALSE);
@@ -611,9 +599,9 @@ std::string getBindingsJson() {
             channel.isBound ? std::format("\"{}\"", channel.romId) : "null",
             channel.boundTaiUs,
             channel.isBound
-                ? std::format("\"{}\"", channel.boundTaiUs == 0
-                    ? "unknown" : getIsoTimestamp(channel.boundTaiUs))
-                : "null",
+            ? std::format("\"{}\"", channel.boundTaiUs == 0
+                ? "unknown" : getIsoTimestamp(channel.boundTaiUs))
+            : "null",
             appConfig.tempOffsetsC[i]);
     }
     return bindings;
@@ -755,8 +743,8 @@ void reportUnknownRomIds(const std::vector<std::string>& unboundRomIds) {
 }
 
 // The hand-entered offset for this channel SLOT, from KnurLogger.ini, applied here and ONLY here —
-// on the way to RaceChrono (owner decision, 2026-09-10). Two properties keep it recoverable, and
-// both matter because the offset is a typo away from wrong:
+// on the way to RaceChrono. Two properties keep it recoverable, and both matter because the offset
+// is a typo away from wrong:
 //   1. The session record carries the raw reading and the corrected one side by side, so a bad
 //      offset costs a reprocess rather than the session.
 //   2. The result is clamped clear of INT16_MIN. A corrected reading that landed exactly on the
@@ -910,9 +898,9 @@ void sampleProbes() {
             reading.invalidReason == NULL ? "null" : std::format("\"{}\"", reading.invalidReason),
             reading.readMs, channel.readErrors, channel.notAnswering, appConfig.tempOffsetsC[i],
             reading.scratchpadHex.empty()
-                ? "null" : std::format("\"{}\"", escapeJson(reading.scratchpadHex)),
+            ? "null" : std::format("\"{}\"", escapeJson(reading.scratchpadHex)),
             reading.unparsedContent.empty()
-                ? "null" : std::format("\"{}\"", escapeJson(reading.unparsedContent)));
+            ? "null" : std::format("\"{}\"", escapeJson(reading.unparsedContent)));
     }
 
     appData.thermal.sampleCycles++;
@@ -948,8 +936,8 @@ void writeThermalBaseline() {
     auto scan = scanOneWireBus();
     appData.thermal.isBulkReadAvailable = std::filesystem::exists(getBulkReadPath());
 
-    // Commissioning item 2: the channel mapping in force for this session, per probe ROM ID, is
-    // logged at boot. It is a per-session RECORD and never a channel name.
+    // The channel mapping in force for this session, per probe ROM ID, is logged at boot. It is a
+    // per-session RECORD and never a channel name.
     writeSessionRecord("thermalBaseline", std::format(
         "\"mode\":\"{}\",\"configPath\":\"{}\",\"busPresent\":{},\"enumerated\":{},"
         "\"nonProbeEntries\":{},\"scannedRomIds\":[{}],\"bulkReadAvailable\":{},"

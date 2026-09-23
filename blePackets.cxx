@@ -9,7 +9,7 @@
 //
 // Two properties of the protocol are easy to get backwards, and both are transcribed from two
 // bench-proven implementations rather than designed here — KnurDash's bluetoothWorker.c and the
-// ESP32 rig in ../ndLouvers/step0b-rig/racechrono_ble_test/:
+// ESP32 test rig:
 //
 //   1. The packet ID is the ONE little-endian field. Every payload field is big-endian.
 //   2. RaceChrono, not the logger, chooses the notify rate — it writes a filter command asking for
@@ -20,9 +20,9 @@ void updateBlePacket(BlePacket* packet, const guint8* data) {
     g_mutex_lock(&packet->lock);
     memcpy(packet->data, data, CAN_DATA_SIZE);
     packet->updatedBootUs = getBootTimeUs();
-    // Cleared so the notify timer knows there is something new to send. A packet whose data has
-    // not changed is deliberately NOT re-sent: the logger never re-transmits a stale value as
-    // though it were new, which is commissioning item 4's rule applied to the BLE path.
+    // Cleared so the notify timer knows there is something new to send. A packet whose data has not
+    // changed is deliberately NOT re-sent: the logger never re-transmits a stale value as though it
+    // were new, on the BLE path any more than in the session file.
     packet->wasSent = FALSE;
     g_mutex_unlock(&packet->lock);
 }
@@ -129,4 +129,11 @@ void initialiseBlePackets() {
         0, 0, 0, 0,
     };
     updateBlePacket(&appData.bluetooth.pressureB, pressureBData);
+
+    // Byte 6's temperature marker before the first cycle, for the same reason; the counters and
+    // masks start at zero, which is honest.
+    guint8 pressureStatusData[CAN_DATA_SIZE] = {
+        0, 0, 0, 0, 0, 0, (guint8)(gint8)PRESSURE_SENSOR_TEMP_INVALID_C, MUX_CHANNEL_NONE,
+    };
+    updateBlePacket(&appData.bluetooth.pressureStatus, pressureStatusData);
 }

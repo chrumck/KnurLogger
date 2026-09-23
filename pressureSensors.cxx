@@ -6,11 +6,6 @@
 // The five SDP810 differential-pressure sensors, one per PCA9548A channel, on the same main I2C
 // bus as the BME280. It owns packets 0x605, 0x606 and 0x607.
 //
-// NOTHING IN THIS FILE PRODUCES A PRESSURE MEASUREMENT. It produces the channel a measurement will
-// one day travel down. No wand is cut, no line installed and no filter tested, so every reading
-// here is of whatever air happens to be at an open port - see ../ndLouvers/pressure-testing.md 2,
-// which is the installed qualification and which none of this discharges.
-//
 // Four properties of this hardware shape the code and none of them is obvious:
 //
 //   1. ALL FIVE ANSWER AT 0x25 AND CANNOT BE STRAPPED APART. The mux is mandatory, one sensor per
@@ -56,12 +51,18 @@ gboolean readMuxControl(gint fd, guint8* out) {
 // while nothing is reading it. Called at the end of every cycle and on shutdown.
 gboolean deselectMux(gint fd) {
     auto isDeselected = writeMuxControl(fd, MUX_CHANNEL_NONE);
-    appData.pressure.lastSelectedChannel = isDeselected ? MUX_CHANNEL_NONE : -1;
+    appData.pressure.muxControl = isDeselected ? MUX_CHANNEL_NONE : -1;
     return isDeselected;
 }
 
-// The refusal below is the code half of the prohibition in CLAUDE.md, and it is the whole reason
-// the config key is a list of populated channels rather than a count of them.
+guint8 getMuxControlByte() {
+    gint control = appData.pressure.muxControl;
+    return control < 0 ? (guint8)PRESSURE_MUX_CONTROL_UNKNOWN : (guint8)control;
+}
+
+// The refusal below is the code half of the rule that no channel outside the populated list is
+// ever addressed, and it is the whole reason the config key is a list of populated channels
+// rather than a count of them.
 //
 // The read-back is not belt-and-braces either. A write that APPEARS to succeed onto a faulty
 // segment is precisely the failure that hangs the bus, and reading the control register back is
@@ -81,6 +82,8 @@ gboolean selectMuxChannel(gint fd, gint channel) {
         }
         return FALSE;
     }
+
+    appData.pressure.muxControl = (gint)(1u << channel);
 
     if (!writeMuxControl(fd, (guint8)(1u << channel))) { return FALSE; }
 
@@ -127,9 +130,9 @@ gboolean readSdpFrame(gint fd, guint8* out, guint length) {
 }
 
 // The part's own measurement range, by product number. A reading outside it is invalid data rather
-// than a clipped value (commissioning item 4). An unrecognised product gets the wider bound: the
-// logger warns about the product number at boot and then keeps the channel, because refusing every
-// sample from an unexpected-but-working sensor would cost more than it saves.
+// than a clipped value. An unrecognised product gets the wider bound: the logger warns about the
+// product number at boot and then keeps the channel, because refusing every sample from an
+// unexpected-but-working sensor would cost more than it saves.
 gdouble getSdpRangePa(guint32 productNumber) {
     return productNumber == SDP810_PRODUCT_125PA ? SDP810_RANGE_125PA_PA : SDP810_RANGE_500PA_PA;
 }
@@ -313,14 +316,14 @@ std::string getPressureChannelsJson() {
     return result;
 }
 
-// Commissioning item 2: product, revision, serial and CRC read at boot and logged with the channel
-// mapping. THIS RECORD IS THE PER-SESSION CHANNEL -> PART PROVENANCE, and it is the only place a
-// later analysis can learn which physical sensor produced which channel.
+// Product, revision, serial and CRC are read at boot and logged with the channel mapping. THIS
+// RECORD IS THE PER-SESSION CHANNEL -> PART PROVENANCE, and it is the only place a later analysis
+// can learn which physical sensor produced which channel.
 void writePressureBaseline() {
     writeSessionRecord("pressureBaseline", std::format(
         "\"i2cBus\":{},\"devicePath\":\"{}\",\"muxAddress\":{},\"sensorAddress\":{},"
         "\"intervalMs\":{},\"enabledCount\":{},\"channels\":[{}],"
-        "\"sampling\":\"{}\",\"wireScaling\":\"{}\",\"roleMappingNote\":\"{}\",\"note\":\"{}\"",
+        "\"sampling\":\"{}\",\"wireScaling\":\"{}\"",
         appConfig.i2cBus,
         escapeJson(std::format(I2C_BUS_PATH_FORMAT, appConfig.i2cBus)),
         appConfig.muxAddress, SDP810_ADDRESS,
@@ -331,13 +334,7 @@ void writePressureBaseline() {
         "0.1 Pa/LSB signed on the BLE path, INT16_MIN for no trustworthy reading; the phone"
             " divides by 10000, so a RaceChrono pressure column is in kPa and its invalid marker"
             " is -3.2768; raw counts and the returned scale factor are in every sample record"
-            " here at full resolution and are unaffected by the BLE scaling",
-        // The same shape as thermalBaseline's note, and for the same reason: recording which PART
-        // is on which channel is not deciding which ROLE it serves.
-        "the pressure role -> channel mapping is DELIBERATELY NOT RECORDED HERE because it is not"
-            " decided (../ndLouvers/ open item 30a); channel names are positional",
-        "no pneumatic rig exists - no wand, tube or filter is attached to any port, so nothing"
-            " here is a pressure measurement"));
+            " here at full resolution and are unaffected by the BLE scaling"));
 }
 
 // --- The sampling loop -------------------------------------------------------------------------
@@ -384,7 +381,11 @@ void publishPressurePackets() {
 void publishPressureStatusPacket(guint8 enabledMask, guint8 validMask, gint16 sensorTemperatureC) {
     auto readErrors = (guint16)std::min<guint32>(appData.pressure.readErrors, G_MAXUINT16);
     auto crcFailures = (guint16)std::min<guint32>(appData.pressure.crcFailures, G_MAXUINT16);
-    auto selected = appData.pressure.lastSelectedChannel;
+
+    // A valid reading is clamped short of INT8_MIN so it can never be mistaken for the marker.
+    auto temperatureByte = sensorTemperatureC == PRESSURE_SENSOR_TEMP_INVALID_C
+        ? (guint8)(gint8)PRESSURE_SENSOR_TEMP_INVALID_C
+        : (guint8)(gint8)std::clamp<gint16>(sensorTemperatureC, INT8_MIN + 1, INT8_MAX);
 
     guint8 data[CAN_DATA_SIZE] = {
         enabledMask,
@@ -393,13 +394,33 @@ void publishPressureStatusPacket(guint8 enabledMask, guint8 validMask, gint16 se
         (guint8)(readErrors & 0xFF),
         (guint8)((crcFailures >> 8) & 0xFF),
         (guint8)(crcFailures & 0xFF),
-        (guint8)(gint8)std::clamp<gint16>(sensorTemperatureC, -128, 127),
-        // -1 is "the deselect itself failed", which is the state in which a downstream segment is
-        // still bridged onto the main bus. 0xFF says so rather than wrapping into a channel number.
-        (guint8)(selected < 0 ? 0xFF : selected),
+        temperatureByte,
+        getMuxControlByte(),
     };
 
     updateBlePacket(&appData.bluetooth.pressureStatus, data);
+}
+
+// Called by the BLE worker before it sends 0x607. A cycle stuck in a transfer publishes nothing, and
+// the notify timer never re-sends an unchanged packet, so this is the only way the phone can learn
+// that the worker is stuck and on which channel. The byte returns to 0 with the cycle's own packet.
+void reportPressureStall() {
+    guint64 cycleStartUs = appData.pressure.cycleStartBootUs;
+    if (cycleStartUs == 0) { return; }
+
+    auto nowUs = getBootTimeUs();
+    if (nowUs < cycleStartUs + (guint64)PRESSURE_STALL_REPORT_MS * 1000) { return; }
+
+    auto* packet = &appData.bluetooth.pressureStatus;
+    auto control = getMuxControlByte();
+
+    g_mutex_lock(&packet->lock);
+    if (packet->data[7] != control) {
+        packet->data[7] = control;
+        packet->updatedBootUs = nowUs;
+        packet->wasSent = FALSE;
+    }
+    g_mutex_unlock(&packet->lock);
 }
 
 // One channel: select, re-arm if needed, read, parse. Every failure path leaves a reading that is
@@ -417,8 +438,6 @@ SdpReading readPressureChannel(gint fd, PressureChannel* channel) {
         reading.readMs = (guint32)((getBootTimeUs() - startUs) / 1000);
         return reading;
     }
-
-    appData.pressure.lastSelectedChannel = channel->muxChannel;
 
     // Re-armed only when this worker believes the sensor is NOT continuous - after a failed read,
     // or at start. A part that browned out has forgotten the mode; one that did not answers the
@@ -452,6 +471,8 @@ void samplePressure() {
     auto nowBootUs = getBootTimeUs();
     if (nowBootUs < nextSampleBootUs) { return; }
     nextSampleBootUs = nowBootUs + (guint64)appConfig.pressureIntervalMs * 1000;
+    // Set before the re-initialisation below, whose selects can stall just as a sample's can.
+    appData.pressure.cycleStartBootUs = nowBootUs;
 
     // Cheap enough to attempt when nothing is answering, and the alternative is worse: a bus that
     // was reset, or a sensor that browned out during cranking, would otherwise stay dark for the
@@ -473,8 +494,10 @@ void samplePressure() {
     guint8 enabledMask = 0;
     guint8 validMask = 0;
     guint validChannelCount = 0;
-    gint16 sensorTemperatureC = 0;
-    gboolean isSensorTemperatureSet = FALSE;
+    // 0x607 byte 6 describes ONE part, the lowest enabled channel's, so that a reading on the phone
+    // always means the same sensor; when that part has no valid reading it says so.
+    gint16 sensorTemperatureC = PRESSURE_SENSOR_TEMP_INVALID_C;
+    gint lowestEnabledChannel = -1;
     std::string channelFields;
 
     for (auto i = 0; i < PRESSURE_CHANNEL_COUNT; i++) {
@@ -489,6 +512,7 @@ void samplePressure() {
 
         if (channel.isEnabled) {
             enabledMask |= (guint8)(1u << i);
+            if (lowestEnabledChannel < 0) { lowestEnabledChannel = i; }
             if (fd < 0) { reading.invalidReason = "busUnavailable"; }
             else { reading = readPressureChannel(fd, &channel); }
         }
@@ -514,9 +538,8 @@ void samplePressure() {
             validMask |= (guint8)(1u << i);
             validChannelCount++;
 
-            if (!isSensorTemperatureSet) {
+            if (i == lowestEnabledChannel) {
                 sensorTemperatureC = (gint16)std::lround(reading.temperatureCentiC / 100.0);
-                isSensorTemperatureSet = TRUE;
             }
         }
 
@@ -531,9 +554,8 @@ void samplePressure() {
             channel.isEnabled ? "true" : "false",
             reading.isPresent ? "true" : "false",
             reading.isValid ? "true" : "false",
-            // The raw counts and the scale factor beside the computed pascals, because
-            // commissioning item 4 asks for both and because that pair is what makes a reprocess
-            // possible if the 0.1 Pa/LSB wire scaling is ever revisited.
+            // The raw counts and the scale factor beside the computed pascals, because that pair
+            // is what makes a reprocess possible if the 0.1 Pa/LSB wire scaling is ever revisited.
             reading.isValid ? std::format("{}", (int)reading.rawDifferential) : "null",
             reading.isValid ? std::format("{}", reading.scaleFactor) : "null",
             reading.isValid ? std::format("{:.4f}", reading.pressurePa) : "null",
@@ -546,18 +568,21 @@ void samplePressure() {
     }
 
     if (fd >= 0) { deselectMux(fd); }
+    else { appData.pressure.muxControl = -1; }
 
+    appData.pressure.cycleStartBootUs = 0;
     appData.pressure.sampleCycles++;
     appData.pressure.lastCycleMs = (guint32)((getBootTimeUs() - cycleStartUs) / 1000);
 
     writeSessionRecord("pressure", std::format(
         "\"cycle\":{},\"enabledMask\":{},\"validMask\":{},\"validChannels\":{},\"cycleMs\":{},"
-        "\"muxSelected\":{},\"readErrors\":{},\"crcFailures\":{},"
+        "\"muxControl\":{},\"readErrors\":{},\"crcFailures\":{},"
         "\"i2cFirstAttemptFailures\":{},\"i2cRecovered\":{},\"i2cExhausted\":{},\"channels\":[{}]",
         appData.pressure.sampleCycles, enabledMask, validMask, validChannelCount,
-        appData.pressure.lastCycleMs, appData.pressure.lastSelectedChannel,
+        appData.pressure.lastCycleMs, (gint)appData.pressure.muxControl,
         appData.pressure.readErrors, appData.pressure.crcFailures,
-        // Logged with every pressure session because open item 44 is bimodal per boot: these three
+        // Logged with every pressure session because the first-transfer refusal is bimodal per
+        // boot: these three
         // are what say which mode THIS boot was in, and a clean run is evidence about the boot
         // rather than about the board.
         (guint64)appData.i2c.firstAttemptFailures,
@@ -590,7 +615,8 @@ gpointer pressureSensorsLoop(gpointer _) {
     g_message("Pressure: starting");
 
     appData.pressure.fd = -1;
-    appData.pressure.lastSelectedChannel = MUX_CHANNEL_NONE;
+    appData.pressure.muxControl = MUX_CHANNEL_NONE;
+    appData.pressure.cycleStartBootUs = 0;
 
     for (auto i = 0; i < PRESSURE_CHANNEL_COUNT; i++) {
         auto& channel = appData.pressure.channels[i];

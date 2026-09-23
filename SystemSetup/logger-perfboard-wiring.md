@@ -785,9 +785,9 @@ remains to buy.
 
 > **⚠ The single SDP810-125Pa was required to be CONNECTORISED, not hard-soldered** (plan open
 > item 38, closed rev 67e). **That was not done: all five SDP810s, this one included, are soldered
-> directly to the board with no `J7`–`J12` headers** (owner, 2026-09-23). Whether the requirement
-> is retired or still stands is **plan open item 38's to decide, and the owner's decision is
-> pending** — do not treat it as settled either way. The reason it was required: the part is
+> directly to the board with no `J7`–`J12` headers** (owner, 2026-09-23). **The requirement is
+> retired unmet and plan open item 38 stays closed** (owner, 2026-09-23): the ±125 Pa is fixed to
+> `P2`, and its two duties become a scheduling constraint. The reason it was required: the part is
 > time-shared between two duties in different measurement phases — Step 11 item 1a's logged
 > core-exit velocity probe, and rev 46's parallel high-resolution shadow channel on a Cp tap
 > pair — because the owner declined to buy a sixth sensor and the plan reallocates sensors between

@@ -49,8 +49,8 @@ namespace chr = std::chrono;
 
 #define CONFIG_GROUP_THERMAL "thermal"
 #define CONFIG_KEY_TEMP_INTERVAL_MS "tempIntervalMs"
-// One per channel: temp0OffsetC .. temp3OffsetC. Keyed to the SLOT, not to the probe's ROM ID
-// (owner decision, 2026-09-10) — see the note on TEMP_OFFSET_IMPLAUSIBLE_C.
+// One per channel: temp0OffsetC .. temp3OffsetC. Keyed to the SLOT, not to the probe's ROM ID —
+// see the note on TEMP_OFFSET_IMPLAUSIBLE_C.
 #define CONFIG_KEY_TEMP_OFFSET_C_FORMAT "temp{}OffsetC"
 // Machine-written by --enroll, hand-readable afterwards. `BoundIso` is provenance for a human and
 // is never read back; `BoundTaiUs` is what the logger reads.
@@ -78,9 +78,8 @@ namespace chr = std::chrono;
 #define CONFIG_GROUP_DEBUG "debug"
 #define CONFIG_KEY_VERBOSE_MODE "verboseMode"
 
-// The RaceChrono DIY CAN-Bus device protocol, as implemented by KnurDash and by the ESP32 rig in
-// ../ndLouvers/step0b-rig/racechrono_ble_test/. Both are bench-proven against the phone, so these
-// are transcribed rather than chosen.
+// The RaceChrono DIY CAN-Bus device protocol, as implemented by KnurDash and by the ESP32 test rig.
+// Both are bench-proven against the phone, so these are transcribed rather than chosen.
 #define BLE_SERVICE_ID "00001ff8-0000-1000-8000-00805f9b34fb"
 #define BLE_CHAR_ID_MAIN "00000001-0000-1000-8000-00805f9b34fb"
 #define BLE_CHAR_ID_FILTER "00000002-0000-1000-8000-00805f9b34fb"
@@ -99,36 +98,33 @@ namespace chr = std::chrono;
 // Packet IDs are kept identical to the ESP32 rig's so that the RaceChrono channel definitions the
 // owner already built against it carry over to this logger unchanged. 0x600 and 0x601 are the
 // exception: on the rig they carried synthetic ramp/triangle test frames, and the owner released
-// them for real use (2026-09-10) since that rig is spent. Anyone still holding the rig's 0x600
-// channel definitions must re-enter them - the bytes mean something else here.
+// them for real use since that rig is spent. Anyone still holding the rig's 0x600 channel
+// definitions must re-enter them - the bytes mean something else here.
 #define PACKET_ID_ENCLOSURE 0x600
 #define PACKET_ID_ENCLOSURE_STATUS 0x601
 #define PACKET_ID_TEMP 0x602
 #define PACKET_ID_THERMAL_STATUS 0x603
 #define PACKET_ID_SUPPLY 0x604
-// The three pressure frames, contiguous with the block above (owner decision, 2026-09-19, recorded
-// in ../ndLouvers/CFD-Learning-Plan.md Step 0b commissioning item 4a - "commissioning" matters,
-// since that plan also has a thermal item 4a and an open item 4a). Checked clear against the
-// committed RaceChrono/vehicleProfile.json: across both boxes the only IDs claimed are 0x78,
-// 0x202, 0x420, 0x4FA, 0x600-0x604 and 0x7F0.
+// The three pressure frames, contiguous with the block above. Checked clear against the committed
+// RaceChrono/vehicleProfile.json: across both boxes the only IDs claimed are 0x78, 0x202, 0x420,
+// 0x4FA, 0x600-0x604 and 0x7F0.
 #define PACKET_ID_PRESSURE_A 0x605
 #define PACKET_ID_PRESSURE_B 0x606
 #define PACKET_ID_PRESSURE_STATUS 0x607
 
 // Signed 0.01 C/LSB, and INT16_MIN for a channel with no trustworthy reading. Deliberately absurd
-// after the divide (-327.68 C) rather than plausible: commissioning item 4 forbids presenting a
-// carried-forward value as new, and RaceChrono holds the last value it received indefinitely.
+// after the divide (-327.68 C) rather than plausible: a carried-forward value must never be
+// presented as new, and RaceChrono holds the last value it received indefinitely.
 #define TEMP_CENTI_C_INVALID INT16_MIN
 #define TEMP_VALID_MIN_CENTI_C -5500
 #define TEMP_VALID_MAX_CENTI_C 12500
 
 // Calibration offsets are hand-entered in KnurLogger.ini, one per CHANNEL SLOT, and applied to the
-// value sent to RaceChrono (owner decision, 2026-09-10). Slot-keyed rather than ROM-ID-keyed is a
-// deliberate simplification with one consequence worth stating: an offset is a property of a
-// particular DS18B20, so **re-enrolling the probes in a different order, or swapping a probe,
-// leaves the offsets pointing at the wrong parts and they must be re-checked.** In exchange the
-// calibration lives in the git-tracked config beside every other setting, rather than in the
-// data directory where a wipe would take it.
+// value sent to RaceChrono. Slot-keyed rather than ROM-ID-keyed is a deliberate simplification with
+// one consequence worth stating: an offset is a property of a particular DS18B20, so **re-enrolling
+// the probes in a different order, or swapping a probe, leaves the offsets pointing at the wrong
+// parts and they must be re-checked.** In exchange the calibration lives in the git-tracked config
+// beside every other setting, rather than in the data directory where a wipe would take it.
 //
 // A relative offset between two DS18B20s is a fraction of a kelvin, so anything past this is a
 // decimal-point slip. Warned about and applied anyway; the hard bound below only rejects nonsense,
@@ -136,9 +132,6 @@ namespace chr = std::chrono;
 #define TEMP_OFFSET_IMPLAUSIBLE_C 5.0
 #define TEMP_OFFSET_MAX_C 50.0
 
-// The DS18B20's power-on scratchpad default. The probe answered but never converted, which points
-// at power or a marginal pull-up rather than at a hot probe, so it is flagged and not trusted.
-#define TEMP_POWER_ON_DEFAULT_CENTI_C 8500
 
 #define ONE_WIRE_DEVICES_DIR "/sys/bus/w1/devices"
 #define ONE_WIRE_MASTER_NAME "w1_bus_master1"
@@ -181,10 +174,10 @@ namespace chr = std::chrono;
 
 // Oversampling x1 on all three quantities, IIR filter off, and forced mode: one conversion per
 // sample, the part asleep in between. That is the datasheet's lowest-self-heating setting and the
-// choice is a MEASUREMENT one rather than a power one - this part is the cavity thermometer
-// (plan item 1d), so any heat it makes is an error in the quantity it exists to report. Higher
-// oversampling would buy pressure noise this channel has no use for: it is a density term and is
-// disqualified as a reference, so 3.3 Pa RMS against ~101 kPa is already far past sufficient.
+// choice is a MEASUREMENT one rather than a power one - this part is the cavity thermometer, so any
+// heat it makes is an error in the quantity it exists to report. Higher oversampling would buy
+// pressure noise this channel has no use for: it is a density term and is disqualified as a
+// reference, so 3.3 Pa RMS against ~101 kPa is already far past sufficient.
 #define BME280_OVERSAMPLING_X1 0x01
 #define BME280_MODE_FORCED 0x01
 #define BME280_CTRL_HUM_VALUE BME280_OVERSAMPLING_X1
@@ -229,8 +222,7 @@ namespace chr = std::chrono;
 // --- The five SDP810s, one per PCA9548A channel ------------------------------------------------
 //
 // Commands, frame layout and the CRC are transcribed from the Sensirion SDP8xx digital datasheet
-// and were confirmed against all five real parts on the bench, 2026-09-19
-// (../ndLouvers/pressure-testing.md 3.1).
+// and were confirmed against all five real parts on the bench.
 //
 // ALL FIVE ANSWER AT THE SAME FIXED ADDRESS AND CANNOT BE STRAPPED APART, which is why the mux is
 // mandatory rather than a convenience, and why every sample costs a channel select first.
@@ -254,10 +246,10 @@ namespace chr = std::chrono;
 #define SDP810_SCALE_500PA 60
 #define SDP810_SCALE_125PA 240
 
-// A reading outside the part's own range is invalid data rather than a clipped value
-// (commissioning item 4). Ranges are the datasheet's, selected by the product number read back at
-// boot; a part whose product number is unrecognised gets the wider bound, since refusing every
-// sample from an unexpected-but-working sensor would be worse than logging it with a warning.
+// A reading outside the part's own range is invalid data rather than a clipped value. Ranges are
+// the datasheet's, selected by the product number read back at boot; a part whose product number is
+// unrecognised gets the wider bound, since refusing every sample from an unexpected-but-working
+// sensor would be worse than logging it with a warning.
 #define SDP810_RANGE_500PA_PA 500.0
 #define SDP810_RANGE_125PA_PA 125.0
 
@@ -272,12 +264,12 @@ namespace chr = std::chrono;
 #define SDP810_START_SETTLE_US 20000
 
 // Signed 0.1 Pa/LSB - decipascals - on all six channels, with INT16_MIN for a channel with no
-// trustworthy reading (owner decision, 2026-09-19; ../ndLouvers/CFD-Learning-Plan.md Step 0b item
-// 4a). 0.01 Pa/LSB overflows at 327 Pa and so cannot carry a +-500 Pa channel, which would mean a
-// SECOND decode rule on a hand-typed channel list this code cannot check - the fault class that
-// hid bytesToUint on Temperature Front 2 for days. The resolution given up on the +-125 Pa part is
-// affordable precisely because the session file carries raw counts and the returned scale factor
-// at full resolution, so every past session can be reprocessed if this is ever revisited.
+// trustworthy reading. 0.01 Pa/LSB overflows at 327 Pa and so cannot carry a +-500 Pa channel,
+// which would mean a SECOND decode rule on a hand-typed channel list this code cannot check - the
+// fault class that hid bytesToUint on Temperature Front 2 for days. The resolution given up on the
+// +-125 Pa part is affordable precisely because the session file carries raw counts and the
+// returned scale factor at full resolution, so every past session can be reprocessed if this is
+// ever revisited.
 //
 // -3276.8 Pa (-3.2768 kPa on the phone) is deliberately absurd rather than plausible, and the
 // argument is STRONGER here than for temperature: zero is a completely believable differential
@@ -291,12 +283,22 @@ namespace chr = std::chrono;
 #define MUX_CHANNEL_NONE 0x00
 #define MUX_MAX_CHANNEL 5
 
+// 0x607 byte 7 carries the mux control byte, so 0 already means "deselected" and a single set bit
+// names the channel. 0xFF is never a single-channel mask, which is why it can mean "the deselect
+// failed and a downstream segment may still be bridged onto the main bus".
+#define PRESSURE_MUX_CONTROL_UNKNOWN 0xFF
+// A healthy cycle takes ~16 ms. One that has run this long publishes nothing of its own, so the BLE
+// worker publishes the channel it is stuck on instead - otherwise the phone holds the last good frame.
+#define PRESSURE_STALL_REPORT_MS 1000
+// 0x607 byte 6's marker for "the lowest enabled channel gave no valid reading this cycle". Zero
+// would read as a plausible temperature, and the part's own range stops at -20 C.
+#define PRESSURE_SENSOR_TEMP_INVALID_C INT8_MIN
+
 // NEVER ADDRESS A CHANNEL THAT IS NOT IN THE CONFIGURED ENABLED LIST. An unpopulated or faulty
 // downstream channel hangs the ENTIRE main bus - mux and BME280 with it - and only a ~RESET pulse
-// on GPIO17 recovers it. Both bus lines read idle-high and i2cdetect still lists every device
-// while it is happening, so every cheap check says the bus is fine. CLAUDE.md has the diagnosis
-// and the two occurrences; SystemSetup/logger-perfboard-wiring.md 5 has which channels are populated.
-// Today channel 5 is the unpopulated one: its pull-ups are footprints only.
+// on GPIO17 recovers it. Both bus lines read idle-high and i2cdetect still lists every device while
+// it is happening, so every cheap check says the bus is fine. Today channel 5 is the unpopulated
+// one: its pull-ups are footprints only.
 //
 // This is why the config key is a LIST and why selectMuxChannel refuses anything outside it. A
 // sweep must be impossible to write by accident.
@@ -417,8 +419,8 @@ typedef struct {
     gboolean isValid;
     gint16 centiC;
     gint32 milliC;
-    // The nine scratchpad bytes as the kernel printed them, kept because commissioning item 4 asks
-    // for the raw reading beside the corrected one and this is the rawest form available.
+    // The nine scratchpad bytes as the kernel printed them, kept because the record carries the raw
+    // reading beside the corrected one and this is the rawest form available.
     std::string scratchpadHex;
     // Whatever the kernel returned when it could not be parsed, truncated. Without it a marginal
     // bus and a lead pulled out of its socket leave identical evidence.
@@ -462,9 +464,9 @@ typedef struct {
 } ThermalData;
 
 // The BME280's factory calibration, read once from the part's NVM. It is logged verbatim at boot
-// because commissioning item 2 asks for identity and calibration data: without these coefficients
-// the raw ADC counts mean nothing, so they are as much a part of a reading's provenance as the
-// chip ID, and a corrupted block is the failure that produces plausible-looking wrong numbers.
+// because without these coefficients the raw ADC counts mean nothing, so they are as much a part of
+// a reading's provenance as the chip ID, and a corrupted block is the failure that produces
+// plausible-looking wrong numbers.
 typedef struct {
     guint16 digT1;
     gint16 digT2, digT3;
@@ -484,8 +486,8 @@ typedef struct {
     // Three separate flags because the three quantities fail together only sometimes. A raw
     // temperature the part reports as skipped invalidates all three, since t_fine feeds the
     // pressure and humidity compensation; a pressure outside the part's range invalidates only
-    // pressure. Carrying one forward on the strength of another would be exactly what
-    // commissioning item 4 forbids.
+    // pressure. Carrying one forward on the strength of another would present an unmeasured value
+    // as a measurement.
     gboolean isPressureValid;
     gboolean isTemperatureValid;
     gboolean isHumidityValid;
@@ -577,8 +579,8 @@ typedef struct {
     gboolean isPresent;
 
     // Read once at boot and logged with the baseline: this is the per-session channel -> part
-    // provenance commissioning item 2 asks for, and the only place a later analysis can learn
-    // which physical sensor produced a channel.
+    // provenance, and the only place a later analysis can learn which physical sensor produced a
+    // channel.
     guint32 productNumber;
     guint64 serial;
     guint16 expectedScale;
@@ -593,9 +595,9 @@ typedef struct {
     SdpReading lastReading;
 } PressureChannel;
 
-// No lock, for the same reason ThermalData and Bme280Data have none: every field is written and
-// read by the pressureSensors worker alone, and the only cross-thread boundary the data crosses is
-// the BLE packet, which carries its own mutex.
+// No lock, for the same reason ThermalData and Bme280Data have none: every field is written by the
+// pressureSensors worker alone, the BLE packet carries its own mutex, and the two fields the BLE
+// worker reads for its stall check are atomic.
 typedef struct {
     PressureChannel channels[PRESSURE_CHANNEL_COUNT];
 
@@ -605,9 +607,13 @@ typedef struct {
     guint32 crcFailures;
     guint32 lastCycleMs;
     guint enabledCount;
-    // Published on 0x607 byte 7 as a cheap liveness tell. Set to MUX_CHANNEL_NONE at the end of
-    // every cycle, so a value that sticks at a channel number is a cycle that never finished.
-    gint lastSelectedChannel;
+    // The mux control byte the worker is working with: 1 << n from the moment it starts selecting
+    // P<n>, MUX_CHANNEL_NONE after a successful end-of-cycle deselect, -1 after a failed one. It is
+    // set BEFORE the select so a stall inside the select itself is still attributed to its channel.
+    // Atomic, like cycleStartBootUs, because the BLE worker reads both to report a stalled cycle.
+    std::atomic<gint> muxControl;
+    // Boot time the current cycle started, 0 between cycles.
+    std::atomic<guint64> cycleStartBootUs;
 
     // Rate limiters, so a permanent condition produces one record rather than one per cycle. At
     // 10 Hz that is ten times the noise the 1 Hz workers could make, and the 1-Wire worker already

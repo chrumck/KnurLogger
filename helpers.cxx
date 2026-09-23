@@ -19,8 +19,8 @@ guint64 getCurrentTimeUs() {
 
 // CLOCK_BOOTTIME for everything that measures an interval. The car has no NTP and the Pi has no
 // RTC, so the wall clock is wrong-but-plausible and can also be stepped at the bench; a stepped
-// clock would stall or storm a cadence gated on it. Every record carries both, which is also what
-// the plan's elapsed-since-boot fields need.
+// clock would stall or storm a cadence gated on it. Every record carries both, so intra-session
+// timing survives a wall clock that is wrong or stepped.
 guint64 getBootTimeUs() {
     struct timespec timeSpec;
     clock_gettime(CLOCK_BOOTTIME, &timeSpec);

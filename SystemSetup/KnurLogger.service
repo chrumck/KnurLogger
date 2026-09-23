@@ -9,8 +9,8 @@ Documentation=https://github.com/chrumck/KnurLogger
 After=multi-user.target
 After=dbus.service
 # BLE is the product, so the controller has to be up before the logger's Bluetooth worker starts.
-# Wants rather than Requires: a session must still record to the SD card with no BLE at all, which
-# is exactly the split Step 0b item 5b now describes.
+# Wants rather than Requires: a session must still record to the SD card with no BLE at all, since
+# the card is the durable record and BLE only the live path.
 Wants=bluetooth.service
 After=bluetooth.service
 

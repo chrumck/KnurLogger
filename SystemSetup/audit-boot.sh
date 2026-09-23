@@ -28,7 +28,7 @@ echo "os       : $(. /etc/os-release && echo "$PRETTY_NAME")"
 echo "model    : $(tr -d '\0' < /proc/device-tree/model 2>/dev/null)"
 echo "memory   : $(free -h | awk '/^Mem:/ {print $2 " total, " $7 " available"}')"
 
-section "Power and thermal — plan item 5.4 / build sheet §10 step 4"
+section "Power and thermal"
 # 0x0 is clean. bit 0 = undervoltage now, bit 16 = undervoltage has occurred since boot.
 echo "get_throttled : $(vcgencmd get_throttled 2>/dev/null || echo 'vcgencmd unavailable')"
 echo "core volts    : $(vcgencmd measure_volts core 2>/dev/null || echo n/a)"
@@ -36,7 +36,7 @@ echo "SoC temp      : $(vcgencmd measure_temp 2>/dev/null || echo n/a)"
 echo ""
 echo "-- dmesg, voltage/throttling --"
 # Distinguish "nothing to report" from "could not read the log". They look
-# identical once stderr is discarded, and plan item 5.4 treats this as pass/fail,
+# identical once stderr is discarded, and this check is read as pass/fail,
 # so a false "good" here is worse than no answer at all.
 if ! dmesg >/dev/null 2>&1; then
     echo "(dmesg unreadable — kernel.dmesg_restrict=$(cat /proc/sys/kernel/dmesg_restrict 2>/dev/null); re-run with sudo. THIS IS NOT A PASS.)"

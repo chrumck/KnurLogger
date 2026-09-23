@@ -8,8 +8,8 @@
 #   --execute  install
 #
 # Deliberately smaller than iSitePiLogger's list: no libcurlpp-dev, because
-# KnurLogger has nothing to upload. The SD card is the primary record and BLE is
-# the live view (plan item 5b), so there is no HTTP path at all.
+# KnurLogger has nothing to upload. Data leaves the box over BLE and on the SD
+# card, so there is no HTTP path at all.
 
 set -euo pipefail
 

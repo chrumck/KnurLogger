@@ -114,7 +114,8 @@ narrative in this file.
   correctly** (2026-09-19) — one per mux channel, each channel needing its own
   pull-ups. **ALL FIVE ARE HARD-SOLDERED DIRECTLY TO THE BOARD, THE ±125 Pa INCLUDED, WITH NO
   `J7`–`J12` HEADERS** (owner, 2026-09-23). **Do not describe any of them as connectorised** —
-  plan open item 38 was closed partly on that wrong claim and is the owner's to revisit. A sensor
+  plan open item 38 stays closed (owner, 2026-09-23), being about buying more sensors rather than
+  how they attach. A sensor
   cannot be moved between mux channels with a plug, and no part can be
   separated from its channel for fault-finding without desoldering. **The ±125 Pa is on `P2`, not the specified `P4`** — the board won and the build sheet
   was corrected; §5 there is the record and carries all five serials. **An empty I2C scan is therefore no longer the correct
@@ -339,20 +340,21 @@ narrative in this file.
   triangle test frames; that rig is spent and the owner released the IDs. **Any RaceChrono channel
   definition written against the rig's `0x600` must be re-entered** — the bytes decode to
   something else now. `0x602`–`0x604` are unchanged and still carry over.
-- **A DS18B20 AT EXACTLY 85.00 °C IS INDISTINGUISHABLE FROM ONE THAT HAS JUST RESET, AND `T_aft`
-  GOES THERE** (measured 2026-09-18 from the two-day SD record). 85.00 °C is the power-on
-  scratchpad default *and* a real temperature, and the scratchpad bytes are identical
-  (`50 05 4b 46 7f ff 0c 10 1c`) in both cases, so `oneWireProbes.cxx`'s `powerOnDefault` check
-  cannot tell them apart. All 17 flagged samples in that session are `temp3` transiting 85.000 °C
-  on a smooth ramp with a good CRC — **not one is a bus fault**, and the "two CRC failures"
-  reported for the 2026-09-13 track day are withdrawn. `T_aft` peaks at **101.25 °C** and puts
-  2 351 samples above 85 °C, so this is a band the aft probe lives in rather than an edge case.
-  **The reason code sends a reader to the power and the pull-ups, and that is the cost** — it is a
-  diagnosis the data cannot support. `one-wire-probes.md` owns the requirement; **`../ndLouvers/`
-  open item 53 owns the remaining decision, and open item 52 was DROPPED on 2026-09-20** — the aft
-  probe's band-edge accuracy will not be bounded and its assembly rating will not be checked, the
-  owner having accepted the risk of losing it. **So treat every `T_aft` sample above 85 °C as an
-  indication rather than a measurement, permanently**, and do not open a task to characterise it.
+- **A DS18B20 AT EXACTLY 85.00 °C IS INDISTINGUISHABLE FROM ONE THAT HAS JUST RESET, AND THE
+  LOGGER NO LONGER TRIES** (owner, 2026-09-23; `../ndLouvers/` open item 53, closed). 85.00 °C is
+  the power-on scratchpad default *and* a real temperature, with identical scratchpad bytes
+  (`50 05 4b 46 7f ff 0c 10 1c`), and `T_aft` peaks at **101.25 °C** with 2 351 samples above
+  85 °C — a band the aft probe lives in. So `oneWireProbes.cxx` accepts 85.00 °C as a reading, and
+  **a probe that resets at boot will log a plausible, valid 85.00 °C** with no reason code. The
+  owner accepts that. **Do not reinstate a `powerOnDefault` check** (history, 2026-09-23;
+  `one-wire-probes.md` owns the detail). **Sessions recorded before 2026-09-23 carry
+  `powerOnDefault` flags** — in the two-day session, four a genuine boot-cycle reset and 17 `temp3`
+  transiting 85.000 °C with a good CRC, **not one a bus fault**, so the "two CRC failures"
+  reported for the 2026-09-13 track day stay withdrawn. **Open item 52 was DROPPED on
+  2026-09-20** — the aft probe's band-edge accuracy will not be bounded and its assembly rating will
+  not be checked, the owner having accepted the risk of losing it. **So treat every `T_aft` sample
+  above 85 °C as an indication rather than a measurement, permanently**, and do not open a task to
+  characterise it.
 - **The whole 1-Wire path is in [`one-wire-probes.md`](one-wire-probes.md)**, split out of this
   file on 2026-09-15: the ROM-ID bindings, the mandatory `28-*` family filter, `therm_bulk_read`
   and the two conditions that make it convert, the ~100 s tail a pulled probe leaves behind, the

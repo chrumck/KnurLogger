@@ -173,8 +173,8 @@ cat <<'KEEP'
                          unit involved. Older recipes name hciuart; do not go
                          looking for it here.)
   NetworkManager         Wi-Fi is the only headless access route into a wheel-well
-                         cavity with no Ethernet. Gated per session, not removed.
-                         See plan item 1b.
+                         cavity with no Ethernet. Gated per session, not removed,
+                         because it shares one radio with BLE.
   wpa_supplicant         NetworkManager drives it over D-Bus on this image, and it
                          is enabled and running. Retiring it loses Wi-Fi.
   systemd-timesyncd      A Pi 4B has no RTC, and fake-hwclock is NOT installed on
@@ -314,8 +314,8 @@ retire_unit dphys-swapfile.service     "file-backed swap, if this image has it i
 
 section "Phase 6 — Write pressure, and evidence that survives a power cut"
 
-# Plan item 5b: the accessory feed disappears without warning at ignition-off,
-# so the last durable write bounds what a hard cut costs. These are the values
+# The supply disappears without warning, so the last durable write bounds what
+# a hard cut costs. These are the values
 # iSitePiLogger's setupNotes.txt sets, for the same reason.
 # 99-, not 90-: /etc/sysctl.d/98-rpi.conf ships with this image and would sort
 # after a 90- file. It sets no dirty ratios today, so 90- happened to work, but
@@ -325,8 +325,8 @@ echo "  + writing $SYSCTL_FILE"
 if [[ "$DRY_RUN" == false ]]; then
     sudo tee "$SYSCTL_FILE" >/dev/null <<'SYSCTL'
 # KnurLogger. Small dirty-page ratios keep the writeback window
-# short, so an unannounced power cut at ignition-off costs about a second of
-# samples rather than a session. See ../ndLouvers/CFD-Learning-Plan.md Step 0b item 5b.
+# short, so an unannounced power cut costs about a second of samples rather
+# than a session.
 vm.dirty_background_ratio = 5
 vm.dirty_ratio = 10
 SYSCTL
@@ -498,11 +498,9 @@ ${MARK_BEGIN}
 [all]
 
 # Buses the logger needs. I2C1 carries the TCA9548A at 0x70 and the BME280 at
-# 0x76. Written by KnurLogger's SystemSetup/harden-headless.sh; the reasoning
-# lives in that repo and in the perfboard build sheet section 4.
+# 0x77. Written by KnurLogger's SystemSetup/harden-headless.sh.
 #
-# 100 kHz is specified by that build sheet's section 6, which owns the decision.
-# Three reasons, and the throughput one is not the strongest:
+# 100 kHz, for three reasons, and the throughput one is not the strongest:
 #   - No throughput argument exists. Five sensors at 10 Hz is a few hundred bytes
 #     per second; 100 kHz runs that at under 10 percent bus duty.
 #   - Rise time is the real constraint. Each mux channel carries its own 4.7 kOhm
@@ -513,7 +511,7 @@ ${MARK_BEGIN}
 #   - Slower edges are better behaved next to a switching regulator on the same
 #     board.
 # Do not raise this to 400 kHz without measuring the segment capacitance or
-# lowering the pull-ups, and not without changing the build sheet first.
+# lowering the pull-ups.
 dtparam=i2c_arm=on,i2c_arm_baudrate=100000
 
 # 1-Wire on GPIO4 for the four DS18B20s. No pullup= parameter: the overlays
@@ -528,9 +526,8 @@ dtparam=i2c_arm=on,i2c_arm_baudrate=100000
 # discovering a DS18B20.
 dtoverlay=w1-gpio,gpiopin=4
 
-# Release the TCA9548A ~RESET at firmware time, before Linux starts. Build sheet
-# section 3a.5 item 6: GPIO17 boots as an input with the SoC's ~50 kOhm pull-down
-# fighting R12, and the resulting level was never measured. Driving it high here
+# Release the TCA9548A ~RESET at firmware time, before Linux starts. GPIO17
+# boots as an input with the SoC's ~50 kOhm pull-down fighting R12, and the resulting level was never measured. Driving it high here
 # removes the question instead of answering it.
 gpio=17=op,dh
 
@@ -559,8 +556,7 @@ Next:
   3. Confirm the buses:              ls /dev/i2c-1 ; ls /sys/bus/w1/devices/
      An empty i2cdetect scan is expected until the sensor zone is built; a
      MISSING /dev/i2c-1 is not, and means i2c-dev or the dtparam did not take.
-  4. Plan item 5.4 / build sheet section 10 step 4, still outstanding and now
-     one command away:
+  4. Check the supply margin:
        vcgencmd get_throttled        0x0 is a pass. Anything else is the HW-384
                                      margin question, not a formality.
        dmesg | grep -i -E 'voltage|throttl'
@@ -574,11 +570,11 @@ To gate Wi-Fi for a session without giving up your way back in:
   sudo rfkill block wifi      # before a run
   sudo rfkill unblock wifi    # after
 `nmcli radio wifi off` does the same through NetworkManager. Either is reversible
-over a shell; dtoverlay=disable-wifi is not, which is why neither this script nor
-the runbook uses it. Note that `rfkill block wifi` targets wlan only and leaves
+over a shell; dtoverlay=disable-wifi is not, which is why this script does not
+use it. Note that `rfkill block wifi` targets wlan only and leaves
 Bluetooth alone — do not use bare `rfkill block all`, which would take the BLE
-link down with it. Leave the gating manual until the logger owns it: plan item 5a
-wants the link qualified in the installed position before any of it is trusted.
+link down with it. Leave the gating manual until the logger owns it, and gate
+Wi-Fi for any measurement of BLE link quality.
 
 Rollback — everything this script touched, in one place:
   config.txt, cmdline.txt   restore the .bak-<timestamp> copies beside them

@@ -19,18 +19,20 @@ probes enumerated on every one, BME280 cumulative read errors 0, and **zero drop
 on three free-running counters independently, in every one of the 13 connections.** It ended with
 a clean `BLE stopped`, not a hard cut.
 
-**The "two CRC failures" previously reported are withdrawn.** All 17 samples the counter flagged
-across both days are `temp3`/`T_aft` transiting **exactly 85.000 °C** with a good CRC — which is
-also the DS18B20's power-on scratchpad default, byte for byte, so the logger cannot tell the two
-apart. `T_aft` peaks at **101.25 °C** and spends 2 351 samples above 85 °C in nine post-run
-heat-soak stretches, which is outside the part's ±0.5 °C band and is a real finding rather than an
+**The "two CRC failures" previously reported are withdrawn.** The counter flagged 21 samples across
+both days: four in the first cycle after boot, all probes at once — a genuine power-on reset — and
+17 that are `temp3`/`T_aft` transiting **exactly 85.000 °C** with a good CRC — which is
+also the DS18B20's power-on scratchpad default, byte for byte, so the logger could not tell the two
+apart and flagged both as `powerOnDefault`. `T_aft` peaks at **101.25 °C** and spends 2 351
+samples above 85 °C in nine post-run heat-soak stretches, which is outside the part's ±0.5 °C band and is a real finding rather than an
 erratum. The "every read error happened parked" observation survives and now has a mechanism: it is
 the pit soak driving the aft probe through the threshold. `CLAUDE.md` and `one-wire-probes.md` own
 the trap. **`../ndLouvers/` open item 52 was DROPPED on 2026-09-20** — the band-edge accuracy will
 not be bounded and the probe assembly's own rating will not be checked, the owner having accepted
 the risk of losing the probe — so **every `T_aft` sample above 85 °C is permanently an indication
-rather than a measurement.** Open item 53, the detector's inability to tell a hot probe from a
-reset one, is still open.
+rather than a measurement.** **Open item 53 is CLOSED (owner, 2026-09-23) by removing the
+detector:** the logger now accepts 85.00 °C as a reading, so a genuine power-on reset passes as a
+plausible 85.00 °C and there is no `powerOnDefault` reason code (`one-wire-probes.md`).
 
 **The undervoltage latch is dated.** `0x604` byte 1 reads **5** on every sample —
 `undervoltage` and `throttled` latched since boot — while the live bits and the `rpi_volt`
@@ -461,12 +463,13 @@ where a probe that dropped off the bus or a bus that is retrying shows up. Byte 
 equivalent of `0x604`'s heartbeat — it advances every cycle regardless of what the probes read, so
 it separates a dead worker from four steady temperatures.
 
-> **⚠ BYTE 2–3 IS NOT A BUS-QUALITY FIGURE ON ITS OWN.** It counts *untrusted samples*, and every
-> one of the 17 it counted across the two track days was `temp3` sitting at exactly 85.000 °C with
-> a **good CRC** — the power-on-default collision `CLAUDE.md` and `one-wire-probes.md` describe.
-> The loaded star recorded **zero** CRC failures in 133 894 cycles. From the phone this counter is
-> indistinguishable between "the bus is retrying" and "the aft probe is hot", so **only the SD
-> record separates them**; a rising counter is a reason to read the session file, not a diagnosis.
+> **⚠ BYTE 2–3 COUNTS *UNTRUSTED SAMPLES*, NOT BUS FAULTS.** A CRC failure, unparseable content,
+> a failed read and an out-of-range value all increment it, and only the session record's `reason`
+> separates them, so **a rising counter is a reason to read the session file, not a diagnosis.**
+> **In sessions recorded before 2026-09-23 it also counted every 85.000 °C reading** as
+> `powerOnDefault` — every one of the 17 it counted across the two track days was `temp3` at exactly
+> 85.000 °C with a **good CRC**, while the loaded star recorded **zero** CRC failures in 133 894
+> cycles. The logger now accepts 85.00 °C as a reading (`one-wire-probes.md`).
 
 **Byte 2–3 counts only probes that answered and read badly.** A bound channel whose probe is *absent*
 does not increment it, because a dropped lead and a marginal bus send you to different parts of the
@@ -619,8 +622,8 @@ pressure side. Recording which *part* sits on which channel (the `pressureBaseli
 | 1 | valid-this-cycle bitmask, bit *n* = `P<n>` | `bytesToUint(raw, 1, 1)` | **31**, and staying there |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0** |
 | 4–5 | cumulative CRC failures, saturating | `bytesToUint(raw, 4, 2)` | **0** |
-| 6 | sensor temperature, lowest enabled channel, °C | `bytesToInt(raw, 6, 1)` | bench ambient |
-| 7 | mux channel currently selected | `bytesToUint(raw, 7, 1)` | **0** — deselected between cycles |
+| 6 | sensor temperature of the lowest enabled channel, °C; **−128** when that channel has no valid reading this cycle | `bytesToInt(raw, 6, 1)` | bench ambient |
+| 7 | mux control byte: **0** deselected, bit *n* set while `P<n>` is being read, **255** if the end-of-cycle deselect failed | `bytesToUint(raw, 7, 1)` | **0** |
 
 **Byte 1 is how an invalid channel is seen from the phone without decoding the sentinel**, exactly
 as `0x603` byte 1 works for the probes. Byte 0 beside it separates "that channel is switched off in
@@ -633,13 +636,19 @@ the config" from "that channel failed": a bit in 0 and not in 1 is a sensor that
 > thermal side one counter conflating the two is what left a probe sitting at 85.000 °C
 > misclassified as a bus fault across two track days.
 
-**Byte 7 is a cheap liveness tell and it should read 0.** The worker deselects the mux at the end of
-every cycle, so a value stuck on a channel number is a cycle that never finished — which is also the
-state in which a faulty downstream segment is bridged onto the main bus.
+**Byte 7 should read 0, and anything else is a stuck worker or a bridged bus.** The worker
+deselects the mux at the end of every cycle and publishes 0. **A cycle that has not finished after
+1 s publishes nothing of its own**, so the BLE worker sends `0x607` with byte 7 set to the channel
+the pressure worker is stuck on — 1, 2, 4, 8 or 16 for `P0`–`P4` — while `0x606`'s cycle counter
+stops. **255 means the deselect itself failed**, which is the state in which a faulty downstream
+segment may still be bridged onto the main bus. The session record's `muxControl` field carries the
+same value (−1 for 255).
 
-**Byte 6 is the lowest enabled channel's sensor temperature only**, and it is a diagnostic for the
-part rather than a measurement of anything: the SDP810's compensation spans −20…85 °C and this says
-whether it is inside it. Per-sensor temperature at full resolution is in the session file; there is
+**Byte 6 is the lowest enabled channel's sensor temperature only** — the same part every cycle, so
+a trend on the phone always means one sensor — and it is a diagnostic for the part rather than a
+measurement of anything: the SDP810's compensation spans −20…85 °C and this says whether it is
+inside it. **−128 means that part gave no valid reading this cycle**; the byte never falls back to
+another channel. Per-sensor temperature at full resolution is in the session file; there is
 no room for five of them here, and no consumer for them on the phone.
 
 ## Layout
@@ -951,8 +960,8 @@ An unprivileged user namespace gives a private mount namespace, so a fake tree c
 over `/sys/bus/w1/devices` with **no root and no risk to the real box**. Populate it with a
 `w1_bus_master1/` directory, `28-…/w1_slave` files carrying the kernel's two-line format, and a
 `00-…` entry to prove the filter drops it. This is how enrollment, the ambiguous-step refusal, the
-store's own family and duplicate guards, bound-but-absent, CRC failure, the 85.00 °C power-on
-default, out-of-range rejection and the application of a hand-entered offset were all verified.
+store's own family and duplicate guards, bound-but-absent, CRC failure,
+out-of-range rejection and the application of a hand-entered offset were all verified.
 
 **Its one limitation, found the hard way:** a plain file cannot represent a sysfs attribute whose
 read value differs from what was written, and `therm_bulk_read` is exactly that — you write

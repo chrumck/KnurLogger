@@ -1332,3 +1332,48 @@ as follows:
    role strings, which also moved the cavity thermometer to item 1d and gave humidity its
    measurement consumer. Comments and strings saying the idle-bus refusal happens "every time"
    now say bimodal per boot; the pressure sentinel comment said −327.68 Pa and is −3276.8 Pa.
+
+## 2026-09-23 — the `powerOnDefault` check is removed
+
+**Owner decision:** `oneWireProbes.cxx` no longer treats a DS18B20 reading of exactly 85.00 °C as
+the power-on scratchpad default. It is accepted like any other temperature; the `powerOnDefault`
+reason code and `dataContracts.hpp`'s `TEMP_POWER_ON_DEFAULT_CENTI_C` are gone.
+
+**Why.** The check could not distinguish a hot probe from a reset one — the scratchpad is
+`50 05 4b 46 7f ff 0c 10 1c` with a valid CRC either way — and the aft probe lives in the
+80–105 °C band. In the two-day session `2026-09-11T18-08-06` it flagged 21 samples: four a genuine
+all-probe reset in the first cycle after boot, 14.1 s in, and 17 `temp3`/`T_aft` transits through
+85.000 °C with a good CRC, which its reason code and comment attributed to power or a marginal
+pull-up. The owner prefers keeping every reading over flagging.
+
+**Accepted consequence.** A genuine power-on reset now passes as a plausible, valid 85.00 °C
+reading. Sessions recorded before this change keep their `powerOnDefault` flags, and in them
+`0x603` bytes 2–3 counted the flags too. `../ndLouvers/` open item 53 is closed on it
+(`../ndLouvers/CFD-Learning-Plan.history.md` §2, rev 120).
+
+**Changed here:** `one-wire-probes.md` (the section on the check rewritten to the current state,
+`powerOnDefault` dropped from the reason list and from the fake-sysfs harness's list), `CLAUDE.md`
+(the 85.00 °C trap restated) and `README.md` (the two-day record's status paragraph, the `0x603`
+byte 2–3 warning, the harness list).
+
+## 2026-09-23 — `0x607` bytes 6 and 7 made to do what the README said, and the code stops citing documents
+
+**Byte 7 could not do its job.** It published `lastSelectedChannel`, a channel NUMBER, with
+`MUX_CHANNEL_NONE` (0) for "deselected" — so idle and "stuck on `P0`" were the same value — and the
+packet was only built after the end-of-cycle deselect, so it could never read anything but 0 or
+0xFF. A stuck cycle publishes nothing at all, and the notify timer never re-sends an unchanged
+packet, so the README's "a value stuck on a channel number is a cycle that never finished" was
+impossible. Now byte 7 is the mux CONTROL byte (0 idle, bit *n* for `P<n>`, 0xFF after a failed
+deselect), set before each select, and the BLE worker publishes it itself when a cycle has run
+longer than 1 s (`reportPressureStall`). The session record's `muxSelected` became `muxControl`.
+**Byte 6 took the first VALID channel's temperature and sent 0 °C when none was valid**; it is now
+the lowest enabled channel's, with −128 when that channel has no valid reading.
+
+**The code no longer cites documents** (owner): plan and commissioning item numbers, section
+numbers, Markdown paths and dated decision citations were removed from comments, strings, the ini
+template, `Tools/bell-marks.py` and `SystemSetup/`, keeping the reasons. `pressureBaseline` lost
+its `roleMappingNote` and `note` fields, the latter a hard-coded "no wand, tube or filter is
+attached" written into every session including the bell sessions. In passing, `harden-headless.sh`
+stopped calling the BME280 0x76, `install-dependencies.sh` stopped calling the SD card the primary
+record, and `grant-w1-bulk-read.sh` — broken since `bc750f2` by a literal newline inside a `\n` in a
+comment, so it failed `bash -n` — parses again.
