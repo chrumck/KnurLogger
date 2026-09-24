@@ -227,12 +227,6 @@ gboolean correctPressure(gint slot, gdouble readingPa, gdouble absolutePa, gdoub
     return TRUE;
 }
 
-const gchar* getUsableAbsolutePressure(gdouble* outPa, guint64* outAgeMs) {
-    if (!getHeldAbsolutePressure(outPa, outAgeMs)) { return "absolutePressureMissing"; }
-    if (*outAgeMs > PRESSURE_ABSOLUTE_HOLD_MS) { return "absolutePressureStale"; }
-    return NULL;
-}
-
 void reportAbsolutePressureChange(const gchar* refusal, gdouble absolutePa, guint64 ageMs) {
     if (refusal != NULL && !appData.pressure.isAbsolutePressureRefusalReported) {
         appData.pressure.isAbsolutePressureRefusalReported = TRUE;
@@ -410,6 +404,32 @@ std::string getPressureChannelsJson() {
     return result;
 }
 
+// Written into the baseline so a recording states its own correction and can be recomputed from
+// its raw readings without the .ini it was made with.
+std::string getPressureCorrectionJson() {
+    std::string channels;
+
+    for (auto i = 0; i < PRESSURE_CHANNEL_COUNT; i++) {
+        if (!appConfig.pressureChannelsEnabled[i]) { continue; }
+
+        channels += std::format(
+            "{}{{\"ch\":\"P{}\",\"spanPositive\":{},\"spanNegative\":{},\"lineLengthHighM\":{},"
+            "\"lineLengthLowM\":{},\"bypassCoefficient\":{},\"bypassExponent\":{},"
+            "\"linePathResistance\":{}}}",
+            channels.empty() ? "" : ",", i,
+            appConfig.pressureSpanPositive[i], appConfig.pressureSpanNegative[i],
+            appConfig.pressureLineLengthHighM[i], appConfig.pressureLineLengthLowM[i],
+            appConfig.pressureBypassCoefficient[i], appConfig.pressureBypassExponent[i],
+            getLinePathResistance(i));
+    }
+
+    return std::format(
+        "{{\"formula\":\"divide\",\"calibrationAbsolutePa\":{},\"absoluteHoldMs\":{},"
+        "\"tubingResistancePerMetre\":{},\"lineFixedResistance\":{},\"channels\":[{}]}}",
+        SDP810_CALIBRATION_ABSOLUTE_PA, PRESSURE_ABSOLUTE_HOLD_MS,
+        appConfig.tubingResistancePerMetre, appConfig.lineFixedResistance, channels);
+}
+
 // Product, revision, serial and CRC are read at boot and logged with the channel mapping. THIS
 // RECORD IS THE PER-SESSION CHANNEL -> PART PROVENANCE, and it is the only place a later analysis
 // can learn which physical sensor produced which channel.
@@ -417,7 +437,7 @@ void writePressureBaseline() {
     writeSessionRecord("pressureBaseline", std::format(
         "\"i2cBus\":{},\"devicePath\":\"{}\",\"muxAddress\":{},\"sensorAddress\":{},"
         "\"intervalMs\":{},\"enabledCount\":{},\"channels\":[{}],"
-        "\"sampling\":\"{}\",\"wireScaling\":\"{}\"",
+        "\"sampling\":\"{}\",\"wireScaling\":\"{}\",\"correction\":{}",
         appConfig.i2cBus,
         escapeJson(std::format(I2C_BUS_PATH_FORMAT, appConfig.i2cBus)),
         appConfig.muxAddress, SDP810_ADDRESS,
@@ -425,10 +445,12 @@ void writePressureBaseline() {
         getPressureChannelsJson(),
         "continuous differential pressure, temperature compensated, averaged (0x3615), started"
             " once per sensor; each cycle is a mux select plus a 9-byte read",
-        "0.1 Pa/LSB signed on the BLE path, INT16_MIN for no trustworthy reading; the phone"
-            " divides by 10000, so a RaceChrono pressure column is in kPa and its invalid marker"
-            " is -3.2768; raw counts and the returned scale factor are in every sample record"
-            " here at full resolution and are unaffected by the BLE scaling"));
+        "the corrected pressure at 0.1 Pa/LSB signed on the BLE path, INT16_MIN for no"
+            " trustworthy or no correctable reading; the phone divides by 10000, so a RaceChrono"
+            " pressure column is in kPa and its invalid marker is -3.2768; raw counts, the returned"
+            " scale factor and the raw pressure are in every sample record here at full resolution"
+            " and are unaffected by the correction and the BLE scaling",
+        getPressureCorrectionJson()));
 }
 
 // --- The sampling loop -------------------------------------------------------------------------
@@ -472,7 +494,7 @@ void publishPressurePackets() {
 // complete a transfer, the other says a frame arrived and could not be trusted, and they send a
 // reader to different parts of the box. Collapsing them is what left a probe sitting at 85.000 C
 // misclassified as a bus fault for two track days on the thermal side.
-void publishPressureStatusPacket(guint8 enabledMask, guint8 validMask, gint16 sensorTemperatureC) {
+void publishPressureStatusPacket(guint8 enabledMask, guint8 sentMask, gint16 sensorTemperatureC) {
     auto readErrors = (guint16)std::min<guint32>(appData.pressure.readErrors, G_MAXUINT16);
     auto crcFailures = (guint16)std::min<guint32>(appData.pressure.crcFailures, G_MAXUINT16);
 
@@ -483,7 +505,7 @@ void publishPressureStatusPacket(guint8 enabledMask, guint8 validMask, gint16 se
 
     guint8 data[CAN_DATA_SIZE] = {
         enabledMask,
-        validMask,
+        sentMask,
         (guint8)((readErrors >> 8) & 0xFF),
         (guint8)(readErrors & 0xFF),
         (guint8)((crcFailures >> 8) & 0xFF),
@@ -587,11 +609,16 @@ void samplePressure() {
 
     gdouble absolutePa = 0.0;
     guint64 absoluteAgeMs = 0;
-    auto absoluteRefusal = getUsableAbsolutePressure(&absolutePa, &absoluteAgeMs);
+    auto isAbsoluteHeld = getHeldAbsolutePressure(&absolutePa, &absoluteAgeMs);
+    const gchar* absoluteRefusal = !isAbsoluteHeld ? "absolutePressureMissing"
+        : absoluteAgeMs > PRESSURE_ABSOLUTE_HOLD_MS ? "absolutePressureStale" : NULL;
     reportAbsolutePressureChange(absoluteRefusal, absolutePa, absoluteAgeMs);
 
     guint8 enabledMask = 0;
     guint8 validMask = 0;
+    // 0x607's mask: a channel whose raw reading is valid but could not be corrected sends
+    // INT16_MIN, so the phone must not be told it is valid.
+    guint8 sentMask = 0;
     guint validChannelCount = 0;
     // 0x607 byte 6 describes ONE part, the lowest enabled channel's, so that a reading on the phone
     // always means the same sensor; when that part has no valid reading it says so.
@@ -642,13 +669,15 @@ void samplePressure() {
             }
 
             applyPressureCorrection(i, absoluteRefusal, absolutePa, &reading);
+            if (reading.isCorrected) { sentMask |= (guint8)(1u << i); }
         }
 
         channel.lastReading = reading;
 
         channelFields += std::format(
             "{}{{\"ch\":\"P{}\",\"muxChannel\":{},\"enabled\":{},\"present\":{},\"valid\":{},"
-            "\"rawDifferential\":{},\"scaleFactor\":{},\"pressurePa\":{},\"sentDeciPa\":{},"
+            "\"rawDifferential\":{},\"scaleFactor\":{},\"pressurePa\":{},\"correctedPa\":{},"
+            "\"sentDeciPa\":{},"
             "\"rawTemperature\":{},\"sensorTemperatureC\":{},\"crcOk\":{},\"reason\":{},"
             "\"readMs\":{},\"readErrors\":{},\"crcFailures\":{}}}",
             i == 0 ? "" : ",", i, channel.muxChannel,
@@ -660,6 +689,7 @@ void samplePressure() {
             reading.isValid ? std::format("{}", (int)reading.rawDifferential) : "null",
             reading.isValid ? std::format("{}", reading.scaleFactor) : "null",
             reading.isValid ? std::format("{:.4f}", reading.pressurePa) : "null",
+            reading.isCorrected ? std::format("{:.4f}", reading.correctedPa) : "null",
             (int)reading.pressureDeciPa,
             reading.isValid ? std::format("{}", (int)reading.rawTemperature) : "null",
             reading.isValid ? std::format("{:.2f}", reading.temperatureCentiC / 100.0) : "null",
@@ -676,10 +706,14 @@ void samplePressure() {
     appData.pressure.lastCycleMs = (guint32)((getBootTimeUs() - cycleStartUs) / 1000);
 
     writeSessionRecord("pressure", std::format(
-        "\"cycle\":{},\"enabledMask\":{},\"validMask\":{},\"validChannels\":{},\"cycleMs\":{},"
+        "\"cycle\":{},\"enabledMask\":{},\"validMask\":{},\"sentMask\":{},\"validChannels\":{},"
+        "\"absolutePressurePa\":{},\"absolutePressureAgeMs\":{},\"cycleMs\":{},"
         "\"muxControl\":{},\"readErrors\":{},\"crcFailures\":{},"
         "\"i2cFirstAttemptFailures\":{},\"i2cRecovered\":{},\"i2cExhausted\":{},\"channels\":[{}]",
-        appData.pressure.sampleCycles, enabledMask, validMask, validChannelCount,
+        appData.pressure.sampleCycles, enabledMask, validMask, sentMask, validChannelCount,
+        // The held value this cycle read, also when it was too old to use: its age says why.
+        isAbsoluteHeld ? std::format("{:.2f}", absolutePa) : "null",
+        isAbsoluteHeld ? std::format("{}", absoluteAgeMs) : "null",
         appData.pressure.lastCycleMs, (gint)appData.pressure.muxControl,
         appData.pressure.readErrors, appData.pressure.crcFailures,
         // Logged with every pressure session because the first-transfer refusal is bimodal per
@@ -692,7 +726,7 @@ void samplePressure() {
         channelFields));
 
     publishPressurePackets();
-    publishPressureStatusPacket(enabledMask, validMask, sensorTemperatureC);
+    publishPressureStatusPacket(enabledMask, sentMask, sensorTemperatureC);
 }
 
 void waitForAbsolutePressure() {

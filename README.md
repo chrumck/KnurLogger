@@ -76,6 +76,8 @@ Tools/                offline diagnostics; nothing here runs on the box
                         session, on the as-built bell constants and the barometric factor
   ladder-fit.py         re-derive every ladder mark in force and fit each sensor's span
                         term: constant, sign split, slope, per-rung offsets, validation
+  pressure-correction-check.py  recompute a session's pressure correction from its own
+                        baseline and raw readings, and check the stale-hold events
 
 3DPrinting/           every printed part for both boxes — enclosure, sensor holders, boom
                       tip, and the calibration bell (calibrationBell.md owns its constants)
