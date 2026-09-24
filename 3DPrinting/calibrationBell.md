@@ -1,61 +1,20 @@
 # Liquid-sealed pressure bell — printed reference source
 
-**Status: ADOPTED, BUILT, AND PROVEN TO DELIVER** (owner decision 2026-09-20; first session the
-same day). Step 0b's pressure qualification will use this bell rather than the water manometer,
-which is now the documented fallback (`../../ndLouvers/pressure-testing.md` §2.2 carries the
-decision and the reasoning).
+This file owns fixture geometry, constants and use. Measurement requirements and acceptance
+belong to [ndLouvers instrumentation-spec.md](../../ndLouvers/instrumentation-spec.md);
+[pressure-testing.md](../../ndLouvers/pressure-testing.md) owns the calibration regime,
+measured chain results and qualification status.
 
-**A bell exists, it is weighed at 79 g, and it ran 53 minutes on `P0` at 26–32 Pa**
-(`../../ndLouvers/pressure-testing.history.md` §3.3). `k_d` is **0.2414 Pa/mm**, from geometry on
-an `A_eff` measured with water, the wall plus the M3 rod that hangs from the bell and sinks with it —
-see §"As built". **0.2367 (wall only) is withdrawn, and so are the earlier 0.2372 and the 0.891 mm
-wall inverted from it**: that slope was read
-*through a sensor*, so it carried the sensor's span and the barometric term, and inverting a wall
-from it made the pair circular.
-**An earlier figure of 0.2615 ± 0.013, from eyeballed depths on an unballasted bell, is
-withdrawn.**
-**It still produces no calibration and closes no open item**: one channel, one source, no ladder,
-no repeats, no independent reference. What it produced was the fixture's own constants and four
-error terms this file did not carry.
-**A ladder on 2026-09-22/23 settled the fixture and overturned its constants.** `A_eff` was measured
-with water (above), so **`k_m` moved 0.5551 → 0.5639 and `k_d` 0.2372 → 0.2414**, and with the
-SDP810's barometric dependency applied (`../../ndLouvers/pressure-testing.md` §2.3a) **all five
-sensors read within ±0.9 % of this bell** — spread 1.4 pp, every part inside its ±3 % spec.
-**The earlier "three sensors spread ten percent and the bell sits inside them to ~1–2 %" is
-retired**: `P2`'s −3.5 % was the only figure below the bell and it is now −0.57 %, alongside the
-rest. There was no straddle — there was a 1.6 % bore error and a 4.2 % barometric term.
-The "residual" §"As built" item 4 carried was those two, not a bell term.
-The add-mass test below cannot be performed on this build and is retired.
+**Use the As built section for the existing bell.** The nominal rev F drawing below describes
+another geometry; do not substitute its constants into reductions of this fixture. The current
+pressure results and withdrawn figures are in the measurement companion's §3.3 and §3.5.
+Do not restore the impracticable add-mass test — see pressure history §3.3–§3.14.
 
-> **⚠ THE BELL THAT EXISTS IS NOT THE BELL DRAWN BELOW.** It was printed from
-> `calibrationBell.stl`: plain skirt, **six radial lid ribs**, small central boss, **no collar, no
-> graduations, no rod and no pan** — with an **ID of 150.00 and a wall of 0.90** against rev F's
-> ID 148.4 / wall 0.80. **The M3 rod, the hanging ballast and the skirt graduations (zeroed at the
-> rim, ±0.2 mm) were added afterwards**, and it weighs 81 g with the graduations. (**"No ribs" was wrong and is corrected 2026-09-23** — a ray-cast of the
-> mesh finds six ribs on the lid's inner face, ~3 mm tall and tapering, reaching r ≈ 73.) **Every nominal constant in this file is therefore
-> wrong for it**, `k_d` by ~12 % (0.2155 rev F with the rod, against 0.2414). Use §"As built" below, and read the rev F constants as what a rev F
-> bell would give.
-
-> **⚠ LIVING IN THIS REPOSITORY CHANGES NOTHING ABOUT WHAT IT MAY DECIDE.** `CLAUDE.md` here is
-> explicit that this repository owns software, host configuration and box-2 hardware, and **owns
-> no measurement decision** — `../../ndLouvers/CFD-Learning-Plan.md` Step 0b is the authority on
-> calibration and acceptance, exactly as it is for the perfboard build sheet. This file owns the
-> fixture: its geometry, its constants and how to use it. It does not own whether the fixture is
-> adopted, what accuracy is required of it, or what counts as a qualified reference.
->
-> Section numbers like §2.2 and §2.9 below refer to `../../ndLouvers/pressure-testing.md`; the bell
-> sessions §3.3–§3.14 cited below are in `../../ndLouvers/pressure-testing.history.md` (rev 114),
-> and the current tubing, span and bell figures are in `pressure-testing.md` §2.2a and §3.3.
-> Cross-repo links resolve on disk and 404 on the public git host; that is accepted here, as
-> `CLAUDE.md` says.
-
-[`calibrationBell.svg`](calibrationBell.svg) is the drawing, at **rev F**, and
-[`calibrationBellWeighing.svg`](calibrationBellWeighing.svg) is the rig for the one calibration
-weighing it needs. This file is what the drawings cannot carry: why the thing is shaped this
-way, and what it can and cannot do.
-
+[calibrationBell.svg](calibrationBell.svg) is the rev F drawing;
+[calibrationBellWeighing.svg](calibrationBellWeighing.svg) illustrates the weighing rig.
 Printed parts live beside them: `calibrationBell.stl`, `calibrationBellPan.stl`,
 `calibrationBell.3mf` and `pipeStand.stl`.
+
 
 ## As built — the bell that exists, 2026-09-20
 

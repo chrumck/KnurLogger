@@ -631,7 +631,7 @@ name. The ROM ID → channel assignment is therefore the definition, made once a
    unbound probes appear at once, because sysfs order is not arrival order.
    **Every probe stays plugged in once it is in** — unplugging as you go binds correctly but never
    loads this star, which is what the plan's thermal item 1 required.
-   `../README.md` §Enrolling the four DS18B20s is the procedure; the plan's thermal
+   `../operations.md` §Enrolling the four DS18B20s is the procedure; the plan's thermal
    item 1 is the requirement.
 2. **Marking the probe bodies is moot.** The four are already installed on the car (owner,
    2026-09-09), and the owner identifies each lead at the logger end, so plugging in from a known

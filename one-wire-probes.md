@@ -1,8 +1,7 @@
 # The 1-Wire path — DS18B20 probes, the kernel, and what must not change
 
-**Split out of `CLAUDE.md` on 2026-09-15**, which had grown to 800 lines with a third of them on
-this one subsystem. Same contract as its parent: **this file describes traps and standing
-requirements, not procedures.** `README.md` says how to enroll probes, enter offsets and run the
+**This file owns 1-Wire behavior and standing requirements.**
+[operations.md](operations.md) describes how to enroll probes, enter offsets and run the
 fake-sysfs harness; this file says why each is shaped the way it is and what breaks if it changes.
 `CLAUDE.history.md` holds the faults these guards came from — read it when a statement here
 surprises you, never to reinstate something that looks missing.
@@ -272,7 +271,7 @@ the offsets stay with the slots and no longer describe the parts in them. **Re-c
 any re-enrollment.** What it buys is that the offsets sit in the same `[thermal]` section as the
 `temp<N>RomId` bindings that say which probe each slot holds (owner decision, 2026-09-10), so a
 changed binding is visible three lines from the offset it invalidates. **The production
-`KnurLogger.ini` is NOT in git** — `CLAUDE.md` §"The box" carries the dev/production split — so
+`KnurLogger.ini` is NOT in git** — `operations.md` carries the dev/production split — so
 copying it back into the repo after a calibration is the only thing that version-controls it.
 Five further properties:
 1. **All four keys must be present.** `temp0OffsetC`..`temp3OffsetC` in `[thermal]`; a missing

@@ -6,7 +6,7 @@ boxes**: the two devices share one RaceChrono channel set, which is why a channe
 them can break the other.
 
 **Why this is here at all.** Channel definitions are hand-typed into the app. The byte-level
-specification is in `../README.md`; this file is the actual configuration, equations and predefined
+specification is in `../racechrono-channels.md`; this file is the actual configuration, equations and predefined
 channel slots included. Re-picking slots by hand is what produced the `bytesToUint`-where-
 `bytesToInt`-belongs fault on `Temperature Front 2` (`../../ndLouvers/` open item 45), so a backup that
 can be re-imported is worth more than a table that has to be re-typed.
@@ -48,7 +48,7 @@ from an export taken after this one.
 ## What is in it
 
 49 custom channels across thirteen packet IDs. **Box 2's are `0x600`–`0x607`, 36 channels**
-(`../README.md` §"The slot map" is the human-readable version). **Box 1's are `0x78`, `0x202`,
+(`../racechrono-channels.md` §"The slot map" is the human-readable version). **Box 1's are `0x78`, `0x202`,
 `0x420`, `0x4FA` and `0x7F0`, 13 channels.**
 
 **The IDs claimed across both boxes are therefore `0x78`, `0x202`, `0x420`, `0x4FA`, `0x600`–`0x607`
@@ -60,7 +60,7 @@ Two of those 49 are not in the slot map and are worth naming, because each is a 
 than an omission:
 
 1. **`P5` has no channel** — `0x606` bytes 2–3. Mux channel 5 is unpopulated, so the field is a
-   permanent sentinel inside a packet that is subscribed anyway. `../README.md` slot-map note 5
+   permanent sentinel inside a packet that is subscribed anyway. `../racechrono-channels.md` slot-map note 5
    owns it, including what to do if channel 5 is ever populated.
 2. **`0x420` byte 7 is now defined**, as `H-40` on predefined channel 10031, alongside byte 0's
    existing `A-40` on 10026. That is the outside-air temperature of `../../ndLouvers/` open item 47.

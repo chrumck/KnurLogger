@@ -1,13 +1,14 @@
 # CLAUDE.history.md — KnurLogger
 
-**Companion to `CLAUDE.md`.** That file states what is true now and what to do about it. This
+**Audit trail for the documents routed by `CLAUDE.md`.** Those current documents state what
+is true now and what to do. This
 file is the audit trail behind it: faults that were found and fixed, the diagnostics that found
 them, decisions that were reversed, and requirements that were implemented and then deliberately
 removed.
 
-**Nothing here is a live instruction.** If something here contradicts `CLAUDE.md`, `CLAUDE.md`
-wins. If something here looks live and is absent from `CLAUDE.md`, it was removed on purpose —
-find out why before reinstating it.
+**Nothing here is a live instruction.** Current documents linked from `CLAUDE.md` win any
+contradiction. Absence from a current document is not proof that a requirement was withdrawn;
+check the recorded decision before reinstating or discarding it.
 
 **Why the file exists.** Two reasons, and the second is the load-bearing one.
 
@@ -22,7 +23,7 @@ find out why before reinstating it.
 Keeping all of that inside `CLAUDE.md` was burying the live traps in narrative, which is why the
 file was split on 2026-09-10.
 
-**When you add to it:** put the new conclusion in `CLAUDE.md` and the superseded one here, with
+**When you add to it:** put the new conclusion in its current owning document and the superseded one here, with
 the reason and the date. Do not leave "this used to say" narrative in `CLAUDE.md`.
 
 ---
@@ -1394,3 +1395,853 @@ The open question "manual `nmcli`, or logger-owned?" had waited on plan item 5a'
 check, which closed on 2026-09-15 without answering it because no session recorded the radio
 state. The owner closed it: the track sessions ran clean with Wi-Fi up, so gating is manual and
 done only when diagnosing a BLE link problem. The `rfkill block all` prohibition is unchanged.
+
+## 2026-09-24 — document restructuring
+
+The owner requested an audit and restructuring of KnurLogger and ndLouvers. The router now
+routes; implementation constraints, bus diagnostics, packet definitions, record interpretation
+and operations have distinct owners. README no longer duplicates the outing-by-outing results
+or a second backlog. The pre-cleanup text is preserved at commit
+`facedc1c8734c9a13afc6a818c8978d16b1ef4b3`. No runtime behavior changed.
+
+Do not rebuild the router incident catalogue. Read current owners through README or CLAUDE.md.
+Measured pressure and thermal findings stay in their ndLouvers companions. The current pressure
+correction handoff separates that unimplemented work from the completed acquisition worker.
+
+The host runbook's dated correction log follows, moved intact into this existing trail. It is
+historical evidence, not a second procedure. Current host instructions remain in the runbook.
+
+<a id="host-setup-corrections"></a>
+
+### Host setup corrections
+
+### Corrections the first real audit forced
+
+1. **`wpa_supplicant.service` must be left alone.** It is enabled and running, and NetworkManager
+   drives it over D-Bus. The script's original rule — retire it if enabled — would have taken
+   Wi-Fi off a box whose only access route is Wi-Fi.
+2. **Swap is zram, not a file.** `dphys-swapfile` does not exist here, and `swapoff -a` would have
+   disabled a RAM-backed buffer that costs no card wear. Only `rpi-zram-writeback.timer` is worth
+   retiring.
+3. **cloud-init is present and was not in the original list.** 2.53 s across five units, every
+   boot, re-deriving a first-boot answer that is already on disk.
+4. **I2C was set to 400 kHz, contradicting build sheet §6, which specifies 100 kHz** and gives its
+   reasoning. Copied from iSitePiLogger, whose bus carries different parts. Corrected to 100 kHz.
+   The build sheet's throughput argument is the weakest of the three that support it: the binding
+   one is rise time, since the mandatory 4.7 kΩ per-channel pull-ups leave only ~75 pF of budget
+   against fast mode's 300 ns limit, against ~250 pF at 100 kHz.
+
+### Corrections from the second review pass (2026-09-09)
+
+Found by re-reading the scripts against the box rather than against intent.
+
+5. **`/usr/sbin` is not on `PATH`** for a non-interactive SSH session or a non-root Debian login
+   shell. `sysctl`, `rfkill`, `swapon` and `i2cdetect` all live there, so every check for them
+   reported "unavailable" whether or not they existed — the first audit's dirty-page section
+   printed **empty** and nobody noticed. All four scripts now prepend the sbin directories.
+   This also retires the claim that `rfkill` was missing: it was installed all along.
+6. **`retire_unit` would have aborted the run.** `rpi-zram-writeback.service` is `static` and
+   `rpi-zram-writeback.timer` is `generated`; systemd refuses to `disable` a unit with no
+   `[Install]` section. Under `set -e` that failure in phase 5 would have skipped phases 6, 7 and
+   8 — every `config.txt` bus setting — while looking like a clean stop. `disable` is now
+   tolerated and `mask`, which is the step that actually works, is the one whose status is checked.
+7. **`unit_exists` was blind to template instances.** `list-unit-files serial-getty@ttyS0.service`
+   returns nothing for an uninstantiated instance, so it was silently skipped. Now falls back to
+   `LoadState`.
+8. **The `dmesg` check could report a false pass.** `dmesg 2>/dev/null | grep … || echo "(no
+   matches — good)"` prints the reassuring branch both when there is nothing to report and when
+   `dmesg` cannot be read at all. Plan item 5.4 treats this as pass/fail, so the two are now
+   distinguished. (`kernel.dmesg_restrict=0` here, so it does read — but that is luck, not design.)
+9. **`cloud-init status` exits 2 while printing `status: done`,** so the exit code cannot stand in
+   for whether it answered. The audit printed both the answer and "status unavailable".
+10. **`ssh-harden.sh` would have consumed its own text as the confirmation** if piped in over
+   `ssh host 'bash -s'`, the idiom the runbook uses for `audit-boot.sh`. It now refuses to run
+   without a terminal.
+
+### Corrections from the third review pass (2026-09-09)
+
+11. **`/dev/i2c-1` would never have appeared.** `dtparam=i2c_arm=on` registers the adapter; the
+   `i2c-dev` module is what exposes it to userspace, and nothing on this image loads it.
+   `raspi-config`'s `do_i2c` does both; the script did only the first. Bring-up — build sheet §10
+   steps 5, 7 and 8, all of which are `i2cdetect` work — would have been blocked with no obvious
+   cause. Now writes `/etc/modules-load.d/knurlogger.conf`. **1-Wire needed no such fix**, and
+   checking why is what surfaced the asymmetry: `w1_therm` is loaded by modalias.
+12. **`dtoverlay=w1-gpio,gpiopin=4,pullup=0` — the `pullup` parameter is ignored.** The overlays
+   README on this image states "Now enabled by default (ignored)". The comment justifying it was
+   wrong on its own terms: the strong-pullup form is a *separate overlay*, `w1-gpio-pullup`, which
+   this build must not use because `R11` is a plain resistor. Parameter dropped, comment corrected.
+13. **`sudo` needs a password, and the tolerated `disable` failures would have hidden that.** An
+   `--execute` run piped over SSH would have failed at the first `sudo` and surfaced as
+   "FAILED to mask", pointing at the wrong thing entirely. All three mutating scripts now check
+   sudo up front and refuse clearly when there is no terminal to authenticate from.
+14. **Appending to a `config.txt` with no trailing newline** would have glued the managed block's
+   first marker onto the last stock line, breaking both that line and the idempotent removal on
+   the next run. This file does end with a newline today, so it was latent. Guarded.
+15. **Re-running `ssh-harden.sh` without `--port` silently reverted the box to port 22 only**,
+   because it rewrites the drop-in from scratch. It now detects and preserves an existing port.
+16. **`ss -lntp | grep -i ssh` finds nothing under socket activation**, where the listener belongs
+   to systemd. Filters on the port now.
+17. **The rollback list was incomplete** — it named only `config.txt`/`cmdline.txt` and the masked
+   units, omitting cloud-init and the four files the script creates. All now listed.
+
+### Corrections from the fourth review pass (2026-09-09)
+
+This pass tested rather than re-read: the real `config.txt` was pulled off the box and the script's
+own Phase 8 block was extracted verbatim and run against it three times in a sandbox, and every
+command-line path was exercised.
+
+18. **A masked unit that `disable` refused was never stopped.** `disable --now` refuses outright on
+   a unit with no `[Install]` section, and when it refuses the `--now` half does not run either.
+   `rpi-zram-writeback.timer` is `generated` **and active**, so it would have been masked while
+   still armed for the rest of the uptime — and masking does not stop a running unit. `disable`
+   and `stop` are now issued separately, both tolerated, and `stop` only when the unit is active.
+   Twelve units on this box turn out to need it.
+19. **`./ssh-harden.sh --port` with no value died silently.** `shift 2` with one argument left
+   fails, and under `set -e` the script exited 1 with **nothing on stdout and nothing on stderr**.
+   A typo produced no diagnosis at all, on the one script that can lock you out. The parser now
+   checks for the value before shifting, and range-checks 1–65535 (`--port 99999` was previously
+   accepted and left for `sshd -t` to reject).
+20. **`ssh-harden.sh` run under `sudo` would have inspected the wrong keys.** Everything in it is
+   relative to `$HOME/.ssh`; as root that is `/root/.ssh`, so it would have verified root's
+   `authorized_keys`, chmod'd root's `.ssh`, and disabled password authentication on that basis.
+   It now refuses to run as root.
+21. **Two comments written into `config.txt` itself were wrong for their reader** — one said
+   "unlike I2C below" about a line that is above it in the emitted file, and one cited a
+   `../ndLouvers/...` repo path that means nothing to somebody reading `/boot/firmware/config.txt`.
+
+**What the sandbox test confirmed** (not defects — evidence the logic holds):
+
+1. Phase 8 is **idempotent**: three consecutive runs against the real `config.txt` produce a
+   byte-identical file.
+2. The trailing-newline guard **fires correctly** on a `config.txt` stripped of its final newline;
+   the marker lands on its own line rather than being glued to `[all]`.
+3. `sed` preserves `cmdline.txt`'s absent final newline, as that file requires.
+4. A hand static-analysis pass for the usual shell defect classes — unquoted expansions in command
+   position, `local x=$(...)` masking exit status, bare `cd`, `$?` testing, unused variables,
+   unset-variable use under `set -u` — found nothing. The only unquoted expansions are inside
+   `[[ ]]`, where no word splitting occurs.
+
+### Corrections from the fifth review pass (2026-09-09)
+
+Two new methods: reverse-dependency analysis on every unit the script masks, and checking whether
+each config file it writes actually wins its ordering contest. Plus real `shellcheck`.
+
+22. **Phase 6 claimed to reduce SD writes while silently overriding a vendor default that exists to
+   reduce SD writes.** The image ships `Storage=volatile` in
+   `/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf`; the journal is in RAM today.
+   The override is still the right call — see §5 phase 6 — but it was smuggled in under a phase
+   title about bounding write pressure, which is close to the opposite. Now stated outright, in
+   the script, in the file it writes, and in the rollback list.
+23. **The sysctl drop-in sorted before the image's own `98-rpi.conf`, not after.** It happens to
+   set no dirty ratios, so `90-` worked by luck. Renamed `99-knurlogger.conf`.
+24. **The "Retained on purpose" block named `fake-hwclock`, which is not installed on this image.**
+   Worse than a cosmetic error: it credited a non-existent unit with keeping session timestamps
+   sane. `systemd-timesyncd` actually does that job — and doing it that way has a **measurement
+   consequence** the text now carries (§0 item 8b).
+
+**Confirmed, not defects.**
+
+5. **Masking breaks no dependency chain.** Every unit the script masks is `WantedBy` something and
+   `RequiredBy` nothing, so a masked unit is skipped rather than failing its target. Checked for
+   all fifteen.
+6. **Mask precedence holds.** `rpi-zram-writeback.timer` lives in `/run/systemd/generator`, which
+   sits *below* `/etc/systemd/system` in systemd's load path. In `generator.early`, which sits
+   above, masking would have done nothing at all.
+7. **`shellcheck` 0.11.0 at `-S style`** — the strictest level — reports **one** finding across all
+   four scripts, an informational SC1091 about not following `/etc/os-release`, which is on the
+   target box rather than here. Nothing actionable.
+
+**Forward constraint, recorded in `../CLAUDE.md`:** masking `NetworkManager-wait-online.service`
+means `network-online.target` can no longer be reached. Nothing needs it now, but the KnurLogger
+service must never declare `Wants=`/`After=network-online.target`.
+
+### Corrections from the first `--execute` run (2026-09-09)
+
+The far side of `--execute`. Both scripts ran to completion, no phase failed, no unit reported
+`FAILED to mask`, and the box came back. Everything below is something no static pass could have
+found, which is the point.
+
+25. **`/sys/bus/w1/devices/` is not empty on a bare bus, and this file said it would be.** It
+   holds `w1_bus_master1` plus a **phantom slave `00-800000000000`**, and
+   `w1_master_slave_count` reads `1` with zero probes attached. Family `00` is not a valid 1-Wire
+   family — a DS18B20 is family `28` — so it is a bus with nothing on it. The acceptance criterion
+   was wrong in both directions: it called an empty directory the pass, when an empty directory
+   would actually mean the overlay had not loaded, and it would have had the next person counting
+   a non-device as a probe. Bring-up counts `28-*` and nothing else. Step 6 item 4 corrected.
+   **Amended by correction 30: the specific ID and count above are a snapshot of something that
+   moves.**
+26. **Six of the nine units phase 3 claims to retire are not installed on this image.**
+   `ModemManager`, `rsyslog`, `triggerhappy` (service and socket), `bluealsa`, `rpcbind` (service
+   and socket), `nfs-client.target`, `cups` and `cups-browsed` all reported "not installed,
+   skipping". Only `rpi-eeprom-update`, `udisks2`, `keyboard-setup` and `console-setup` existed.
+   §5 item 3's specific claim that `rsyslog` "duplicates journald into `/var/log`, doubling SD
+   writes for no reader" was a saving credited to an absent package — the same defect class as
+   correction 24's `fake-hwclock`. Section rewritten.
+27. **`install-dependencies.sh` changed 14 packages it never named, `rfkill` among them.** The four
+   requested packages pulled the whole util-linux family forward from `2.41-5` to
+   `2.41.5-0+deb13u1` — `util-linux`, `mount`, `login`, `bsdutils`, `bsdextrautils`, `fdisk`,
+   `libfdisk1`, `eject`, `libblkid1`, `libmount1`, `libsmartcols1`, `libuuid1`, `liblastlog2-2`
+   and **`rfkill`**. The script had reported `rfkill` "present" and correctly skipped it; apt
+   replaced it anyway, one script before the run whose most consequential single action is
+   `rfkill unblock bluetooth`. Nothing broke — but "installs four packages" is not what happened,
+   and a pre-flight that lists only the four cannot tell you that. `read-edid` also arrived as an
+   `i2c-tools` dependency, which is odd on a headless box and harmless.
+28. **`System clock synchronized` reads `no` if you check it at once.** Step 6 item 5 treats `yes`
+   as the acceptance. At 0 min uptime timesyncd has not reached a server yet; ~1 min later it
+   reported `Contacted time server 89.161.47.139:123 (2.debian.pool.ntp.org)` and flipped to
+   `yes`. A literal reading of the old text would have failed a passing box. Item 5 corrected.
+29. **`polkit.service` is `static` and D-Bus-activated, and is currently inactive.** The "Retained
+   on purpose" block says "polkit is a NetworkManager dependency", which reads as though it runs
+   at boot. It ran in the before-audit and does not in the after — not because anything retired
+   it, but because nothing has asked it for an authorisation this boot. Retained is still the
+   right call; the wording overstates what retaining it costs.
+
+### Correction from the assembled sensor zone (2026-09-09)
+
+32. **"An empty I2C scan and an empty 1-Wire slave list are the correct results" is no longer
+    true, and neither is the phantom trap that corrections 25 and 30 describe.** The perfboard's
+    sensor zone has been assembled (owner, 2026-09-09), minus the pressure-sensor part. Three
+    things changed at once, and every acceptance criterion in this file that rests on a silent bus
+    is now stale rather than wrong-when-written:
+    1. **`i2cdetect -y 1` returns `0x77`.** That is a genuine BME280 — chip-ID register `0xD0`
+       reads `0x60` — at the address the build sheet explicitly told us not to use, instead of the
+       specified `0x76`. The build sheet's §2 owns the discrepancy and the owner owns the fix
+       (pull `SDO` down, or accept `0x77` and amend net list row 9).
+    2. **Nothing answers at `0x70`**, so the mux is silent. Expected if the mux is not
+       populated, since it exists only to serve the SDP810s. `gpio=17=op,dh` rules out a held
+       reset.
+    3. **The 1-Wire phantoms have stopped.** Three scans over 36 s gave `w1_bus_master1` alone,
+       `w1_master_slave_count = 0`, no `00-*` entries. Corrections 25 and 30 recorded a churning
+       phantom set measured while this zone was **unbuilt**, i.e. with `GPIO4` floating on the
+       SoC's internal pull-up; `R11`'s 2.2 kΩ to `+3V3` is in the sensor zone and is now fitted.
+       Attributed to the line now being terminated — well-supported by the timing, not proven.
+       **The `28-*` family filter remains mandatory** and is now **untestable on this box**, so
+       its correctness rests on the parser rather than on an observation.
+
+### Corrections from the full upgrade (2026-09-09)
+
+33. **`/tmp` is cleared on reboot, so nothing staged there survives a step that reboots.** A
+    verification script written to `/tmp` before the upgrade was gone when the box came back, which
+    is obvious in hindsight and wasted a round trip. **Stage anything that must outlive a reboot in
+    `~`**, not `/tmp`.
+34. **`sshswitch.service` is enabled and now appears in the boot chain** (152 ms), where it was
+    below the reporting cutoff before. It ships with `raspberrypi-sys-mods`, which this upgrade
+    bumped, and it enables `ssh.service` when a file named `ssh` exists on the FAT boot partition.
+    **Not a fault and not worth retiring** — SSH is wanted on this box and anyone who can write to
+    that partition already has the card in their hand, which is a strictly worse position than this
+    service represents. Recorded because it is a service that appeared without anyone asking for it.
+35. **Boot time regressed 11.317 s → 14.137 s across the upgrade. The regression is REAL and
+    PERSISTENT, and the cause was not identified.** A settled reboot measured 14.137 s against
+    14.029 s on the first post-upgrade boot, which disposes of the obvious explanation — this is
+    not first-boot work. Almost all of it is `NetworkManager.service`, **5.236 s → 7.342 s**, plus
+    `rpi-resize-swap-file.service` 562 ms → 1.034 s.
+    **Two candidates were tested and both are wrong.** It is not the Wi-Fi firmware, despite the
+    upgrade bumping `firmware-brcm80211`: the BCM43455 still loads build `7.45.265` dated
+    2023-08-29 and does so about 6 s into boot as before. And it is not the added `Knurfon` hotspot
+    profile — NetworkManager auto-activates the bench connection directly, with no scan or attempt
+    against the lower-priority profile. Inside NetworkManager there is a **6.7 s window with no log
+    output at all**, between loading its device plugins and the first device state change; that is
+    where the time goes and what it waits on is unknown.
+    **Deliberately not chased further, and that is a judgement rather than an oversight.** Three
+    seconds of boot has no operational consequence for a box that logs 40-minute sessions and that
+    nobody waits on. `NetworkManager` cannot be removed or delayed — it is the only way back into a
+    wheel-well cavity — so the remaining boot time is the part the hardening step already decided
+    not to touch, for the same reason. Recorded so the next person does not rediscover it as new.
+
+**Measured outcomes, not defects.**
+
+1. **Boot 19.468 s → 11.105 s**, a 43% cut. Kernel unchanged at ~2.0 s; **userspace 17.463 s →
+   9.108 s**; `multi-user.target` 11.305 s → 9.108 s. `NetworkManager.service` at 5.236 s is now
+   the entire critical chain past `sysinit`, and the chain no longer runs through cloud-init at
+   all. Reducing it further means not waiting on NetworkManager, which costs the way back in.
+2. **Enabled timers 9 → 2**, and one of the two (`rpi-zram-writeback.timer`) is masked and shows
+   no next elapse. **17 units newly masked**, none of them with a failed status.
+3. **The Bluetooth unblock survived the reboot** — the whole question this box turned on.
+   `rfkill list bluetooth` reads `Soft blocked: no`, `hciconfig` reads **`UP RUNNING`**, and
+   BlueZ reports `Powered: yes` / `PowerState: on`. Better than the acceptance asked for: it
+   allowed `Powered: no` on an unblocked controller as the logger's problem to fix, and BlueZ
+   powered it unprompted. `systemd-rfkill.service` now restores *unblocked* from the same
+   `/var/lib/systemd/rfkill/` state that used to restore the block.
+4. **`/dev/i2c-1` exists** and scanned empty across all 112 addresses, as §0 item 9 predicted at
+   the time. The 1-Wire bus master registered. Both halves of §0 item 5a took. **Superseded as an
+   expectation by correction 32** — the sensor zone has since been assembled.
+5. **Journal 8 M volatile → 16 M persistent** in `/var/log/journal`, which is phase 6's deliberate
+   trade (correction 22) with a real number against it for the first time.
+6. **Dirty ratios took**: `vm.dirty_background_ratio` 10 → 5, `vm.dirty_ratio` 20 → 10. Wi-Fi
+   power save is now `wifi.powersave = 2`, where it had been unconfigured and defaulting to 3.
+7. **`throttled=0x0` still**, at `volt=0.9060V` and 56.0 °C shortly after boot against 43.8 °C at
+   idle earlier. Plan item 5.4 remains a pass at idle and item 5.7's under-load re-read remains
+   impossible until there is a logger.
+8. **No failed units, and the SSH session survived.** `cmdline.txt` kept `console=tty1` while
+   `console=serial0,115200` went, and its absent final newline was preserved.
+
+### Correction from re-probing the box the same day (2026-09-09)
+
+Found while gathering facts for the logger's channel-enrollment design, by reading the 1-Wire bus
+a second time instead of trusting the first reading.
+
+30. **Correction 25 described a moving target as a fixed one, and the mistake matters.** The
+   phantom is not one device with one ID; it is a **churning set**. Across 35 s with nothing
+   wired: `00-800000000000` alone, then `00-dc0000000000` + `00-3c0000000000`, then
+   `00-3c0000000000` + `00-bc0000000000` — `w1_master_slave_count` reading `1`, `2`, `2`. These
+   are bus-search results off a floating line, and `w1_master_attempts` was already past 250 with
+   no probes attached. Rescan interval is 10 s (`w1_master_timeout = 10`).
+   **Why the difference is not pedantic.** Correction 25's phrasing supported "expect four probes
+   plus one" — a stable, correctable offset. The truth is that the count is **unstable**, so no
+   code and no procedure may branch on it, and `28-*` matching is not a tidiness preference but
+   the only thing separating a probe from noise. It also sets a hard requirement on the channel
+   enrollment the owner asked for: anything that binds "the next device to appear" will bind a
+   phantom within about ten seconds of being switched on.
+   Corrected in step 6 item 4, in `../CLAUDE.md`, and in the plan set's build sheet §10 step 6,
+   which is where the probe counting will actually be done.
+
+### Correction from running `ssh-harden.sh` (2026-09-09)
+
+31. **The rollback list presents `sudo rm /etc/cloud/cloud-init.disabled` as an innocuous undo, and
+   after step 7 it is not.** Step 7's fix works by editing `PasswordAuthentication` inside
+   **cloud-init's own** `50-cloud-init.conf`, because that file sorts ahead of ours and wins. That
+   edit only survives because cloud-init is disabled and will not regenerate the file.
+   **So re-enabling cloud-init silently restores `PasswordAuthentication yes`** — it does not just
+   undo phase 1, it undoes step 7 as well, and it does so at the next boot with nothing in the
+   output to say so. Anyone reverting cloud-init for an unrelated reason must re-run
+   `ssh-harden.sh --execute` afterwards, or check `sudo sshd -T | grep passwordauthentication`.
+   The two rollback entries are not independent and the list did not say so.
+
+<a id="pressure-worker-delivery"></a>
+
+### Pressure worker delivery record — moved 2026-09-24
+
+The following is the original implementation plan and execution record. It is historical,
+including proposed fields and stale status statements. The current remaining acceptance task
+lives in `pressure-worker-plan.md`; implementation rules live in the subsystem documents.
+
+#### Original implementation plan — the pressure worker
+
+**Scope: add the five SDP810s to the logged and broadcast data.** This plan covers the logger
+software only — a sixth worker, its config, its session records and its RaceChrono packets. It does
+**not** cover the pneumatic rig (wands, tubing, filters, drainage), which is
+`../ndLouvers/pressure-testing.md` §1, nor the installed qualification, which is its §2. **Nothing
+in this plan produces a pressure measurement**; it produces the channel that a measurement will one
+day travel down.
+
+#### How to use this file
+
+**Update the `Work Progress` table at the end after every executed step**, so that re-reading this
+file reveals where the work stopped and what comes next. Each step below is written to be
+executable by someone who has read this file and nothing else: it names the files, the commands and
+the acceptance criterion it needs. Where a step depends on an owner decision, that decision is
+named in step 1 and the step says which one.
+
+**Read these before starting**, in this order — they own things this plan is subordinate to:
+
+1. `CLAUDE.md` — the box's hardware traps. The I2C retry, the mux-channel prohibition, and the
+   rule that a faulty channel hangs the whole main bus are all load-bearing here.
+2. `SystemSetup/logger-perfboard-wiring.md` §2 and §5 — the address map, the mux channel allocation
+   and the five serials as fitted.
+3. `../ndLouvers/CFD-Learning-Plan.md` Step 0b — **the authority on requirements**, especially
+   commissioning item 2 (identity and per-session channel record) and item 4 (what a pressure
+   sample must carry). This repository owns no measurement decision.
+4. `../ndLouvers/pressure-testing.md` §3.1 — the bring-up this plan builds on, and the three
+   cautions attached to it.
+5. `README.md` §"RaceChrono channels" — the wire format rules and the existing slot map.
+
+#### What is already established, and must not be re-derived
+
+All five sensors were brought up by hand on 2026-09-19 and the protocol is settled:
+
+| Fact | Value |
+|---|---|
+| Address | `0x25`, all five, behind the PCA9548A at `0x70` |
+| Populated mux channels | **0, 1, 2, 3, 4** — channel 5 is empty and **must never be addressed** |
+| `P2` is the ±125 Pa | product `0x03020B01`, scale **240 counts/Pa** |
+| `P0`/`P1`/`P3`/`P4` are ±500 Pa | product `0x03020A01`, scale **60 counts/Pa** |
+| Serials | build sheet §5 — read them back, do not hard-code them |
+| Stop continuous | `0x3FF9` |
+| Identity | `0x367C` then `0xE102`, then an 18-byte read |
+| Start continuous | `0x3615` — differential pressure, temperature compensated, averaged |
+| Sample | select mux channel, then a 9-byte read |
+| Frame layout | `dp` int16 + CRC, `temp` int16 + CRC, `scale` uint16 + CRC |
+| Conversions | `pressure = dp / scale` Pa; `temperature = temp / 200` °C |
+| CRC | CRC-8, polynomial `0x31`, init `0xFF`, over each 2-byte word |
+| Measured cycle cost | **15.4 ms** for all five, worst 18.3 ms |
+| Measured zero, open ports | within ±0.06 Pa, sd ≤0.011 Pa |
+
+Four behaviours that will bite an implementation that does not expect them:
+
+1. **`0x3615` is NAK'd if the sensor is already in continuous mode**, and selecting a different mux
+   channel does **not** take it out of that mode. Start it once per sensor and track per-sensor
+   state. A harness that re-armed it every cycle lost **145 of its 150 start-continuous commands**
+   — 30 cycles × 5 sensors — and looked exactly like a degraded bus. (Owner, 2026-09-19: the
+   denominator is the commands. An earlier "145 of 456" here counted the run's transfers instead
+   and read as the same statistic.)
+2. **Addressing an unpopulated or faulty mux channel hangs the entire main bus** — mux and BME280
+   included — and only a `~RESET` pulse on GPIO17 recovers it. Both bus lines read idle-high and
+   `i2cdetect` still lists every device while this is happening.
+3. **The first transfer after an idle bus is refused on some boots** and not others — bimodal per
+   boot, `../ndLouvers/` open item 44. `transferI2c` already retries ten times and counts;
+   **do not add a second retry layer.**
+4. **Scale factor is per sensor and is returned in every frame.** Never hard-code 60.
+
+---
+
+#### Step 1 — Get the four owner decisions this plan cannot make
+
+**This repository owns no measurement decision** (`CLAUDE.md`, "Where authority lives"). Four
+choices below change what the data means, so they belong to `../ndLouvers/CFD-Learning-Plan.md`
+Step 0b. Put them to the owner, record the answers in Step 0b, and only then write code. Each has a
+recommendation; a recommendation is not a decision.
+
+1. **Wire scaling for the BLE channels. Recommended: signed 0.1 Pa/LSB (decipascals) for all six
+   channels, sentinel `INT16_MIN` = −3276.8 Pa.**
+   The argument: `int16` at 0.01 Pa/LSB overflows at 327 Pa, so it cannot carry a ±500 Pa channel;
+   0.1 Pa/LSB spans ±3276.7 Pa and covers both ranges with **one decode rule for every pressure
+   channel**, which is the property that matters — `README.md` records that a *second* decode rule
+   is exactly how the `bytesToUint`/`bytesToInt` fault survived for days. The cost is resolution on
+   the ±125 Pa part, whose 1/240 Pa granularity is thrown away. **That cost is acceptable because
+   the SD file carries raw counts and the scale factor at full resolution**, and BLE is the
+   analysis path for *pressure differences of 45–90 Pa*, where 0.1 Pa is 0.1–0.2 %.
+   The alternative — centipascals for `P2` alone — buys resolution nothing currently needs and
+   introduces the exact class of fault this project has already paid for once.
+2. **Sample rate. Recommended: make it configurable and run at 10 Hz, with the session-file volume
+   accepted (step 9 measures it).**
+   Step 0b item 4 targets 10 Hz pressure logging. A five-sensor cycle costs 15.4 ms, so 10 Hz fits
+   a 100 ms budget with room. The open question is not CPU, it is **bytes**: step 9 measures the
+   real rate and the owner accepts or reduces it there rather than guessing here.
+3. **Whether the pressure worker's BLE packets are published when no role mapping exists.**
+   Recommended: **yes**. The channels are positional (`P0`–`P5`) and carry no role, exactly as
+   `temp0`–`temp3` do; publishing them lets the phone-side definitions be built and verified before
+   the rig exists, which is the only way to avoid `../ndLouvers/` open item 47 repeating on the
+   pressure side. **A channel with no definition on the phone is never sent at all.**
+4. **Packet IDs. Recommended `0x605`, `0x606`, `0x607`** (step 3 says what each carries). `0x600`–
+   `0x604` are taken. Confirm no other DIY device on this phone claims them; box 1's IDs are
+   `0x7F0`, `0x78`, `0x86`, `0x202`, `0x420`, `0x4FA`, so there is no collision today.
+
+**Acceptance:** all four recorded in Step 0b, and the role→channel mapping explicitly left open
+(`../ndLouvers/` open item 30a) — recording which *part* is on which channel is not deciding which
+*role* it serves, and this plan must not invent one.
+
+---
+
+#### Step 2 — Add the data contracts
+
+**File:** `dataContracts.hpp`. No behaviour, no other file changes. Build after it and confirm the
+binary is unchanged in behaviour.
+
+1. **Constants**, beside the existing BME280 block and following its commenting style — explain
+   *why* a value is what it is, never what the line does:
+   - `PACKET_ID_PRESSURE_A 0x605`, `PACKET_ID_PRESSURE_B 0x606`,
+     `PACKET_ID_PRESSURE_STATUS 0x607` (per step 1 decision 4).
+   - `SDP810_ADDRESS 0x25`, and the commands `SDP810_CMD_START_CONTINUOUS 0x3615`,
+     `SDP810_CMD_STOP_CONTINUOUS 0x3FF9`, `SDP810_CMD_READ_PRODUCT_ID_1 0x367C`,
+     `SDP810_CMD_READ_PRODUCT_ID_2 0xE102`.
+   - `SDP810_PRODUCT_500PA 0x03020A01`, `SDP810_PRODUCT_125PA 0x03020B01`,
+     `SDP810_SCALE_500PA 60`, `SDP810_SCALE_125PA 240` — **expected values for a warning, never
+     substitutes for the returned scale factor.**
+   - `SDP810_MEASUREMENT_LENGTH 9`, `SDP810_IDENTITY_LENGTH 18`, `SDP810_CRC_POLYNOMIAL 0x31`,
+     `SDP810_CRC_INIT 0xFF`, `SDP810_TEMPERATURE_DIVISOR 200`.
+   - `SDP810_START_SETTLE_US` — the datasheet's first-measurement delay after `0x3615`; 20 ms is
+     ample and was used in bring-up.
+   - `PRESSURE_DECI_PA_INVALID INT16_MIN`, and validity bounds per range. **A reading outside the
+     part's range is invalid data, not a clipped value** — commissioning item 4.
+   - `MUX_CHANNEL_NONE 0x00` and `MUX_MAX_CHANNEL 5`.
+   - A comment block on the mux prohibition, pointing at `CLAUDE.md` rather than restating it.
+2. **Config keys**: a `CONFIG_GROUP_PRESSURE "pressure"` with `pressureIntervalMs`, and
+   `pressureChannelsEnabled` — **a list of populated mux channels, not a count**, because step 4's
+   loop iterates that list and a count would imply channels 0..n-1 are all safe.
+3. **Structs**, following `Bme280Reading`/`Bme280Data`'s split between one transient conversion and
+   the worker's persistent state:
+   - `SdpReading` — `isPresent`, `isValid`, `rawDifferential`, `scaleFactor`, `rawTemperature`,
+     `pressurePa` (double, full resolution), `pressureDeciPa` (gint16, what goes on the air),
+     `temperatureCentiC`, `crcOk`, `invalidReason`, `isReadError`, `readMs`.
+   - `PressureChannel` — `muxChannel`, `isEnabled`, `isPresent`, `productNumber`, `serial`,
+     `expectedScale`, `isContinuousStarted`, `readErrors`, `lastReading`.
+   - `PressureData` — `channels[PRESSURE_CHANNEL_COUNT]`, `fd`, `sampleCycles`, `readErrors`,
+     `lastCycleMs`, `enabledCount`, the rate-limiter booleans the other workers carry, and
+     `std::atomic<bool> isRunning`.
+   `PRESSURE_CHANNEL_COUNT` is already defined as 6 — keep it, and let `isEnabled` carry which of
+   the six are real.
+
+**Acceptance:** `cmake --build build -j4` succeeds and the logger runs unchanged.
+
+---
+
+#### Step 3 — Fix the wire format on paper before writing the packer
+
+**File:** `README.md`, the "RaceChrono channels" section. **Write the byte tables and the slot map
+first**, then implement against them. This ordering is deliberate: `README.md` records that the
+phone's channel list is part of the instrument and that nothing in this code can check it, so the
+specification has to exist before there is an implementation to disagree with.
+
+Proposed layout, subject to step 1:
+
+| Packet | Bytes | Carries |
+|---|---|---|
+| `0x605` | 0–1, 2–3, 4–5, 6–7 | `P0`, `P1`, `P2`, `P3` — signed decipascals |
+| `0x606` | 0–1, 2–3 | `P4`, `P5` — signed decipascals |
+| `0x606` | 4–5 | sample cycles, free-running, wraps at 65535 |
+| `0x606` | 6–7 | last cycle duration, ms |
+| `0x607` | 0 | channels enabled, bitmask |
+| `0x607` | 1 | valid-this-cycle bitmask, bit *n* = `P<n>` |
+| `0x607` | 2–3 | cumulative read errors, saturating |
+| `0x607` | 4–5 | cumulative CRC failures, saturating |
+| `0x607` | 6 | sensor temperature of the lowest enabled channel, °C, signed |
+| `0x607` | 7 | mux channel currently selected — a cheap liveness tell |
+
+Three properties this layout is chosen for, each mirroring something already proven on `0x603`:
+
+1. **A free-running counter that advances whatever the sensors report** (`0x606` bytes 4–5), so a
+   dead worker is distinguishable from five steady pressures. Five zeroes is a *plausible* reading
+   at rest, which makes this more necessary here than on the thermal channels.
+2. **A bitmask of what read cleanly this cycle** (`0x607` byte 1), so an invalid channel is visible
+   from the phone without decoding the sentinel.
+3. **Separate error counters for transport and CRC** (`0x607` bytes 2–3 and 4–5). The thermal side
+   learned this the expensive way: one counter conflating "the bus retried" with "a sample was not
+   trusted" is what made the 85 °C misclassification invisible for two track days.
+
+**Every payload field is big-endian; only the 4-byte packet ID is little-endian.** Pick slots from
+the free ranges — `Pressure Front 1`–`6` for the six channels, and Digital slots outside 1–5,
+11–16 and 51–55 — and add them to the slot-map table with the equations as they will be typed.
+
+> **⚠ WHAT WAS ACTUALLY ENTERED DIFFERS FROM THIS IN TWO PLACES, BOTH DELIBERATELY** (2026-09-19,
+> step 10's Work Progress row): the sensor-temperature field is `Temperature Front 20`, not 21, and
+> **`Pressure Front 6` is not defined at all** because `P5`'s mux channel is unpopulated.
+> `README.md`'s slot map is the current specification and this paragraph is what was planned. **Do
+> not re-enter `Pressure Front 6` from this line** — README slot-map note 5 says when it should be.
+
+**Acceptance:** the tables are in `README.md` and a reader could type the phone's channel list from
+them without reading any code.
+
+---
+
+#### Step 4 — Write the mux and SDP810 transport
+
+**New file:** `pressureSensors.cxx`, included in `main.cxx` **after `i2cBus.cxx` and before
+`raceChronoBle.cxx`** — the same position `bme280Sensor.cxx` holds, because a producer must come
+after the packet primitives and before the BLE worker. Add it to no CMake target; this is a single
+translation unit.
+
+1. **`selectMuxChannel(gint fd, gint channel)`** — writes `1 << channel` to the mux, then **reads
+   the control register back and verifies it**. The read-back is not belt-and-braces: a write that
+   appears to succeed onto a faulty segment is precisely the failure that hangs the bus, and the
+   read-back is where it is caught.
+   **It must refuse any channel not in the configured enabled list**, and log that refusal as an
+   event. This is the code half of the prohibition in `CLAUDE.md`; a sweep must be impossible to
+   write by accident.
+2. **`deselectMux(gint fd)`** — writes `MUX_CHANNEL_NONE`. Called at the end of every cycle and on
+   shutdown, so the bus is never left with a channel bridged onto it.
+3. **`sdpCrc8(const guint8* data, guint length)`** — polynomial `0x31`, init `0xFF`.
+4. **`sendSdpCommand(gint fd, guint16 command)`** and
+   **`readSdpFrame(gint fd, guint8* out, guint length)`** — both straight through `transferI2c`,
+   which already carries the retry. **Add no retry here.**
+5. **`parseSdpMeasurement(const guint8* frame, SdpReading* out)`** — checks all three CRCs,
+   converts, and sets `invalidReason` to one of `crc`, `outOfRange`, `notPresent`, `readFailed`,
+   `notStarted`. **A CRC failure is invalid data, never a carried-forward value.**
+
+**Acceptance:** compiles; no worker calls it yet.
+
+---
+
+#### Step 5 — Identity at boot, and the baseline record
+
+**File:** `pressureSensors.cxx`. Commissioning item 2 requires product, revision, serial and CRC
+read at boot and logged with the channel mapping.
+
+1. **`initialisePressureSensors()`** — opens the bus (reuse `openI2cBus`; the worker may hold its
+   own fd as the BME280 worker does), then for each **enabled** channel: select, stop-continuous
+   (tolerating a NAK, since it may already be idle), read identity, verify all six CRCs, record
+   product number and serial, warn if the product number is not one of the two known values, and
+   warn if the returned scale factor differs from the expected one for that product.
+2. **`writePressureBaseline()`** — modelled on `writeBme280Baseline()`. It must carry: the I2C bus
+   and mux address, the enabled channel list, and per channel the mux position, product number,
+   serial, scale factor and range. **This record is the per-session channel→part provenance that
+   commissioning item 2 asks for**, and it is the only place a later analysis can learn which
+   physical part produced a channel.
+   Include a `roleMappingNote` field stating that the role→channel mapping is deliberately not
+   recorded here because it is not decided — the same shape as `thermalBaseline`'s note.
+3. **Warn, do not refuse, on a mismatch.** A logger that will not start in the car because one
+   sensor reports an unexpected product number loses every other channel. The existing
+   `TEMP_OFFSET_MAX_C` comment states this principle; follow it.
+
+**Acceptance:** run `~/bin/KnurLogger` on the bench with the service stopped; the session file's
+first records include a `pressureBaseline` carrying all five serials matching build sheet §5.
+
+---
+
+#### Step 6 — The sampling loop
+
+**File:** `pressureSensors.cxx`, function `pressureSensorsLoop(gpointer)`, following
+`bme280SensorLoop`'s shape exactly.
+
+1. **Start continuous measurement once per sensor**, after identity, recording
+   `isContinuousStarted`. Wait `SDP810_START_SETTLE_US` before the first read.
+2. **Each cycle**: for each enabled channel, select, read 9 bytes, parse, store. Then deselect.
+   Record `lastCycleMs` from before the first select to after the deselect.
+3. **Recovery, and this is the subtle part.** If a channel's read fails, mark it not present and
+   **clear `isContinuousStarted`**; on the next cycle, re-issue `0x3615` before reading it again. A
+   sensor that browned out has forgotten it was in continuous mode, and one that did not has not —
+   and re-arming one that did not is a NAK, which is harmless as long as the code expects it.
+   **Do not re-arm unconditionally**: that is the 145-of-150 failure from bring-up.
+4. **Preserve invalid data as invalid.** Every channel that did not read cleanly sends
+   `PRESSURE_DECI_PA_INVALID` and is recorded with its `invalidReason`. No carried-forward values.
+5. **Publish the three BLE packets** through `updateBlePacket`, the worker that owns the reading
+   doing its own packing — `blePackets.cxx` says why.
+6. **Write one `pressure` session record per cycle**, carrying per channel: raw differential counts,
+   scale factor, computed pascals at full resolution, the decipascals actually sent, sensor
+   temperature, CRC result, validity and reason. Step 0b item 4 asks for exactly this list, and the
+   raw-plus-scale pair is what makes a reprocess possible if the scaling decision in step 1 is ever
+   revisited.
+7. **Shutdown**: stop continuous on each sensor, deselect the mux, close the fd. Add the worker to
+   the `producersRunning` count and the joins in `main.cxx`.
+
+**Acceptance:** a 10-minute bench run with zero exhausted transfers, the valid mask reading all
+enabled channels on every cycle, and `0x606`'s counter advancing by exactly 1 per cycle.
+
+---
+
+#### Step 7 — Initialise the packets with sentinels
+
+**File:** `blePackets.cxx`, in `initialiseBlePackets()`, and `getAllPackets()` extended to return
+the three new packets so `forEachBlePacket` covers them.
+
+**Publish all six pressure channels as `INT16_MIN` before the worker has read anything.** The
+existing comment on the thermal channels gives the reason and it applies with more force here:
+**zero is a completely plausible differential pressure**, so a phone that connects before the first
+cycle would otherwise see six believable readings of nothing. This is the one place where the
+pressure channels are more dangerous than the thermal ones.
+
+**Acceptance:** with the sensors physically unplugged, all six channels decode as the sentinel on
+the phone and `0x607` byte 1 reads 0. **The number is −3.2768 kPa, not the −327.68 written here
+before the wire format was settled** — the wire carries decipascals and the phone divides by 10 000
+for kPa. **Check the SIGN, not the digits**: the magnitude is small and the fault this catches is a
+sign error.
+
+---
+
+#### Step 8 — Config, and the enabled-channel list
+
+**Files:** `dataContracts.hpp` (done in step 2), `config.cxx`, `build/KnurLogger.ini`.
+
+1. Parse `pressureIntervalMs` with a sane range (50–60000) and `pressureChannelsEnabled` as a
+   comma-separated list, validating that every entry is 0–5 and that **channel 5 is rejected with a
+   clear message** until its pull-ups are fitted.
+2. Add the `[pressure]` section to `build/KnurLogger.ini` **with comments explaining why the list is
+   a list**, in the style of the existing `[thermal]` block. That file is the template and its
+   comment block is documentation.
+3. **After deploying, copy the production `.ini` back**:
+   `scp KnurLogger:bin/KnurLogger.ini build/KnurLogger.ini` and commit. `deploy-logger.sh` only ever
+   *creates* the `.ini`, never updates it, so **a new config key will not appear in the production
+   copy by itself** — it must be added there by hand or the logger will fail to start on a missing
+   key. This is the single most likely way this plan breaks in the car.
+
+**Acceptance:** the logger refuses to start with a missing or out-of-range key, and starts cleanly
+with `pressureChannelsEnabled=0,1,2,3,4`.
+
+---
+
+#### Step 9 — Measure the cost, and decide the rate
+
+**Runs on the box.** This is where step 1 decision 2 is actually settled.
+
+1. Run a **one-hour bench session at 10 Hz** with all five sensors and the service stopped.
+2. Measure: bytes per second against the 1457 B/s the 1 Hz baseline produced, worst-case inter-cycle
+   gap, `i2cExhausted`, and SoC temperature. Compare the projected daily volume against the 108 GB
+   free.
+3. **Check the fsync cadence still holds.** The ~1 s `fsync` is a requirement, not a tuning
+   parameter, and a 10 Hz producer writing ten times the records is the first thing that could
+   starve it.
+4. Report the numbers to the owner and record the accepted rate in Step 0b item 4.
+
+**Acceptance:** a measured figure for bytes/day at the chosen rate, and an owner decision recorded.
+
+---
+
+#### Step 10 — Define the phone's channels, and verify them
+
+**Nothing in this repository can check the phone's channel list** — `CLAUDE.md` owns that rule and
+it has already cost this project three faults and five sessions of a CAN byte.
+
+1. Enter the channels from step 3's table into RaceChrono.
+2. **Run the sentinel check with the sensors disconnected**, which is the only state it works in:
+   every pressure channel must read **−3.2768**, not +3.2768 (this said −327.68 until step 3
+   settled the divide; see the Work Progress row). **The sign is the test, not the magnitude.**
+   A positive reading means
+   `bytesToUint` where `bytesToInt` belongs — the exact fault found on `Temperature Front 2`.
+3. **Verify the free-running counter** on `0x606` bytes 4–5 advances by exactly 1 per sample.
+4. Re-export the vehicle profile to `RaceChrono/vehicleProfile.json` and commit it.
+5. Run `python3 Tools/rcz-channels.py <session>.rcz` against a recording and confirm every new slot
+   appears and none is all-`NaN`.
+
+**Acceptance:** the **five defined** pressure channels and the status channels decode correctly
+against the logger's own session record of the same samples. `Pressure Front 6` is deliberately
+undefined — `README.md` slot-map note 5 — so it is not part of this and its absence is not a
+failure. **Not met as of 2026-09-19**: only items 1–4 are done.
+
+---
+
+#### Step 11 — Documentation sync and commit
+
+Run the required sync pass across both repositories before committing:
+
+1. `README.md` — status, the hardware table, the layout block, "what is testable".
+2. `CLAUDE.md` — any trap the implementation proved or disproved. **If something in this plan
+   surprised the implementer, that belongs in `CLAUDE.md` and its predecessor in
+   `CLAUDE.history.md`.**
+3. `SystemSetup/logger-perfboard-wiring.md` — only if the build changed; it should not have.
+4. `../ndLouvers/CFD-Learning-Plan.md` Step 0b — the commissioning item 2 identity record is now
+   produced automatically, which is a status change that plan owns.
+5. `../ndLouvers/pressure-testing.md` §3 — that the channel exists, and that **it still carries no
+   measurement**.
+6. `../ndLouvers/` open item 44 — whether any boot in this work was in the refusing mode. If one
+   was, **that is the full-device-count observation the item has been waiting for.**
+
+---
+
+#### Risks, and what each would cost
+
+1. **A mux channel hangs the bus in the field.** The worker takes every other channel down with it,
+   including the BME280. **Mitigation:** the enabled-list refusal in step 4, plus consider a
+   `~RESET` pulse on GPIO17 as an automatic recovery after N consecutive exhausted transfers —
+   **this is new behaviour and needs its own decision**, because a reset also disturbs a healthy
+   BME280 mid-conversion.
+2. **10 Hz starves the fsync cadence or fills the card.** Step 9 measures it before it is trusted.
+3. **The production `.ini` is not updated** and the logger refuses to start at the car, losing a
+   session. Step 8 item 3; this is the highest-probability failure in the plan.
+4. **The phone's channel list is wrong and nothing detects it.** Step 10, and the rule survives the
+   step — re-run the sentinel check after *any* edit to the list.
+5. **The scaling decision is regretted later.** Cheap to reverse: the session file carries raw
+   counts and the scale factor, so every past session can be reprocessed. Only the `.rcz` recordings
+   cannot be, which is the same asymmetry that governs everything on the BLE path.
+
+---
+
+#### Work Progress
+
+Update this table after every executed step, with what was actually done rather than what was
+planned.
+
+| Step | Status | What was done |
+|---|---|---|
+| 1 — Owner decisions | **done** 2026-09-19 | All four put to the owner as choices with recommendations; **all four recommendations taken**. Recorded in `../ndLouvers/CFD-Learning-Plan.md` Step 0b commissioning item 4a. Decipascals on all six channels with `INT16_MIN` sentinel; configurable rate shipped at 10 Hz, subject to step 9; packets published before any role mapping; IDs `0x605`/`0x606`/`0x607`, checked clear against the committed `RaceChrono/vehicleProfile.json` (the only IDs either box claims are `0x78`, `0x202`, `0x420`, `0x4FA`, `0x600`–`0x604`, `0x7F0`). The role→channel mapping is untouched and still open — `../ndLouvers/` open item 30a |
+| 2 — Data contracts | **done** 2026-09-19 | `dataContracts.hpp`: the three packet IDs, the SDP810 command/product/scale/CRC/length constants, `SDP810_START_SETTLE_US`, `PRESSURE_DECI_PA_INVALID`, per-product range bounds, `MUX_CHANNEL_NONE`/`MUX_MAX_CHANNEL`, the mux-prohibition comment block, the `[pressure]` config keys, and `SdpReading`/`PressureChannel`/`PressureData`. `PRESSURE_CHANNEL_COUNT` left at 6 with `isEnabled` carrying which are real. Built on the box, logger ran unchanged. **One deviation from the plan's field list:** `crcFailures` was added to `PressureChannel` and `PressureData`, because step 3's `0x607` needs a CRC counter separate from the transport one and the plan's struct list did not carry it |
+| 3 — Wire format on paper | **done** 2026-09-19 | `README.md`: slot-map rows and two new sections written **before** the packer. Layout as the plan proposed. Slots are `Pressure Front 1`–`6`, `Digital Front 21`–`27` and `Temperature Front 21`, all clear of every slot already in use. **One decision the plan left implicit: the phone-side divide. Settled at `/10000`** — RaceChrono's Pressure channel stores kPa and decipascals reach it through ten thousand, the same rule `0x600`'s `/1000` follows. **A `/10` variant was tried the same day and withdrawn**, and the reason is worth keeping: it looks like it puts pascals on the gauge, but RaceChrono still believes the number is kPa and applies its own unit conversion on top, so 500 Pa displays as 5 bar — wrong unit *and* wrong magnitude, where `/10000` is merely small. **Resolution never entered it, and that was measured:** RaceChrono stores samples as **float64** (`Pressure Front 50` returns `101.15000000000001`, 8 bytes each), so the divide costs nothing in the recording. The cost is the at-the-car readout, and the sentinel check survives it because that check turns on the **sign**. Sentinel **−3.2768 kPa** |
+| 4 — Mux and SDP810 transport | **done** 2026-09-19 | New `pressureSensors.cxx`, included in `main.cxx` after `i2cBus.cxx` and before `raceChronoBle.cxx`, in no CMake target. `selectMuxChannel` refuses any channel outside the configured list and logs the refusal as an event; it writes then **reads the control register back and verifies it**. `deselectMux`, `sdpCrc8`, `sendSdpCommand`, `readSdpFrame`, `parseSdpMeasurement` all straight through `transferI2c` with **no second retry layer**. **One deviation:** `parseSdpMeasurement` takes the part's range as an argument — the plan asked the same function to set `outOfRange`, which it cannot do without knowing the part. It also rejects a zero scale factor, which passes CRC and would otherwise divide by zero |
+| 5 — Identity and baseline record | **done** 2026-09-19 | `initialisePressureSensors()` opens its own fd, and per enabled channel selects, stop-continues (NAK tolerated), reads identity, verifies all six CRCs, records product and serial, and warns on an unknown product or a scale factor disagreeing with it. **Warns, never refuses.** `writePressureBaseline()` carries bus, mux and sensor addresses, the enabled list and per channel the mux position, product, serial, scale and range, plus a `roleMappingNote` stating the role map is deliberately absent. **Acceptance met:** a bench run's `pressureBaseline` carries all five serials and they match build sheet §5 exactly, including the ±125 Pa's `0x00000000978B88F8` on `P2` at 240 counts/Pa |
+| 6 — Sampling loop | **done** 2026-09-19 | `pressureSensorsLoop` follows `bme280SensorLoop`'s shape. `0x3615` once per sensor; re-issued only when `isContinuousStarted` is false, which a failed read clears — never unconditionally. Every failure path writes an explicit `invalidReason` (`disabled`, `busUnavailable`, `muxSelectFailed`, `notStarted`, `readFailed`, `crc`, `scaleFactorZero`, `outOfRange`, `notPresent`); **no carried-forward values.** One `pressure` record per cycle with raw counts, returned scale factor, full-resolution pascals, the decipascals sent, sensor temperature, CRC result, validity and reason, plus the three `i2c*` counters. Worker added to `producersRunning` and the joins. **Acceptance met on a 25 s bench run:** 239 cycles, enabled mask 31 and valid mask **31 on every cycle**, counter +1 exactly, 0 read errors, 0 CRC failures, 0 exhausted transfers, `muxSelected` 0 throughout. Cycle cost 16–18 ms, matching bring-up's 15.4 ms |
+| 7 — Sentinel initialisation | **done** 2026-09-19 | `initialiseBlePackets()` publishes all six channels as `INT16_MIN` before the worker reads anything, with the reason stated: zero is a plausible differential pressure where 0 °C at least looks like weather. `getAllPackets()` extended to 8 so `forEachBlePacket` covers the three. `0x607` is left at its zero default deliberately — zero **is** the correct enabled/valid mask before the first cycle |
+| 8 — Config and enabled list | **done** 2026-09-19 | `config.cxx` parses `pressureIntervalMs` (50–60000) and `pressureChannelsEnabled` as a comma-separated list. `[pressure]` added to `build/KnurLogger.ini` with the comment block explaining why the list is a list. **Item 3 discharged:** the production `~/bin/KnurLogger.ini` was backed up to `KnurLogger.ini.bak-20260919` and replaced with the template — a diff first confirmed the two differed **only** in comment blocks and the new section, so no offset or binding was at risk, and the four ROM IDs were re-read afterwards. **Acceptance met — six guards tested on the box and all six refuse to start:** channel 5 named (by name, not as a range error), missing interval, interval out of range, non-numeric entry, stray comma, missing list. Starts cleanly on `0,1,2,3,4` |
+| 9 — Measure cost, decide rate | **done** 2026-09-19 | One hour on the bench at 10 Hz, all five sensors, service stopped. **34 537 cycles at 9.594 Hz**, cycle counter exact `+1`, valid mask 31 on every one, **0 read errors, 0 CRC failures, 0 exhausted transfers, 0 dropped records**, worst inter-cycle gap 120 ms with nothing over 250 ms, cycle cost 18 ms typical / 23 ms p99. **20.2 kB/s → ~873 MB for a 12 h day against 108 GB free**, i.e. 0.8 % and ~120 such days before the card fills, against the 1457 B/s 1 Hz baseline. `i2cExhausted` 0; SoC 50.6–57.0 °C open-air; live, sticky and `rpi_volt` comparator 0 throughout. **Item 3 met: the fsync cadence is not starved** — the three 1 Hz workers were untouched (BME280 1015/1021 ms, 1-Wire 1002/1005, supply 1017/1024) and the largest gap between any two records of any kind was 445 ms. **Owner accepted 10 Hz on these numbers**, recorded in Step 0b commissioning items 4 and 4a. **One finding the plan did not predict: the configured interval is a floor, so "10 Hz" is 9.594 Hz** — every worker schedules from the cycle's start and pays the poll granularity, which is why the 1 Hz workers have always run at 1002–1017 ms. Not lost samples; the counter is exact. Recorded in Step 0b item 4 and `pressure-testing.md` §3.2 |
+| 10 — Phone channels and verification | **items 1–4 done** 2026-09-19; **item 5 outstanding** | **Channels entered and verified by the owner.** Item 1: all five populated channels and every status field typed in — `Pressure Front 1`–`5`, `Digital Front 21`–`27`, `Temperature Front 20`. **Two deviations from step 3's table, both accepted:** `0x607` byte 6 went into `Temperature Front 20` rather than 21 (the phone won; 20 is free and satisfies the same clear-of-everything property, and re-picking a slot by hand is the operation that caused the `Temperature Front 2` fault, so the tables were corrected instead); and **`Pressure Front 6` is deliberately undefined**, `P5` being the unpopulated mux channel 5, which costs nothing because `0x606` is subscribed for its other three channels — `README.md` slot-map note 5 carries the guard for the day channel 5 is populated. Item 2: **sentinel check passed with the sensors disconnected — every channel negative.** Item 3: `0x606` bytes 4–5 advance by exactly +1 per sample. Item 4: re-exported, `localUuid` stripped, committed — 49 channels across thirteen IDs, and **the diff is not reviewable as a diff**, RaceChrono reordering `customChannels` on every export, so it was checked by `(pid, channelId)` instead and `RaceChrono/README.md` now says to. **Item 5 needs a recording, not the phone:** `Tools/rcz-channels.py` against the first `.rcz` carrying the new slots. **Acceptance is therefore not yet met** — the slots decode correctly and the sentinel is right, but nothing has yet been checked against the logger's own session record of the same samples. **Unrelated but in the same edit: `0x420` byte 7 was defined**, `../ndLouvers/` open item 47. What was ready going in: the slot map and byte tables in `README.md`, and `Tools/rcz-channels.py` **extended to flag the unsigned sentinel on `Pressure` slots as well as `Temperature` ones** — it did not, which would have left the six new channels unaudited by the one instrument that can check the phone's list without the phone. `Pressure Front 50` is exempt, `0x600` being unsigned by design. **Correction to item 2 of this step: the sentinel reads −3.2768, not −327.68**, because the wire carries decipascals and the phone divides by 10 000 for kPa (step 3). **Check the SIGN rather than the digits** — the magnitude is small on a bar-scaled gauge, and a sign error is the whole fault this catches. **`Tools/rcz-channels.py`'s `UNSIGNED_SENTINELS` carries the same figure and must move with any future change to that divide** — nothing would warn you, the check would simply stop matching and report every pressure channel as healthy |
+| 11 — Doc sync and commit | **done** 2026-09-19 | Sync pass run across both repositories. `README.md`: status, hardware and layout blocks, the two new packet sections, the slot map, "Next" and "what is testable". `CLAUDE.md`: the re-arm shape, the mux control read-back, and **a 10 Hz cycle not keeping the bus warm**; the battery-drain estimate flagged as predating both the SDP810s' load and the sixth worker. `CLAUDE.history.md`: a dated entry. `RaceChrono/README.md`: the profile is now knowingly stale and says so. `SystemSetup/logger-perfboard-wiring.md` §5: the build did not change, but the "never sweep" rule is now enforced in code and the note says where. `../ndLouvers/`: Step 0b items 2, 4, 4a and the status block; `CLAUDE.md` trap 1; `pressure-testing.md` §3 preamble, §3.1, new §3.2 and §4 item 9. **Mechanical drift fixed:** "all five workers" → six, "ONE is fitted to mux channel 0" → all five, "refused every time" → bimodal per boot, "the pressure worker will use" → does. **One contradiction surfaced rather than resolved, and the owner settled it:** the `0x3615` harness figure was "145 of 456 transfers" in two files and "145 of 150" in four; the answer is **150 start-continuous commands**, and all six now name the denominator |
+
+**Blockers:** none, in this repository or on the phone. **Step 10 items 1–4 are done and `0x605`–
+`0x607` are subscribed and sent.** What remains is **step 10 item 5 alone** — `Tools/rcz-channels.py`
+against the first `.rcz` carrying the new slots — and it needs a recording rather than a decision,
+so it costs a session and not a trip. **Until it is run, this step's acceptance is unmet**: the
+sentinel and the counter say the definitions are self-consistent, but nothing has yet been decoded
+against the logger's own session record of the same samples, which is the check that found all three
+2026-09-11 faults. **The sentinel check is not retired by having passed** — risk 4 stands: re-run it
+after any edit to the channel list.
+
+**What this plan deliberately did not do, so that nobody reads its completion as more than it is.**
+It produced no pressure measurement and discharged no part of `../ndLouvers/pressure-testing.md` §2.
+It did not decide the role→channel mapping (open item 30a) and the `pressureBaseline` record states
+that absence in a field of its own. It did not add the `~RESET`-on-exhaustion recovery from risk 1,
+which the plan itself says needs its own owner decision. And it did not answer open item 44: every
+boot it ran on was in the non-refusing mode.
+
+<a id="host-shipped-state"></a>
+
+### Host shipped-state audit — moved 2026-09-24
+
+Frozen audit from the original host runbook; paths in the quoted text are relative to
+`SystemSetup/`. Current instructions and status are in that runbook.
+
+#### 0. Measured state of the box — **as it shipped, before any change**
+
+Read off the machine on 2026-09-09 by `audit-boot.sh`. These are measurements, not assumptions;
+the full output is the artefact this section summarises.
+
+> **⚠ This section is the BEFORE state and is deliberately frozen.** Steps 3 and 5 have since
+> been run (2026-09-09). It is kept as written because it is the baseline the after-audit is
+> diffed against, and rewriting it would destroy the only record of what the box shipped as.
+> **Do not read it as current.** Four items in it are now false by design — item 5 (buses not
+> configured), item 6 (missing tools), item 7 (Bluetooth soft-blocked) and item 8a (volatile
+> journal) are exactly what steps 3 and 5 changed. **Item 9 (sensor zone not built) is now false
+> too**, but by the owner assembling the board rather than by anything in this runbook — see
+> correction 32, which retires the empty-bus expectations that item 9 justified. **The `Work Progress` table at the bottom of
+> this file is the authority on current state**, and the corrections sections after it record
+> what running the scripts actually found.
+
+1. **Hardware:** Raspberry Pi 4 Model B Rev 1.5, 4 GB. Powered from the HW-384 buck module through
+   the USB-C pigtail (`J1`); the GPIO 5 V pins are not in the power path.
+2. **OS:** Raspberry Pi OS Lite 64-bit on Debian 13 (trixie), kernel `6.18.34+rpt-rpi-v8`.
+   `/boot/firmware/config.txt` is the boot config path. NetworkManager is the network stack.
+   Root filesystem 118 GB, 4% used.
+3. **Access:** hostname `KnurLogger`, SSH alias `KnurLogger` → `192.168.118.52`, user `chrum`,
+   key-only.
+4. **Boot: 19.468 s total** (2.004 s kernel + 17.463 s userspace), `multi-user.target` at
+   11.305 s. The slowest units were `NetworkManager-wait-online` at **5.983 s**, NetworkManager
+   itself at 5.565 s, and cloud-init at **2.53 s across five units**.
+5. **Buses are not configured.** No `/dev/i2c-*`, no `w1` bus, and `config.txt` is stock.
+5a. **I2C needs two things, 1-Wire needs one.** `dtparam=i2c_arm=on` registers the adapter but
+   does **not** create `/dev/i2c-1`; that needs the `i2c-dev` module, and nothing on this image
+   loads it — `/etc/modules` holds only comments and there is no modalias path for it.
+   `raspi-config`'s `do_i2c` does both steps. 1-Wire has no equivalent gap: `w1_therm` carries the
+   alias `w1-family-0x28`, so the w1 core loads it on discovering a DS18B20, and `do_onewire`
+   accordingly only writes the overlay line.
+5b. **`sudo` requires a password.** Pre-flight runs pipe fine over `ssh host 'bash -s'`; any
+   `--execute` run must be done from a login shell on the box, because a piped stdin has no
+   terminal to type a password into.
+6. **Missing tools:** `i2c-tools`, `cmake`, `git`, and the GLib development package. `gcc`,
+   `g++`, `pkg-config`, `nmcli`, `bluetoothctl` and **`rfkill`** are present — `rfkill` lives in
+   `/usr/sbin`, which is not on `PATH` for a non-interactive SSH session or a non-root login
+   shell on Debian, so a naive `command -v` reports it missing when it is not. Every script here
+   prepends the sbin directories for that reason. `i2cdetect` will land in `/usr/sbin` too.
+7. **Bluetooth is SOFT-BLOCKED, and this is the most consequential thing on the box.** `hci0`
+   exists on the UART bus, `D8:3A:DD:3C:50:6E`, but `rfkill list` reports `Soft blocked: yes` and
+   BlueZ reports `PowerState: off-blocked`. **BLE is the product, and in this state there is
+   none.** Two traps: `bluetoothctl power on` cannot clear a soft block, because rfkill sits below
+   BlueZ; and the block is **persistent** — `systemd-rfkill` saves per-device state under
+   `/var/lib/systemd/rfkill/` and restores it at boot, so it survives reboots. `sudo rfkill
+   unblock bluetooth` clears it and is saved back the same way. Step 5 phase 7 does this.
+   There is no `hciuart.service` on this image — the controller is attached by udev.
+8. **Swap is zram**, `/dev/zram0`, 2 GB, priority 100. There is no `dphys-swapfile`.
+8a. **The journal is currently VOLATILE.** Raspberry Pi OS ships
+   `/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf` setting `Storage=volatile`, so
+   the journal lives in `/run` (8 MB there now) and never touches the card. Step 5 phase 6
+   **deliberately overrides that vendor SD-protection default** — see the trade recorded there.
+8b. **`fake-hwclock` is not installed and the clock in the car will be wrong.** A Pi 4B has no
+   RTC. `systemd-timesyncd` saves the time to `/var/lib/systemd/timesync/clock` and restores it at
+   boot, so nothing is stamped 1970 — but with no NTP in the car the clock resumes from the last
+   bench sync and is wrong by however long ago that was, while looking plausible. **The consequence
+   drawn at the time — that the logger must record an offset against an external time source at
+   session start — is SUPERSEDED**: RaceChrono stamps every source on arrival, and the DIY BLE
+   protocol carries no time transfer to fetch a GPS time with. What the logger does instead is
+   record elapsed-since-boot alongside the wall clock in every local record. See
+   `../CLAUDE.history.md` §2.5; do not build a GPS-time fetch.
+9. **The sensor zone is not built.** Only the perfboard's power zone is soldered, so an empty I2C
+   scan and an empty 1-Wire directory are the expected results throughout, not failures.
+   **SUPERSEDED 2026-09-09** — the sensor zone is now assembled, minus the pressure sensors, so
+   neither is an expected result any more (`../CLAUDE.history.md` §2.6). This finding stands as
+   the state at the time of the audit only.
+
+---
+
+### 2026-09-24 — restructuring sync findings
+
+1. Mechanical drift: the pressure procedure still called the completed span fit unfinished;
+   Step 0b retained a three-of-six-rungs snapshot; the logger introduction still excluded pneumatic
+   testing after bell testing existed. Current entries now point at the result/progress owners.
+2. The completed pressure implementation plan still instructed a future reader to add
+   `roleMappingNote`, removed by the owner's 2026-09-23 decision. Its historical record is
+   preserved; the current plan retains only the outstanding recording audit and retirement guard.
+3. The logger history incorrectly inferred retirement from absence in the router. The header now
+   follows the owner's rule: absence is not proof, and current subsystem documents govern.
+4. Substantive conflict remains unresolved: the pressure procedure divides by a response factor,
+   while the former logger summary said multiply. `KnurLogger/pressure-correction.md` explains the
+   physical meaning and a worked numerical example. The owner requested context, not a decision.
+5. Unwritten dependency: live barometric correction needs a rule for stale/invalid BME280 input
+   and a reproducible association between each correction and its input. The implementation handoff
+   records these as questions, not silently chosen behavior.
+6. Existing bell stability and height-correction questions remain open items 55–56. The host
+   read-only-root decision remains open despite its obsolete pre-event deadline.
