@@ -2690,3 +2690,14 @@ is a plan activity with acceptance criteria this file does not restate.
    uncorrected cycle. The worker now waits up to 2 s for the first valid absolute pressure.
 3. **Code comments cite no documents** (owner, now in the global instructions). Plan step 3.1
    had asked the `correctPressure` comment to point at the plan; that instruction is withdrawn.
+
+## 2026-09-24 — pressure correction: records, deployment and documents (steps 4–7)
+
+1. Records carry `correctedPa`, the held absolute pressure and its age, and `sentMask`; `0x607`
+   byte 1 changed meaning from raw validity to what was sent. `pressureBaseline` carries the
+   correction in force, and `Tools/pressure-correction-check.py` recomputes a session from it.
+2. Deployed the same evening with every line length 0. The production `.ini` was hand-merged, then
+   at the owner's request its comments were brought to the template's wording, which made it
+   byte-identical to `build/KnurLogger.ini`. The earlier production comments cited documents.
+3. Sessions recorded before this build carry the raw reading on the air and have no `correction`.
+

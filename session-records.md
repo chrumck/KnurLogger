@@ -9,13 +9,32 @@ comparisons live in the ndLouvers pressure and thermal companions.
    are cumulative totals, including counters inside `channels[]`. Use the last record for
    a session total and differences between adjacent records for increments. Never sum totals.
 2. Count invalid cycles using `valid`/`reason` or `validMask`, not a nonzero cumulative counter.
-   The rule applies to pressure, enclosure and temperature records.
+   The rule applies to pressure, enclosure and temperature records. For what reached the phone
+   on a pressure channel, use `sentMask`; see the pressure correction below.
 3. `appData.i2c.*` is shared across workers. An I2C count in a pressure record includes other
    bus users; the record containing it does not identify which sensor failed.
 4. Check device presence before interpreting exhausted transfers. A missing device is different
    from a present device whose transfers fail.
 5. A skipped BME280 measurement invalidates the enclosure values without necessarily incrementing
    the transfer-error count. Read status and validity rather than errors alone.
+
+## Pressure correction
+
+1. `pressurePa` is the raw reading and is never corrected. `correctedPa` is what went on the air,
+   null when nothing did, and `sentDeciPa` is its wire form or `-32768`.
+2. `validMask` is the raw validity; `sentMask` is what `0x607` byte 1 carried. A channel with
+   `valid: true` and a reason of `absolutePressureMissing`, `absolutePressureStale` or
+   `correctedOutOfRange` was read correctly but not sent.
+3. `absolutePressurePa` and `absolutePressureAgeMs` are the held BME280 value the cycle read,
+   including one too old to use — its age is the reason. Both are null before the first valid
+   BME280 pressure.
+4. A held value serves for up to 10 s; past that every enabled channel is sent invalid until the
+   BME280 reads again. One `warning` event marks the loss and one `info` event the recovery. At
+   start the worker waits up to 2 s for the first value, so a normal session has neither.
+5. `pressureBaseline.correction` holds the parameters in force, per enabled slot with its computed
+   `linePathResistance`. `Tools/pressure-correction-check.py` recomputes every `correctedPa` from
+   it and checks the stale-hold events. A session with no `correction` was recorded before the
+   correction existed and carried the raw value on the air.
 
 ## Clocks and alignment
 

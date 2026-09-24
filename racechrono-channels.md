@@ -71,7 +71,7 @@ table is the readable view of it. Packet IDs are decimal, which is what the CAN-
 | 1542 | 4–5 | `Digital Front 21` | sample cycles — free-running |
 | 1542 | 6–7 | `Digital Front 22` | last cycle, ms |
 | 1543 `0x607` | 0 | `Digital Front 23` | channels enabled, bitmask |
-| 1543 | 1 | `Digital Front 24` | valid-this-cycle mask |
+| 1543 | 1 | `Digital Front 24` | sent-this-cycle mask |
 | 1543 | 2–3 | `Digital Front 25` | read errors |
 | 1543 | 4–5 | `Digital Front 26` | CRC failures |
 | 1543 | 6 | **`Temperature Front 20`** | sensor temperature, lowest enabled channel |
@@ -317,10 +317,16 @@ zero-drop measurement was made off those two.
 
 ### `0x605` and `0x606` — the six pressure channels
 
-**Nothing on these channels is a pressure measurement.** They carry what the five SDP810s report
-with every port open to whatever air is around them; the pneumatic rig — wands, tubing, filters,
-drainage — is unbuilt, and `../ndLouvers/pressure-testing.md` §2 is the qualification none of this
-discharges. What exists is the channel a measurement will one day travel down.
+**Nothing on these channels is a pressure measurement yet.** They carry what the five SDP810s
+report with every port open to whatever air is around them; the pneumatic rig — wands, tubing,
+filters, drainage — is not installed, and `../ndLouvers/pressure-testing.md` §2 is the
+qualification none of this discharges. What exists is the channel a measurement will travel down.
+
+**The value on the air is the corrected pressure, not the raw reading** (since 2026-09-24): the
+reading divided by the density factor `P_abs / 96 600 Pa` and by `(1 + ε±)`, plus the loss along the
+slot's lines. With every line length configured as 0, which it is until the routes are measured,
+only the density and span terms act. The equations below are unchanged; `pressure-correction.md`
+owns the correction and `session-records.md` the record fields that let a session recompute it.
 
 | Packet | Bytes | Channel | Equation | Invalid |
 |---|---|---|---|---|
@@ -373,8 +379,9 @@ that governs everything on this link.
 
 **Signed — use `bytesToInt`.** A negative differential is the normal case on half these channels,
 depending only on which port the tube lands in, so an unsigned decode corrupts ordinary data rather
-than only the sentinel. **`-32768` is the no-trustworthy-reading marker** and decodes to **−3.2768
-kPa** — 6.5× the ±500 Pa part's full range and therefore impossible, which is the property an invalid
+than only the sentinel. **`-32768` is the no-trustworthy-reading marker** — also sent for a good
+reading that could not be corrected, because the BME280's absolute pressure is missing or more than
+10 s old — and decodes to **−3.2768 kPa** — 6.5× the ±500 Pa part's full range and therefore impossible, which is the property an invalid
 marker needs, because RaceChrono holds the last value it received indefinitely.
 
 > **⚠ ZERO IS A COMPLETELY PLAUSIBLE DIFFERENTIAL PRESSURE, WHICH MAKES THE SENTINEL MATTER MORE
@@ -402,7 +409,7 @@ pressure side. Recording which *part* sits on which channel (the `pressureBaseli
 | Bytes | Content | Equation | Expected with five sensors |
 |---|---|---|---|
 | 0 | channels enabled, bitmask, bit *n* = `P<n>` | `bytesToUint(raw, 0, 1)` | **31** — channels 0–4 |
-| 1 | valid-this-cycle bitmask, bit *n* = `P<n>` | `bytesToUint(raw, 1, 1)` | **31**, and staying there |
+| 1 | sent-this-cycle bitmask, bit *n* = `P<n>`: read validly **and** corrected | `bytesToUint(raw, 1, 1)` | **31**, and staying there |
 | 2–3 | cumulative read errors, saturating | `bytesToUint(raw, 2, 2)` | **0** |
 | 4–5 | cumulative CRC failures, saturating | `bytesToUint(raw, 4, 2)` | **0** |
 | 6 | sensor temperature of the lowest enabled channel, °C; **−128** when that channel has no valid reading this cycle | `bytesToInt(raw, 6, 1)` | bench ambient |
@@ -410,7 +417,8 @@ pressure side. Recording which *part* sits on which channel (the `pressureBaseli
 
 **Byte 1 is how an invalid channel is seen from the phone without decoding the sentinel**, exactly
 as `0x603` byte 1 works for the probes. Byte 0 beside it separates "that channel is switched off in
-the config" from "that channel failed": a bit in 0 and not in 1 is a sensor that did not read.
+the config" from "that channel failed": a bit in 0 and not in 1 is a sensor that did not read, or a
+reading that could not be corrected. The session record's per-channel `reason` says which.
 
 > **⚠ BYTES 2–3 AND BYTES 4–5 ARE TWO COUNTERS ON PURPOSE, AND COLLAPSING THEM WOULD REPEAT A FAULT
 > THIS PROJECT HAS ALREADY PAID FOR.** Read errors count *transfers that did not complete*; CRC

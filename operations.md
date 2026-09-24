@@ -51,8 +51,7 @@ points at `/home/chrum/bin/KnurLogger`, not at the build tree.
 > any missing key, the deploy never touches `~/bin/KnurLogger.ini`, and the service restarts every
 > 5 s forever (`Restart=always`). Before deploying a build that adds a key, hand-merge it into
 > `~/bin/KnurLogger.ini` — the pre-flight's diff of the two files shows what is missing — then
-> deploy and check `systemctl status KnurLogger`. The pressure correction of
-> `../ndLouvers/pressure-testing.md` §2.4 step 4 will be such a build.
+> deploy and check `systemctl status KnurLogger`.
 
 > **⚠ The production `.ini` is not in git, so nothing else backs up a calibration or a binding.**
 > After enrolling or entering offsets at the car, copy `~/bin/KnurLogger.ini` into the repo as
@@ -215,6 +214,22 @@ Five things to know:
 **The logger takes no automatic session-start sample and makes no judgement about whether the car
 was settled** — see `CLAUDE.history.md` §3.1 for why that was tried, measured failing, and
 dropped.
+
+## Pressure correction settings
+
+Hand-edited in the `[pressure]` section of `KnurLogger.ini`; `pressure-correction.md` owns what they
+mean and how they combine. A missing or out-of-range key for an **enabled** channel is a startup
+failure, and the template's header lists the bounds.
+
+1. `tubingResistancePerMetre` and `lineFixedResistance` are global, and `p<N>SpanPositive`,
+   `p<N>SpanNegative`, `p<N>BypassCoefficient` and `p<N>BypassExponent` are per slot. Their values
+   come from the bench: `../ndLouvers/pressure-testing.md` §3.3a and §3.3b. Like the thermal
+   offsets they are keyed to the slot, so **re-check them after moving a sensor.**
+2. `p<N>LineLengthHighM` and `p<N>LineLengthLowM` are the route lengths in metres, 0 for a port
+   open to the bay. **They stay 0 until the lines are cut on the car**, then are entered from the
+   measured routes (plan step 8).
+3. After editing, restart the service, check that the new session's `pressureBaseline.correction`
+   shows the values, and back the file up into `build/KnurLogger.ini` as above.
 
 ## Testing the 1-Wire path without probes
 
