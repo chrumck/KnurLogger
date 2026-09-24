@@ -26,7 +26,7 @@ apart deliberately (owner decision, 2026-09-10):
 | | Path | Owned by | Carries |
 |---|---|---|---|
 | dev | `~/KnurLogger/build/KnurLogger.ini` | git, overwritten by every sync | the seed, and the **version-controlled backup** of whatever was last copied back |
-| production | `~/bin/KnurLogger.ini` | the box and `--enroll` | the live ROM ID bindings and offsets |
+| production | `~/bin/KnurLogger.ini` | the box and `--enroll` | the live ROM ID bindings, offsets and pressure correction settings |
 
 The dev copy is not permanently empty: it carries the four ROM IDs enrolled on 2026-09-10, copied
 back after the trip. That is what makes it a backup rather than only a template — a fresh box
