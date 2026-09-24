@@ -14,7 +14,7 @@ RaceChrono over BLE and retains raw readings and diagnostics in append-only loca
 | Diagnose I2C or change sensor acquisition | [Hardware interfaces](hardware-interface.md) |
 | Change thermal sampling | [1-Wire probes](one-wire-probes.md) |
 | Interpret counters and clocks | [Session records](session-records.md) |
-| Implement pressure correction | [Correction requirements](pressure-correction.md) |
+| Implement pressure correction | [Correction plan](pressure-correction.md) |
 | Wire the board | [Perfboard build sheet](SystemSetup/logger-perfboard-wiring.md) |
 | Configure the host or inspect setup progress | [Host runbook](SystemSetup/pi-headless-setup.md) |
 | Restore the phone profile | [RaceChrono profile](RaceChrono/README.md) |

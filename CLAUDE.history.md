@@ -2661,3 +2661,21 @@ the supply is qualified alone, first, and the expensive parts go on last.
 
 **Stop and go back to the plan at step 10.** Everything up to there is assembly; commissioning
 is a plan activity with acceptance criteria this file does not restate.
+
+---
+
+## 2026-09-24 — pressure correction: the direction settled, and the plan written
+
+1. **Divide, by owner decision.** The pressure procedure wrote `P = reading / g(P)`; the former
+   logger router and README said to multiply by the barometric factor. The SDP810 is a thermal
+   mass-flow sensor calibrated at 966 mbar, so a reading is high by `P_abs/966 mbar` and dividing
+   removes it; multiplying applies it twice (a true 100 Pa at 1006.5 mbar would show as 108.6 Pa).
+   The bench ladder only closed with division. **The multiply wording is withdrawn; do not
+   implement it.**
+2. **Stale absolute pressure:** hold the last valid BME280 value for up to 10 s, then invalidate
+   every corrected channel until it recovers; log the value used and its age per record.
+3. **Configuration shape:** global `r` and `R_fixed`, per-slot line lengths, span pair and
+   bypass-resistance fit, with `R_path` computed in code.
+4. `pressure-correction.md` became the implementation plan (eight steps, Work Progress). The line
+   resistance inputs are ndLouvers `pressure-testing.md` §3.3a (`r` = 3.1 × 10⁶ /m, settled the
+   same day).
