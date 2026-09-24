@@ -686,6 +686,8 @@ Tools/                offline diagnostics; nothing here runs on the box
                         equation — the phone's channel list, audited without the phone
   bell-marks.py         evaluate calibration-bell marks against one pressure channel of a
                         session, on the as-built bell constants and the barometric factor
+  ladder-fit.py         re-derive every ladder mark in force and fit each sensor's span
+                        term: constant, sign split, slope, per-rung offsets, validation
 
 3DPrinting/           every printed part for both boxes — enclosure, sensor holders, boom
                       tip, and the calibration bell (calibrationBell.md owns its constants)

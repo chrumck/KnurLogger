@@ -1,4 +1,4 @@
-"""Fit the SDP810 span term eps across the bench ladder (../ndLouvers/pressure-testing.md §2.7).
+"""Fit the SDP810 span term eps across the bench calibration ladder.
 
 Usage:  python Tools/ladder-fit.py [sessions_dir]      (default ../KnurLoggerData/sessions)
 
@@ -17,7 +17,7 @@ import numpy as np
 
 SESS = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), '..', '..', 'KnurLoggerData', 'sessions')
 LOCAL = timedelta(hours=2)
-K_M, K_D, A_O, P_CAL, R_SHORT = 0.5639, 0.2414, 18146.0, 96600.0, 2.01e6   # must match pressure-testing.md §2.2a
+K_M, K_D, A_O, P_CAL, R_SHORT = 0.5639, 0.2414, 18146.0, 96600.0, 2.01e6   # as-built bell; same as bell-marks.py
 MASS = {1: (104.5, 5.7), 2: (190.5, 16.5), 3: (296.2, 51.5), 4: (386.2, 39.5), 5: (530.3, 59.2), 6: (823.9, 95.4)}
 # mL/s from the run sheet's sink estimates, for rungs without a 65/70 mm pair
 Q_ASSUMED = {1: 0.288, 2: 0.484, 3: 0.642, 4: 0.877, 6: 1.512}
