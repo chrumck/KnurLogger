@@ -423,6 +423,14 @@ void sampleBme280() {
     appData.bme280.lastReadMs = reading.readMs;
     if (reading.isReadError) { appData.bme280.readErrors++; }
 
+    // Value before time, and getHeldAbsolutePressure reads them the other way round: a reader that
+    // catches the pair mid-update then sees the new value with the old time, which overstates the
+    // age by one cycle rather than understating it.
+    if (reading.isPressureValid) {
+        appData.bme280.heldPressurePa = reading.pressurePa;
+        appData.bme280.heldPressureBootUs = getBootTimeUs();
+    }
+
     // A read that fails after the part had been answering means it has gone away or reset. Drop
     // the bus so the next cycle re-opens and re-initialises it rather than reading a part whose
     // configuration is no longer what this worker thinks it is.
@@ -471,6 +479,16 @@ void sampleBme280() {
 
     publishEnclosurePacket(reading);
     publishEnclosureStatusPacket(reading);
+}
+
+gboolean getHeldAbsolutePressure(gdouble* outPa, guint64* outAgeMs) {
+    guint64 heldBootUs = appData.bme280.heldPressureBootUs;
+    if (heldBootUs == 0) { return FALSE; }
+
+    *outPa = appData.bme280.heldPressurePa;
+    auto nowUs = getBootTimeUs();
+    *outAgeMs = nowUs > heldBootUs ? (nowUs - heldBootUs) / 1000 : 0;
+    return TRUE;
 }
 
 // Identity and calibration data are logged at boot. For an SDP810 that is product, revision and

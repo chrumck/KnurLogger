@@ -74,6 +74,18 @@ namespace chr = std::chrono;
 // whole main bus (see the mux prohibition below). The list is what the sampling loop iterates, so
 // a channel that is not in it can never be selected by accident.
 #define CONFIG_KEY_PRESSURE_CHANNELS_ENABLED "pressureChannelsEnabled"
+// Pa·s/m³, and global because every line on the car is cut from the same stock and carries the
+// same filter, wand and port connector.
+#define CONFIG_KEY_TUBING_RESISTANCE_PER_METRE "tubingResistancePerMetre"
+#define CONFIG_KEY_LINE_FIXED_RESISTANCE "lineFixedResistance"
+// Keyed to the slot, like the thermal offsets, although the span pair and the bypass fit belong to
+// a particular SDP810: a sensor moved to another slot takes neither with it.
+#define CONFIG_KEY_PRESSURE_SPAN_POSITIVE_FORMAT "p{}SpanPositive"
+#define CONFIG_KEY_PRESSURE_SPAN_NEGATIVE_FORMAT "p{}SpanNegative"
+#define CONFIG_KEY_PRESSURE_LINE_LENGTH_HIGH_M_FORMAT "p{}LineLengthHighM"
+#define CONFIG_KEY_PRESSURE_LINE_LENGTH_LOW_M_FORMAT "p{}LineLengthLowM"
+#define CONFIG_KEY_PRESSURE_BYPASS_COEFFICIENT_FORMAT "p{}BypassCoefficient"
+#define CONFIG_KEY_PRESSURE_BYPASS_EXPONENT_FORMAT "p{}BypassExponent"
 
 #define CONFIG_GROUP_DEBUG "debug"
 #define CONFIG_KEY_VERBOSE_MODE "verboseMode"
@@ -277,6 +289,21 @@ namespace chr = std::chrono;
 #define PRESSURE_DECI_PA_INVALID INT16_MIN
 #define PRESSURE_DECI_PA_PER_PA 10.0
 
+// The datasheet's calibration pressure; a mass-flow sensor reads high in proportion to density.
+#define SDP810_CALIBRATION_ABSOLUTE_PA 96600.0
+// A steep climb moves the absolute pressure about 0.2 % in 10 s.
+#define PRESSURE_ABSOLUTE_HOLD_MS 10000
+
+// Wide on purpose: they reject a typo, not an unexpected fit.
+#define PRESSURE_TUBING_RESISTANCE_MIN 1e5
+#define PRESSURE_TUBING_RESISTANCE_MAX 1e8
+#define PRESSURE_LINE_FIXED_RESISTANCE_MAX 1e8
+#define PRESSURE_SPAN_MAX 0.05
+#define PRESSURE_LINE_LENGTH_MAX_M 20.0
+#define PRESSURE_BYPASS_COEFFICIENT_MIN 1e7
+#define PRESSURE_BYPASS_COEFFICIENT_MAX 1e9
+#define PRESSURE_BYPASS_EXPONENT_MAX 2.0
+
 // Writing 0x00 to the PCA9548A's control register connects no channel at all. The bus is left this
 // way at the end of every cycle and on shutdown, so no downstream segment is ever bridged onto the
 // main bus while nothing is reading it.
@@ -374,6 +401,15 @@ typedef struct {
     // the n-th enabled channel", and an index-into-a-list is one off-by-one away from selecting a
     // channel nobody enabled.
     gboolean pressureChannelsEnabled[PRESSURE_CHANNEL_COUNT];
+
+    gdouble tubingResistancePerMetre;
+    gdouble lineFixedResistance;
+    gdouble pressureSpanPositive[PRESSURE_CHANNEL_COUNT];
+    gdouble pressureSpanNegative[PRESSURE_CHANNEL_COUNT];
+    gdouble pressureLineLengthHighM[PRESSURE_CHANNEL_COUNT];
+    gdouble pressureLineLengthLowM[PRESSURE_CHANNEL_COUNT];
+    gdouble pressureBypassCoefficient[PRESSURE_CHANNEL_COUNT];
+    gdouble pressureBypassExponent[PRESSURE_CHANNEL_COUNT];
 
     gboolean verboseMode;
 } AppConfig;
@@ -510,9 +546,6 @@ typedef struct {
     guint32 readMs;
 } Bme280Reading;
 
-// No lock, for the same reason ThermalData has none: every field is written and read by the
-// bme280Sensor worker alone, and the only cross-thread boundary the data crosses is the BLE
-// packet, which carries its own mutex.
 // Transport-level, and deliberately not part of any one device's state: the mux and the five
 // SDP810s will share this bus and this counter, and a bus that has degraded degrades for all of
 // them at once.
@@ -522,6 +555,8 @@ typedef struct {
     std::atomic<guint64> exhaustedTransfers;
 } I2cBusData;
 
+// No lock, for the same reason ThermalData has none: every field but the held pressure pair is
+// written and read by the bme280Sensor worker alone, and the BLE packet carries its own mutex.
 typedef struct {
     gint fd;
     gboolean isPresent;
@@ -534,6 +569,11 @@ typedef struct {
     guint32 lastReadMs;
 
     Bme280Reading lastReading;
+
+    // The one cross-thread read of this struct, for the pressure correction. Only ever a valid
+    // value, so it can be held through a dropout; a boot time of 0 means none has been read yet.
+    std::atomic<gdouble> heldPressurePa;
+    std::atomic<guint64> heldPressureBootUs;
 
     // Rate limiters, so a permanent condition produces one record rather than one per second.
     // The 1-Wire worker learned this the expensive way: 863 identical warnings in 14 minutes at
@@ -556,14 +596,19 @@ typedef struct {
     guint16 scaleFactor;
     gint16 rawTemperature;
 
-    // Full resolution, for the session file. pressureDeciPa is the lossy form that goes on the air.
+    // Full resolution, for the session file. pressureDeciPa is the lossy form of correctedPa that
+    // goes on the air.
     gdouble pressurePa;
+    gdouble correctedPa;
+    gboolean isCorrected;
     gint16 pressureDeciPa;
     gint16 temperatureCentiC;
 
     // All three words of the frame carry their own CRC and all three are checked. A CRC failure is
     // INVALID DATA, never a carried-forward value.
     gboolean crcOk;
+    // Also set, with isValid left TRUE, when a valid reading could not be corrected: the raw
+    // reading is still trustworthy and logged, but nothing goes on the air for it.
     const gchar* invalidReason;
     // Set only by failures that say something about the BUS, so a reading rejected for being out
     // of range is not confused with a transfer that did not complete. 0x607 keeps the two counts
@@ -620,6 +665,8 @@ typedef struct {
     // buried two important messages under 863 identical warnings at 1 Hz.
     gboolean isBusFailureReported;
     gboolean isChannelRefusalReported;
+    // Unlike the two above, cleared on recovery, so each loss and each recovery is one record.
+    gboolean isAbsolutePressureRefusalReported;
 
     std::atomic<bool> isRunning;
 } PressureData;

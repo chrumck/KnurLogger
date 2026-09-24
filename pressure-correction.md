@@ -105,15 +105,18 @@ key — when one enabled slot's key is deleted.
 
 1. Add `gdouble getLinePathResistance(gint slot)` and
    `gboolean correctPressure(gint slot, gdouble readingPa, gdouble absolutePa, gdouble* outPa)`
-   implementing the section above exactly. Its comment states the divide decision in one line and
-   points at this file.
-2. In `samplePressure()`, read the held absolute pressure once per cycle. For each valid raw
+   implementing the section above exactly. Its comment states the divide decision in one line; it
+   does not cite this file.
+2. At start the worker waits up to 2 s (`PRESSURE_ABSOLUTE_START_WAIT_MS`) for the first valid
+   absolute pressure before its first cycle, so a normal start sends no uncorrected cycle and logs
+   no stale event; past the bound it samples anyway and reports the pressure missing.
+3. In `samplePressure()`, read the held absolute pressure once per cycle. For each valid raw
    reading: if the held value exists and is no older than `PRESSURE_ABSOLUTE_HOLD_MS`, correct it;
    otherwise the channel's sent value is `INT16_MIN` with reason `absolutePressureStale` (or
    `absolutePressureMissing`). **The raw `pressurePa` is kept unchanged.**
-3. `pressureDeciPa` — what goes on the air — becomes the corrected value. The raw value stays in
+4. `pressureDeciPa` — what goes on the air — becomes the corrected value. The raw value stays in
    the record at full resolution beside it.
-4. Log one `event` record when the absolute pressure goes stale and one when it recovers, not one
+5. Log one `event` record when the absolute pressure goes stale and one when it recovers, not one
    per cycle (the rate-limiter pattern of `isChannelRefusalReported`).
 
 **Acceptance:** a throwaway test harness, or a temporary `--selftest` path removed before commit,
@@ -186,9 +189,9 @@ slot matches the measured lengths.
 | Step | Status | What was done |
 |---|---|---|
 | Decisions: direction, stale input, config shape | **done** 2026-09-24 | Owner: divide; hold 10 s then invalidate; constants plus lengths |
-| 1 — config keys and data contracts | not started | |
-| 2 — share the BME280 absolute pressure | not started | |
-| 3 — the correction | not started | |
+| 1 — config keys and data contracts | **done** 2026-09-24 | Keys, bounds and `AppConfig` arrays in `dataContracts.hpp`; `config.cxx` loads the globals and every enabled slot's six keys; template carries the step 1.3 values and a header note. Built on the box; a hand-run starts with the template; deleting `p3BypassExponent` or `tubingResistancePerMetre` refuses naming the key, `p2SpanPositive=0.5` refuses as out of range, and a disabled `P3` with its keys deleted starts |
+| 2 — share the BME280 absolute pressure | **done** 2026-09-24 | `heldPressurePa`/`heldPressureBootUs` atomics on `Bme280Data` (value written before time, read after, so a torn read overstates the age); written only on a valid pressure; `getHeldAbsolutePressure()` in `bme280Sensor.cxx`. Checked on the box with a temporary print never committed: five held values over 6 s equal the `enclosure` records' `enclosurePressurePa` exactly, ages within 1 ms of the records' `bootUs`. The first pressure cycle ran ~1 ms before the BME280's first sample, which step 3's start wait now covers |
+| 3 — the correction | **done** 2026-09-24 | `getLinePathResistance()`, `correctPressure()`, `applyPressureCorrection()` and a one-shot stale/recover event pair in `pressureSensors.cxx`; `SdpReading` gains `correctedPa`/`isCorrected`, and `pressureDeciPa` is now the corrected value or `INT16_MIN`. A valid-but-uncorrected channel keeps `valid: true` with reason `absolutePressureMissing`, `absolutePressureStale` or `correctedOutOfRange` (past the wire's int16). A throwaway harness, never committed, built against the real sources on the box: every reference row within 0.0004 Pa, the template's `P1` loaded correctly, the sentinel cases send `INT16_MIN` with the raw value unchanged, and the hold holds at 9.9 s and goes stale at 10.1 s. The worker waits up to 2 s at start for the first absolute pressure: three hand-runs sent corrected values from the first cycle and logged no absolute-pressure event, and a harness showed the wait ending 3 ms after the value appears and giving up at 2003 ms without one. **Until step 4, `0x607`'s valid mask still describes the raw reading, so do not deploy this state** |
 | 4 — records and packets | not started | |
 | 5 — offline check | not started | |
 | 6 — deploy | not started | |

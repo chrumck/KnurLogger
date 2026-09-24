@@ -1,7 +1,7 @@
 # Pressure acquisition — delivery and remaining verification
 
 The acquisition implementation is delivered. The remaining acceptance is a recording audit;
-this is distinct from the unimplemented [pressure correction](pressure-correction.md).
+this is distinct from the [pressure correction](pressure-correction.md).
 Update Work Progress below after executing the audit, with the recording paths and outcome.
 
 The original completed steps and evidence are in

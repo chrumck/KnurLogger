@@ -26,6 +26,9 @@
 // The retry for the idle-bus refusal lives in i2cBus.cxx and is deliberately not duplicated here.
 
 #define PRESSURE_IDLE_SLEEP_US 5000
+// The BME280 samples as soon as its worker starts, so the wait normally ends within tens of
+// milliseconds; the bound stops a BME280 that is not answering from holding up raw logging.
+#define PRESSURE_ABSOLUTE_START_WAIT_MS 2000
 
 // --- Transport ---------------------------------------------------------------------------------
 
@@ -176,9 +179,100 @@ void parseSdpMeasurement(const guint8* frame, gdouble rangePa, SdpReading* out) 
         return;
     }
 
-    out->pressureDeciPa = (gint16)std::lround(out->pressurePa * PRESSURE_DECI_PA_PER_PA);
     out->isValid = TRUE;
     out->invalidReason = NULL;
+}
+
+// --- The correction ----------------------------------------------------------------------------
+
+#define CUBIC_METRES_PER_MILLILITRE 1e-6
+
+// A port with length 0 is open to the bay, so it has no filter, wand or connector either.
+gdouble getLinePathResistance(gint slot) {
+    gdouble resistance = 0.0;
+
+    auto lengthsM = { appConfig.pressureLineLengthHighM[slot], appConfig.pressureLineLengthLowM[slot] };
+    for (auto lengthM : lengthsM) {
+        if (lengthM <= 0.0) { continue; }
+        resistance += appConfig.lineFixedResistance + appConfig.tubingResistancePerMetre * lengthM;
+    }
+
+    return resistance;
+}
+
+// DIVIDE by the density factor, never multiply: the SDP810 reads high in denser air, so
+// multiplying applies the error twice.
+//
+// The pressure across the ports fixes the flow through the sensor's own bypass resistance,
+// a * Q^n with Q in mL/s, and the lines lose that flow times their resistance before the sensor.
+gboolean correctPressure(gint slot, gdouble readingPa, gdouble absolutePa, gdouble* outPa) {
+    if (readingPa == 0.0) {
+        *outPa = 0.0;
+        return TRUE;
+    }
+
+    auto density = absolutePa / SDP810_CALIBRATION_ABSOLUTE_PA;
+    auto span = readingPa >= 0.0
+        ? appConfig.pressureSpanPositive[slot] : appConfig.pressureSpanNegative[slot];
+    auto portPa = std::fabs(readingPa) / (density * (1.0 + span));
+
+    auto flowMl = std::pow(
+        portPa / (appConfig.pressureBypassCoefficient[slot] * CUBIC_METRES_PER_MILLILITRE),
+        1.0 / (appConfig.pressureBypassExponent[slot] + 1.0));
+    auto correctedPa = portPa + flowMl * CUBIC_METRES_PER_MILLILITRE * getLinePathResistance(slot);
+
+    if (!std::isfinite(correctedPa)) { return FALSE; }
+
+    *outPa = std::copysign(correctedPa, readingPa);
+    return TRUE;
+}
+
+const gchar* getUsableAbsolutePressure(gdouble* outPa, guint64* outAgeMs) {
+    if (!getHeldAbsolutePressure(outPa, outAgeMs)) { return "absolutePressureMissing"; }
+    if (*outAgeMs > PRESSURE_ABSOLUTE_HOLD_MS) { return "absolutePressureStale"; }
+    return NULL;
+}
+
+void reportAbsolutePressureChange(const gchar* refusal, gdouble absolutePa, guint64 ageMs) {
+    if (refusal != NULL && !appData.pressure.isAbsolutePressureRefusalReported) {
+        appData.pressure.isAbsolutePressureRefusalReported = TRUE;
+        auto detail = g_str_equal(refusal, "absolutePressureMissing")
+            ? std::string("no valid BME280 pressure yet")
+            : std::format("last valid BME280 pressure {:.2f} Pa is {} ms old", absolutePa, ageMs);
+        g_warning("Pressure: %s (%s); every enabled channel is sent invalid until it returns",
+            refusal, detail.c_str());
+        writeEventRecord("warning", std::format(
+            "{}: {}; every enabled pressure channel sent invalid until it returns", refusal, detail));
+        return;
+    }
+
+    if (refusal == NULL && appData.pressure.isAbsolutePressureRefusalReported) {
+        appData.pressure.isAbsolutePressureRefusalReported = FALSE;
+        g_message("Pressure: absolute pressure back at %.2f Pa; channels corrected again", absolutePa);
+        writeEventRecord("info", std::format(
+            "absolute pressure back at {:.2f} Pa, {} ms old; pressure channels corrected again",
+            absolutePa, ageMs));
+    }
+}
+
+void applyPressureCorrection(gint slot, const gchar* absoluteRefusal, gdouble absolutePa,
+    SdpReading* reading) {
+    reading->pressureDeciPa = PRESSURE_DECI_PA_INVALID;
+
+    if (absoluteRefusal != NULL) {
+        reading->invalidReason = absoluteRefusal;
+        return;
+    }
+
+    // A value past the wire's int16 would wrap into a plausible pressure of the other sign.
+    if (!correctPressure(slot, reading->pressurePa, absolutePa, &reading->correctedPa)
+        || std::fabs(reading->correctedPa) * PRESSURE_DECI_PA_PER_PA > INT16_MAX) {
+        reading->invalidReason = "correctedOutOfRange";
+        return;
+    }
+
+    reading->isCorrected = TRUE;
+    reading->pressureDeciPa = (gint16)std::lround(reading->correctedPa * PRESSURE_DECI_PA_PER_PA);
 }
 
 // --- Identity, and the baseline record ---------------------------------------------------------
@@ -491,6 +585,11 @@ void samplePressure() {
     auto cycleStartUs = getBootTimeUs();
     auto fd = appData.pressure.fd;
 
+    gdouble absolutePa = 0.0;
+    guint64 absoluteAgeMs = 0;
+    auto absoluteRefusal = getUsableAbsolutePressure(&absolutePa, &absoluteAgeMs);
+    reportAbsolutePressureChange(absoluteRefusal, absolutePa, absoluteAgeMs);
+
     guint8 enabledMask = 0;
     guint8 validMask = 0;
     guint validChannelCount = 0;
@@ -541,6 +640,8 @@ void samplePressure() {
             if (i == lowestEnabledChannel) {
                 sensorTemperatureC = (gint16)std::lround(reading.temperatureCentiC / 100.0);
             }
+
+            applyPressureCorrection(i, absoluteRefusal, absolutePa, &reading);
         }
 
         channel.lastReading = reading;
@@ -559,7 +660,7 @@ void samplePressure() {
             reading.isValid ? std::format("{}", (int)reading.rawDifferential) : "null",
             reading.isValid ? std::format("{}", reading.scaleFactor) : "null",
             reading.isValid ? std::format("{:.4f}", reading.pressurePa) : "null",
-            (int)(reading.isValid ? reading.pressureDeciPa : (gint16)PRESSURE_DECI_PA_INVALID),
+            (int)reading.pressureDeciPa,
             reading.isValid ? std::format("{}", (int)reading.rawTemperature) : "null",
             reading.isValid ? std::format("{:.2f}", reading.temperatureCentiC / 100.0) : "null",
             reading.isPresent ? (reading.crcOk ? "true" : "false") : "null",
@@ -592,6 +693,17 @@ void samplePressure() {
 
     publishPressurePackets();
     publishPressureStatusPacket(enabledMask, validMask, sensorTemperatureC);
+}
+
+void waitForAbsolutePressure() {
+    auto deadlineUs = getBootTimeUs() + (guint64)PRESSURE_ABSOLUTE_START_WAIT_MS * 1000;
+    gdouble absolutePa = 0.0;
+    guint64 ageMs = 0;
+
+    while (!appData.shutdownRequested && getBootTimeUs() < deadlineUs
+        && !getHeldAbsolutePressure(&absolutePa, &ageMs)) {
+        g_usleep(PRESSURE_IDLE_SLEEP_US);
+    }
 }
 
 void stopPressureSensors() {
@@ -640,6 +752,7 @@ gpointer pressureSensorsLoop(gpointer _) {
     }
 
     writePressureBaseline();
+    waitForAbsolutePressure();
 
     appData.pressure.isRunning = true;
 

@@ -142,6 +142,37 @@ void loadConfig()
         50, 60000);
     loadPressureChannelsEnabled(config);
 
+    getConfigDouble(tubingResistancePerMetre, CONFIG_GROUP_PRESSURE,
+        CONFIG_KEY_TUBING_RESISTANCE_PER_METRE,
+        PRESSURE_TUBING_RESISTANCE_MIN, PRESSURE_TUBING_RESISTANCE_MAX);
+    getConfigDouble(lineFixedResistance, CONFIG_GROUP_PRESSURE, CONFIG_KEY_LINE_FIXED_RESISTANCE,
+        0.0, PRESSURE_LINE_FIXED_RESISTANCE_MAX);
+
+    // Required rather than defaulted, for the thermal offsets' reason: a correction term that
+    // quietly fell back to zero would be invisible in the data it corrupts.
+    for (auto i = 0; i < PRESSURE_CHANNEL_COUNT; i++) {
+        if (!appConfig.pressureChannelsEnabled[i]) { continue; }
+
+        auto key = std::format(CONFIG_KEY_PRESSURE_SPAN_POSITIVE_FORMAT, i);
+        getConfigDouble(pressureSpanPositive[i], CONFIG_GROUP_PRESSURE, key.c_str(),
+            -PRESSURE_SPAN_MAX, PRESSURE_SPAN_MAX);
+        key = std::format(CONFIG_KEY_PRESSURE_SPAN_NEGATIVE_FORMAT, i);
+        getConfigDouble(pressureSpanNegative[i], CONFIG_GROUP_PRESSURE, key.c_str(),
+            -PRESSURE_SPAN_MAX, PRESSURE_SPAN_MAX);
+        key = std::format(CONFIG_KEY_PRESSURE_LINE_LENGTH_HIGH_M_FORMAT, i);
+        getConfigDouble(pressureLineLengthHighM[i], CONFIG_GROUP_PRESSURE, key.c_str(),
+            0.0, PRESSURE_LINE_LENGTH_MAX_M);
+        key = std::format(CONFIG_KEY_PRESSURE_LINE_LENGTH_LOW_M_FORMAT, i);
+        getConfigDouble(pressureLineLengthLowM[i], CONFIG_GROUP_PRESSURE, key.c_str(),
+            0.0, PRESSURE_LINE_LENGTH_MAX_M);
+        key = std::format(CONFIG_KEY_PRESSURE_BYPASS_COEFFICIENT_FORMAT, i);
+        getConfigDouble(pressureBypassCoefficient[i], CONFIG_GROUP_PRESSURE, key.c_str(),
+            PRESSURE_BYPASS_COEFFICIENT_MIN, PRESSURE_BYPASS_COEFFICIENT_MAX);
+        key = std::format(CONFIG_KEY_PRESSURE_BYPASS_EXPONENT_FORMAT, i);
+        getConfigDouble(pressureBypassExponent[i], CONFIG_GROUP_PRESSURE, key.c_str(),
+            0.0, PRESSURE_BYPASS_EXPONENT_MAX);
+    }
+
     appConfig.verboseMode = g_key_file_get_boolean(config, CONFIG_GROUP_DEBUG, CONFIG_KEY_VERBOSE_MODE, &error);
     if (error != NULL) {
         logErrorAndKill("Error getting config: '%s', error: %s, exiting...",

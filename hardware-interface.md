@@ -55,8 +55,8 @@ working on a physical channel. This file owns software-facing bus rules and diag
    mean. Its roughly 10 ms time constant does not cover the configured 100 ms interval.
    Changing sampling or averaging requires the measurement decision in
    [open item 54](../ndLouvers/work-progress.md); the hardware retry is a separate question.
-5. Pressure correction is specified but not implemented. Read
-   [pressure-correction.md](pressure-correction.md) before changing conversion or configuration.
+5. [pressure-correction.md](pressure-correction.md) owns the pressure correction's decisions and
+   its progress. Read it before changing conversion or configuration.
 
 ## BME280 quantities
 

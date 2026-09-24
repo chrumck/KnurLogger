@@ -2679,3 +2679,14 @@ is a plan activity with acceptance criteria this file does not restate.
 4. `pressure-correction.md` became the implementation plan (eight steps, Work Progress). The line
    resistance inputs are ndLouvers `pressure-testing.md` §3.3a (`r` = 3.1 × 10⁶ /m, settled the
    same day).
+
+## 2026-09-24 — pressure correction: steps 1–3 implemented
+
+1. Configuration keys, the shared BME280 absolute pressure and the correction itself are in the
+   code; `pressure-correction.md` Work Progress records the evidence. Not deployed: step 4 still
+   has to make `0x607`'s valid mask describe the sent value.
+2. **Start wait, by owner decision.** The first pressure cycle ran about 1 ms before the BME280's
+   first sample, so every session began with an `absolutePressureMissing` warning and one
+   uncorrected cycle. The worker now waits up to 2 s for the first valid absolute pressure.
+3. **Code comments cite no documents** (owner, now in the global instructions). Plan step 3.1
+   had asked the `correctPressure` comment to point at the plan; that instruction is withdrawn.
