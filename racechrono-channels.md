@@ -334,7 +334,7 @@ discharges. What exists is the channel a measurement will one day travel down.
 | 1542 | 6–7 | last cycle, ms | `bytesToUint(raw, 6, 2)` | **~16** for five sensors |
 
 **The wire carries signed decipascals — 0.1 Pa/LSB — on all six channels** (owner decision,
-2026-09-19; `../ndLouvers/CFD-Learning-Plan.md` Step 0b commissioning item 4a). `int16` at 0.01 Pa/LSB overflows
+2026-09-19; [ndLouvers instrumentation-spec.md](../ndLouvers/instrumentation-spec.md) commissioning item 4a). `int16` at 0.01 Pa/LSB overflows
 at 327 Pa and cannot carry a ±500 Pa channel, so centipascals would have meant **two decode rules**
 on a list nothing in this code can check — which is exactly how `bytesToUint` survived on
 `Temperature Front 2`. One rule covers all six instead. The resolution thrown away on the ±125 Pa

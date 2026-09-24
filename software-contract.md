@@ -51,8 +51,9 @@ the rest of that subsystem, along with a fifth that was implemented and then **r
   [`one-wire-probes.md`](one-wire-probes.md) §"Requirements this path carries from the plan",
   with the retired session-start thermal sample recorded there too.
 1. **Supply health is logged telemetry, read after a run** (owner decision, 2026-09-09), standing
-  in for a bench instrument on commissioning item 5.7 — **not** for build sheet §10 step 2's
-  meter, which was retired unperformed at rev 105. What to record, and the traps:
+  in for a bench instrument on commissioning item 5.7. It does not replace build sheet §10 step 2's
+  meter, which is retired — do not rebuild it ([ndLouvers risk 14](../ndLouvers/risk-register.md)).
+  What to record, and the traps:
   1. **`vcgencmd get_throttled`** is the useful one, because bits 16–19 **latch** "has occurred
      since boot". That is what makes a 1 Hz sampler unable to miss a transient. Log the live bits
      *and* the sticky bits, and log the **first transition with a timestamp** — "something

@@ -4,9 +4,10 @@
 logging host running only the services a logger needs, with the I2C and 1-Wire buses the perfboard
 expects already configured.
 
-**Subordinate to `../../ndLouvers/CFD-Learning-Plan.md`.** That plan owns requirements and
-acceptance criteria; this file owns the host configuration that satisfies them, and owns no
-measurement decision. Where the two disagree, the plan wins.
+**Subordinate to [ndLouvers instrumentation-spec.md](../../ndLouvers/instrumentation-spec.md).**
+That specification owns requirements and acceptance criteria; this file owns the host
+configuration that satisfies them, and owns no measurement decision. Where the two disagree, the
+specification wins.
 `logger-perfboard-wiring.md` owns pinouts, addresses and bring-up
 order; this file configures the SoC side of the same pins and does not restate them.
 
@@ -27,8 +28,9 @@ Each numbered step is self-contained and states its own background, commands and
    idiom and it is deliberate.
 2. **Bluetooth is never disabled on this box.** iSitePiLogger's `setupNotes.txt` sets
    `dtoverlay=disable-bt`; copying that removes the RaceChrono BLE link, which is the reason box 2
-   exists. The same file sets `dtoverlay=disable-wifi`; box 2 gates Wi-Fi per session instead,
-   because a wheel-well cavity has no Ethernet and Wi-Fi is the only way back in.
+   exists. The same file sets `dtoverlay=disable-wifi`; box 2 keeps Wi-Fi up and blocks it by hand
+   only to diagnose BLE (step 8), because a wheel-well cavity has no Ethernet and Wi-Fi is the only
+   way back in.
 
 ---
 
@@ -321,8 +323,8 @@ track sessions with Wi-Fi left up, so nothing gates it routinely and the logger 
 Gate by hand only when diagnosing a BLE link problem:
 
 ```bash
-sudo rfkill block wifi         # before a run
-sudo rfkill unblock wifi       # after
+sudo rfkill block wifi         # before the diagnostic run
+sudo rfkill unblock wifi       # after, to collect the session files
 ```
 
 `sudo nmcli radio wifi off` does the same through NetworkManager; both are installed. Either is

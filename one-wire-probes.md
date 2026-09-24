@@ -6,7 +6,7 @@ fake-sysfs harness; this file says why each is shaped the way it is and what bre
 `CLAUDE.history.md` holds the faults these guards came from — read it when a statement here
 surprises you, never to reinstate something that looks missing.
 
-**It owns no measurement decision.** `../ndLouvers/CFD-Learning-Plan.md` Step 0b's thermal-channels
+**It owns no measurement decision.** [ndLouvers instrumentation-spec.md](../ndLouvers/instrumentation-spec.md) Step 0b's thermal-channels
 subsection is the authority on what the thermal channels must achieve and what counts as done, and
 `../ndLouvers/thermals-testing.md` holds the rig as built and every recorded result. A disagreement
 between this file and Step 0b is resolved in Step 0b.
@@ -195,7 +195,7 @@ was verified.
 
 ## Requirements this path carries from the plan
 
-These two came from `../ndLouvers/CFD-Learning-Plan.md` rather than from
+These two came from the ndLouvers specification rather than from
 `iSitePiLogger`. A third — an automatic session-start thermal sample — was implemented and
 then **retired whole**; do not rebuild it, and read history §3.1 before concluding it is
 missing by accident.

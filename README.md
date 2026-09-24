@@ -36,12 +36,10 @@ companions. Logger operation is not pressure-channel qualification.
 **Channel names are positional and carry no meaning.** `P0`–`P5` are fixed by mux position;
 `temp0`–`temp3` are fixed by ROM ID at enrollment. The mapping from these to measurement roles
 (`T_ambient`, `T_core_in`, `U`, `X`, `C` …) must be recorded with the session metadata. Do not
-rename a channel after a role. **Pressure is still deliberately undecided. Thermal is decided
-and applied** — installing the probes on the car pinned it, and enrolled in installed order it
-is temp0=`T_ambient`, temp1=`T_core_in`, temp2=`T_core_out`, temp3=`T_aft`. **All four are bound**
-(2026-09-10); `SystemSetup/logger-perfboard-wiring.md` §5a has the ROM IDs. **The role map is
-independently confirmed** — warming each probe in installed order moved `temp0`–`temp3` in that
-order, +3.8 to +5.4 K each.
+rename a channel after a role. The thermal role map and its confirmation are in
+[ndLouvers thermals §1.1](../ndLouvers/thermals-testing.md#11-channels-roles-and-bindings); the
+ROM IDs are in the build sheet's §5a. Pressure role allocation belongs to
+[ndLouvers instrumentation](../ndLouvers/instrumentation-spec.md).
 
 All five SDP810s answer at the same fixed I2C address and cannot be strapped apart, which is why
 the mux is mandatory rather than a convenience.
@@ -69,12 +67,7 @@ bluez_inc/            submodule, github.com/weliem/bluez_inc
 
 build/KnurLogger.ini  config TEMPLATE; the deployed copy is ~/bin/KnurLogger.ini on the box
 
-one-wire-probes.md    the 1-Wire subsystem's traps and standing requirements — read before
-                      touching oneWireProbes.cxx
-
-pressure-worker-plan.md  the implementation plan for the sixth worker: the five SDP810s into
-                      the logged and broadcast data. Numbered steps, four owner decisions at
-                      step 1, and a Work Progress table to update as it is executed
+*.md                  subsystem, operations and plan documents — routed by "Start here" above
 
 Tools/                offline diagnostics; nothing here runs on the box
   rcz-channels.py       decode a RaceChrono .rcz's channel slots and flag a mistyped
@@ -97,7 +90,8 @@ RaceChrono/           the phone's configuration, which lives nowhere else
 SystemSetup/          host configuration; nothing here is logger code
   pi-headless-setup.md    the runbook — start here
   logger-perfboard-wiring.md  the perfboard build sheet — §3a's net list is the authority
-                          on every connection. Subordinate to the plan's Step 0b.
+                          on every connection. Measurement requirements it serves are in
+                          ndLouvers/instrumentation-spec.md.
   audit-boot.sh           read-only survey of what the box runs at boot
   install-dependencies.sh packages the build needs
   harden-headless.sh      boot-time service reduction and bus configuration
@@ -114,7 +108,7 @@ SystemSetup/          host configuration; nothing here is logger code
 |---|---|---|---|
 | Display | 4.3" DSI touchscreen, GTK under `startx` | none | none |
 | Primary record | RaceChrono on the phone | files uploaded over HTTP | **RaceChrono over BLE**; SD card is the durable raw/diagnostic record |
-| Radios | BLE | both disabled | **BLE required**, Wi-Fi gated per session |
+| Radios | BLE | both disabled | **BLE required**, Wi-Fi up (blocked by hand only to diagnose BLE) |
 | Language | C | C++, single translation unit | C++, single translation unit |
 
 **KnurDash** contributes the RaceChrono BLE protocol implementation and its `bluez_inc` usage.
@@ -127,7 +121,7 @@ single-translation-unit CMake build, procedural GLib workers, an `.ini` beside t
 
 1. Its `setupNotes.txt` disables Bluetooth. BLE is this box's product.
 2. Its `setupNotes.txt` disables Wi-Fi. This box lives in a wheel-well cavity with no Ethernet,
-   so Wi-Fi is the only way back in; it is gated per session instead.
+   so Wi-Fi is the only way back in; it stays up and is blocked by hand only to diagnose BLE.
 
 
 ## Next

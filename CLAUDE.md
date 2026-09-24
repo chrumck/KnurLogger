@@ -23,20 +23,19 @@ document below. [README.md](README.md) is the human task map.
 
 ## Working rules
 
+These add to the global instructions (numbered lists, naming, comments, the history split and
+the sync pass); they do not restate them.
+
 1. Name channels positionally: `P0`–`P5` and `temp0`–`temp3`. Never rename a channel for a test
    role. The pitot probes are `T1`/`T2`; pressure role allocation belongs to the measurement project.
 2. Update the owning document when behavior changes. Keep numbers and measured status in their
    owners; do not grow this router or README into another specification or progress report.
-3. Put incidents, superseded reasoning and dated decisions in the existing
-   [CLAUDE.history.md](CLAUDE.history.md). It is not instruction. Absence from a current file is
-   not proof of retirement; investigate before reinstating an old feature.
-4. Keep one-line retirement guards by the affected subsystem. Do not rebuild the router's old
-   incident catalogue — see history, 2026-09-24 document restructuring.
-5. Run the cross-document sync pass after scope, quantity or naming changes, before committing
-   documentation and at wrap-up. Include ndLouvers for shared requirements. Surface substantive
-   conflicts for the owner; fix mechanical drift directly and report findings, including none.
-6. Use numbered lists, behavioral names and comments explaining non-obvious reasons.
-7. Both repositories are public. Keep credentials, keys and hotspot secrets out. Relative links
+3. The history trail is [CLAUDE.history.md](CLAUDE.history.md). Do not rebuild the router's old
+   incident catalogue or the build sheet's bring-up narrative — see its 2026-09-24 entries.
+4. The sync pass includes ndLouvers whenever a shared requirement changes, and runs
+   `python ../ndLouvers/tools/check-markdown-links.py`, which checks both repositories and must
+   report 0 findings.
+5. Both repositories are public. Keep credentials, keys and hotspot secrets out. Relative links
    between sibling repositories work locally and may break on GitHub; do not copy requirements
    across to fix navigation.
 

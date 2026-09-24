@@ -2245,3 +2245,419 @@ the full output is the artefact this section summarises.
    records these as questions, not silently chosen behavior.
 6. Existing bell stability and height-correction questions remain open items 55–56. The host
    read-only-root decision remains open despite its obsolete pre-event deadline.
+
+---
+
+## 2026-09-24 — build sheet: the bring-up record moved out of the current sheet
+
+The build sheet was rewritten to the as-built state and the rules that govern any rework. The
+dated bring-up narrative below was moved intact from it; section, note, item and step numbers
+are the sheet's and still resolve there. The full pre-move sheet is at commit `be861e8`.
+Nothing here is a live instruction.
+
+The same pass (ndLouvers rev 127) cut the router's working rules to what the global instructions
+do not already say, pointed the sync pass at `../ndLouvers/tools/check-markdown-links.py`, and
+fixed README drift: Wi-Fi "gated per session" (gating is manual, for BLE diagnosis only, since
+2026-09-23), the completed pressure-worker plan described as live, and thermal status repeated
+from its ndLouvers owner. Pointers into `CFD-Learning-Plan.md` now name the split file that owns
+the content.
+
+### Former status header
+
+**Status: power zone built and powered; the Pi runs on it; nothing measured.** The supply is
+soldered — an **HW-384 buck module** (`U1`) with its USB-A port removed and pins fitted, plus a
+100 µF output electrolytic (`C12`) — per the owner, 2026-09-07, who judges it sufficient. It has
+been **powered and it powers the Pi**. **No measurement has been taken anywhere on the board, and none is scheduled:**
+§10 step 2 (dummy load) and step 3 (crank transient) were bypassed in 2026-09-07 and **CLOSED
+UNPERFORMED on 2026-09-20** with the rest of the qualification programme (plan risk 14). The only
+rail evidence there is, or will be, is the Pi's own opinion of it: `throttled=0x0` at idle
+(2026-09-09). **One part of that programme was completed rather than retired: `F1` is fitted at
+the car's fuse box**, so the feed run is protected.
+**The sensor zone is now assembled** (owner, 2026-09-09), and **all five SDP810s are fitted and
+read correctly** (2026-09-19 — §5 has every product number, serial and scale factor, read back
+over I2C). A round-robin of all five at 1 Hz ran 1 211 transfers with **zero refusals, zero
+exhausted retries and zero CRC failures**, a full five-sensor cycle taking 15.4 ms. Its first bus scan raised three things and **§2 owns all of them**:
+the BME280 answers at `0x77`, which the owner has **accepted as the specified address**; the mux is
+a **PCA9548A** rather than a TCA9548A, which is harmless; and the mux was **held in reset by a
+mis-soldered `~RESET`**, since resoldered and answering at `0x70`. Figures marked *(verify)* are
+from datasheets or general practice and must be confirmed against the parts in hand.
+**Only channel 5 is now empty, and its `R13`/`R14` are footprints only — do not address it**
+(§5's warning; it hangs the whole bus).
+
+**The HW-384 replaced the MP1584 and absorbed most of the discrete protection chain** (plan
+commissioning item 5): onboard reverse-polarity protection, a 1.5 A input fuse and a 300 W TVS on
+the 5 V output retire `RP1`, `D2`, `F2`, `L1`, `C3` and `C4`, and the fixed 4.8–5.2 V output
+retires the trim-pot procedure entirely. **Since 2026-09-20 most of the remainder is retired
+too:** `TVS1` against load dump and every measurement in §10 steps 2–3 are **closed unperformed**
+by owner decision (plan risk 14), so the input has **no clamp against load dump** and that exposure
+is accepted. **`F1` is the exception and it is FITTED** — at the **car's fuse box**,
+upstream of any cable routed to the logger, which is the source-end position it always specified.
+**So the feed run is protected over its whole length**, and the fire-risk argument that made `F1`
+a different case from `TVS1` is satisfied rather than waived. Step 4's logged telemetry stands and
+is now the only rail check.
+
+### Former §2 notes 1–3, as written
+
+**Measured on the assembled board, 2026-09-09, and re-measured 2026-09-10.** The first scan
+returned exactly one device, `0x77`; with the mux's `~RESET` resoldered, `i2cdetect -y 1` now
+returns **both `0x70` and `0x77`**, which is note 2's stated acceptance. Four notes; note 3 is an
+open hardware question and note 2 is now closed.
+
+1. **The BME280 is at `0x77`, and `0x77` is now the specified address** (owner decision,
+   2026-09-09). It is a genuine BME280 and not a mux at a strapped address — chip-ID register
+   `0xD0` reads `0x60`, which is the BME280 signature (`0x58` would be a BMP280). `U3.SDO` is
+   therefore not being held at `GND_SIG` as net list row 9 required; the cause is an onboard
+   pull-up on the breakout winning against the intended tie. **The owner has amended the document
+   rather than the board**, so the table above and net list row 9 now read `0x77`, and the old
+   "**Do not use `0x77`**" instruction is retired. **No collision results**, because the mux is
+   strapped to `0x70` alone and the "keep `0x77` clear of the mux range" reasoning only bites if a
+   mux is ever strapped upward, which this build does not do.
+2. **The mux was held in reset by a mis-soldered `~RESET` pin — FIXED** (owner, 2026-09-09;
+   resoldered the same day). Nothing answered at `0x70`. The part is soldered and powered (3.3 V
+   between `VIN` and `GND`, `SDA`/`SCL` correct, `A0`/`A1`/`A2` grounded), and `~RESET` measured
+   **LOW at the mux**, which holds a PCA9548A in reset and makes it ignore the bus entirely.
+   **The Pi end was provably correct throughout:** `gpio=17=op,dh` is live in
+   `/boot/firmware/config.txt` and `pinctrl get 17` read **`17: op -- pd | hi`** — output, level
+   high. So GPIO17 was driving `MUX_RST` high while the mux end read low, which localised the
+   fault to net list row 12. **The owner found it: `~RESET` was soldered to header pin 9 instead
+   of pin 11.** Resoldered to **physical pin 11** (= GPIO17, net list row 12).
+   **Pin 9 and pin 11 are adjacent in the same odd-numbered row, and pin 9 is a `GND_SIG` pin**
+   (net list row 9 lists `PI1.9`). So this is a one-position off-by-one that lands `~RESET`
+   directly on ground — the worst possible neighbour, because a PCA9548A held in reset does not
+   misbehave or partially work: it goes completely silent, which reads exactly like an absent or
+   dead part.
+   **No pad stress resulted, contrary to what a short to a driven pin would imply.** GPIO17 was
+   never connected to the `~RESET` net, so it drove high into an open circuit rather than into the
+   short; the only current path was `R12`'s 10 kΩ from `+3V3` down to the mis-soldered ground,
+   which is 0.33 mA and harmless. **Acceptance, met 2026-09-10: `i2cdetect -y 1` shows `0x70`
+   alongside `0x77`.**
+   **Note for anyone re-measuring this net:** two of §3a.7's three `MUX_RST` checks catch this
+   fault and one does not. Continuity pin 11 ↔ mux `RST` reads **open** (the real symptom) and
+   `RST` ↔ `GND` reads a **dead short** (the cause), but `RST` ↔ `+3V3` still measures ~10 kΩ
+   through `R12` and **passes**, so that row alone would have cleared a faulty board. Also, GPIO17
+   only goes high once the firmware has read `config.txt`, so any reading taken with the Pi off or
+   mid-boot reads low legitimately and means nothing.
+3. **THE FIRST TRANSFER AFTER AN IDLE BUS IS REFUSED — ON SOME BOOTS, AND THIS IS UNQUALIFIED
+   HARDWARE** (measured 2026-09-10 against the BME280 at `0x77`; **scope corrected 2026-09-18**).
+   With an idle gap of 10 ms or more the
+   first `I2C_RDWR` fails every time with `EREMOTEIO`; a second attempt 500 µs later succeeded
+   60 of 60 across gaps of 50, 200 and 1000 ms. Back to back at 2 ms the first attempt mostly
+   works. **`i2cdetect` and a shell loop of `i2ctransfer` do not show it**, because they issue
+   transfers milliseconds apart and stay inside the warm window — so a clean `i2cdetect` beside a
+   program that fails 100 % of the time is not a contradiction, and it is not a software bug.
+   `i2ctransfer -y 1 w1@0x77 0xd0 r1`, run several times, is the check.
+   **It does not happen on every boot, and that is the sharpest fact about it.** Reading
+   `i2cFirstAttemptFailures` across all 32 sessions on the card (2026-09-18): most show **exactly
+   one failure per sample cycle**, and **eight show exactly zero** — including the 38-hour two-day
+   track session, 0 in 135 146 cycles. A bench sweep the same day found 0 refusals in 300 BME280
+   reads and 150 SDP810 reads at gaps of 2–1000 ms. **So the behaviour is latched at
+   initialisation and is either on or off for the life of a boot.** Two consequences: **a clean run
+   proves nothing about the board**, only about that boot; and any future diagnosis must record
+   which mode the boot was in before comparing anything.
+   **The cause is not established.** `SDA_MAIN` and `SCL_MAIN` carry **no added pull-up**
+   (net list rows 10 and 11); the bus relies on the Pi's own and on whatever the BME280 breakout
+   fits, and that breakout's onboard pull-up is already known to have overridden the `SDO` tie
+   (note 1). A rise-time or level-shifter explanation is plausible and unmeasured — **measure it
+   before adding a resistor.** `../../ndLouvers/CFD-Learning-Plan.md` open item 44 owns the
+   question.
+   **The logger works around it in `i2cBus.cxx` with a counted ten-attempt retry**, which is what
+   makes a 1 Hz sampler work at all, since at 1 Hz every cycle starts with an idle bus. **The
+   retry is not the answer to the physical question.** Two consequences for this board:
+   the five SDP810s sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux and will meet the same
+   behaviour; and §10's bring-up steps must not read a single failed transfer as an absent part.
+
+### Former §3a CAD-schematic note
+
+**There is no CAD schematic.** A KiCad project existed from rev 57 and was **deleted at rev 63**
+by owner decision, once the rev-63 power-zone rebuild had made it stale and the board was built
+and running: a hand-maintained second copy of this net list bought drift risk and nothing else.
+Last present in commit `f5c2fea`, recoverable from git if it is ever wanted. Do not recreate one
+without deciding first which copy is authoritative — that ambiguity is what made the old one a
+liability.
+
+### Former §5 warnings
+
+> **⚠ THE ±125 Pa IS ON P2, NOT P4 — THE BUILD SPECIFIED P4 AND THE BOARD DISAGREES.** Every
+> version of this document before 2026-09-19 put it at `J11`/P4, and §3, §3a.1, §3a.3 and net list
+> row 22 have been corrected to match the board. **The board is right and the document was
+> updated**. **The reason originally given here — "the part is connectorised, so which header it
+> sits in is a plug choice, not copper" — IS WRONG and is withdrawn** (owner, 2026-09-23):
+> **all five SDP810s are hard-soldered, the ±125 Pa included.** It was soldered into the `P2`
+> position rather than the specified `P4`. The board still wins and this table is still the record
+> — but **nothing here can be moved with a plug**, and plan open item 38, which closed partly on
+> the connectorised claim, carries the consequence. Anything
+> that still says "the ±125 Pa sits at P4" is stale — and the plan's phase table, which allocates
+> the low range by *role*, was reconciled at the same time.
+
+**Read the product number, do not trust the bag or the board position.** The ±125 Pa was identified as
+being on channel 2 by the part itself — `0x03020B01` and a 240 counts/Pa scale factor — before
+anyone looked at the board. That check is the reason the position discrepancy was caught at all,
+and `0x03020A01`/60 on the other four confirms none of them is a mis-picked low-range part.
+**Retain the returned scale factor per sensor; never hard-code 60.**
+
+> **⚠ A FAULTY DOWNSTREAM CHANNEL TAKES THE WHOLE MAIN BUS WITH IT, AND IT LOOKS FINE AT IDLE.**
+> Seen twice, and the second time it was a real fault. Opening a bad channel makes every subsequent
+> transfer on the **main** bus fail with `ETIMEDOUT` — the mux, the BME280, everything — and
+> **a `~RESET` pulse on GPIO17 is the recovery** (`pinctrl set 17 op dl`, pause,
+> `pinctrl set 17 op dh`), which is what `R12` and net list row 12 are for.
+>
+> 1. **2026-09-18, channel 1 empty with `R3`/`R4` unfitted.** Probing an unpopulated channel hung
+>    the bus. **Never address a channel whose pull-up pair is not fitted** — today that means
+>    channel 5 alone.
+> 2. **2026-09-19, channel 1 populated: `SD1` and `SC1` were shorted together at the mux** (owner
+>    found and fixed it). Same symptom exactly.
+>
+> **Both cases are invisible to every cheap check.** `i2cdetect` still listed `0x70` and `0x77`,
+> because quick-write probes to those addresses still got ACKs; and `pinctrl get 2`/`get 3` showed
+> `SDA` and `SCL` **both idle-high** with the bad channel open, so the usual stuck-low signature was
+> absent. That combination — clean scan, both lines high, every transfer failing — is the
+> fingerprint of a downstream segment shorting the two lines *to each other*: at idle both are
+> pulled up and look right, and the fault only appears once `SCL` toggles and drags `SDA` with it.
+> **Check continuity `SDA_CH<n>` ↔ `SCL_CH<n>` before suspecting the sensor.**
+>
+> **Isolate channels with a reset between each when probing**, or one bad channel masks every
+> channel after it — the first sweep on 2026-09-19 stopped dead at channel 1 and reported the
+> remaining three as absent. Two rules follow for code: a bring-up scan enumerates only channels
+> whose resistors are in, and **the pressure worker must never sweep channels blindly** — it
+> iterates a configured list of populated channels, and an unconfigured channel is never selected.
+>
+> **THAT SECOND RULE IS NOW ENFORCED IN CODE** (2026-09-19). `pressureSensors.cxx`'s
+> `selectMuxChannel` refuses any channel outside `pressureChannelsEnabled` and logs the refusal as
+> a session event, and `config.cxx` **refuses to start at all** if that list names channel 5 —
+> naming it rather than calling it out of range, because it is a legitimate mux channel and the
+> only thing missing is `R13`/`R14`. **If those two resistors are ever fitted, this table and that
+> config guard both have to change**, and the guard's message says so.
+
+### Former §5a enrollment narrative
+
+**How the assignment is made has changed twice, and both supersessions are load-bearing here.**
+
+1. **Not at the bench, and not by hand.** The owner plugs the probes into the *logger* one at a
+   time, lowest channel first, with `KnurLogger --enroll` running; it binds each new `28-*` ROM ID
+   to the next free channel and persists it to the `[thermal]` section of the `KnurLogger.ini`
+   beside the binary, as `temp<N>RomId` (owner decision, 2026-09-09; worker written 2026-09-10;
+   moved there from a separate `channels.ini` on 2026-09-10). It refuses a step in which two
+   unbound probes appear at once, because sysfs order is not arrival order.
+   **Every probe stays plugged in once it is in** — unplugging as you go binds correctly but never
+   loads this star, which is what the plan's thermal item 1 required.
+   `../operations.md` §Enrolling the four DS18B20s is the procedure; the plan's thermal
+   item 1 is the requirement.
+2. **Marking the probe bodies is moot.** The four are already installed on the car (owner,
+   2026-09-09), and the owner identifies each lead at the logger end, so plugging in from a known
+   location binds channel → location directly. If a lead is ever ambiguous, warm one probe by hand
+   and watch which channel moves.
+
+**Enrolled 2026-09-10 at the car, all four, from the session
+`2026-09-10T11-24-01.841462Z-enroll.ndjson`.** The plug-in order is the installed order the plan
+fixes, and the owner identified each lead at the logger end as it went in — which is what binds
+channel → location, per plan thermal item 1.
+
+| Channel | ROM ID | Cable | Plug-in order | Reading at bind |
+|---|---|---|---|---|
+| `temp0` | `28-06254385da1f` | 5 m | first | 21.94 °C |
+| `temp1` | `28-0625424044b7` | 5 m | second | 21.75 °C |
+| `temp2` | `28-062542ac86b6` | 5 m | third | 21.88 °C |
+| `temp3` | `28-0625424e16c9` | 5 m | fourth | 21.75 °C |
+
+**The channel → role map is independently confirmed** (2026-09-10): with all four bound, each probe
+was warmed by hand in installed order and `temp0`, `temp1`, `temp2`, `temp3` rose in that order
+with clean separation, +3.8 to +5.4 K each. That is the check the plan's thermal item 1 provides
+for, and it rules out a swapped pair — which is the one error that would look like nothing in
+every record.
+
+**These four ROM IDs are the channel definitions.** They also live, as the live configuration, in
+`temp0RomId`..`temp3RomId` in `../build/KnurLogger.ini` — this table is the human record and that
+file is what the logger reads. If they ever disagree, the logger is right about what it is doing
+and this table is wrong.
+
+**An earlier attempt the same day bound three and was discarded**, and its order differed from this
+one on the last two probes. Do not reconcile this table against it: the owner confirmed the order
+above, and the discarded set is superseded. See `../CLAUDE.history.md` §1.11.
+
+> **The bus qualified on the same run, and that was the point of it.** With all four connected,
+> 63 consecutive cycles enumerated four probes with a valid-mask of 15 every time — **zero read
+> errors, zero CRC failures, zero non-probe entries** — which is plan thermal item 1's first
+> requirement, open since the ESP32 star run was deliberately skipped. §3a.5 item 5's fallbacks
+> (series resistors, then splitting to GPIO27 as a second bus) are **not needed**: the 2.2 kΩ
+> pull-up at `R11` carries the loaded 4 × 5 m star as built.
+
+### Former §6 host-side note
+
+*Host side:* `KnurLogger`'s `SystemSetup/harden-headless.sh` writes
+`dtparam=i2c_arm=on,i2c_arm_baudrate=100000` into `config.txt` to implement this. An earlier draft
+of that script wrote 400 kHz, copied from `iSitePiLogger`; corrected 2026-09-09 (history rev 66).
+
+### Former §7 check 2 and its bypass
+
+2. **Measure the HW-384's output into a dummy load before it is connected to anything.** The
+   module is **fixed-output, so there is no pot to set, mis-set or knock** — the failure mode this
+   check was originally written for is gone, and it is *not* a reason to skip the check. Two
+   things replace it. First, confirm the output is actually ~5 V and not something else: a
+   stripped and re-pinned module can be mis-soldered, and the only way to find that out safely is
+   into a dummy load with a meter at `TP2`. Second, **record the value** — the module cannot be
+   trimmed up, the vendor band bottoms at 4.8 V, and the Pi 4B flags undervoltage near 4.63 V, so
+   the margin against pigtail drop is a number you need rather than a number you assume (plan
+   item 5). This is risk register 14.
+
+   **As built, this check was bypassed** (owner, 2026-09-07): the supply was powered and the Pi
+   connected without it. The Pi survived, so the destructive outcome did not occur. **On
+   2026-09-20 it was CLOSED UNPERFORMED with §10 steps 2, 3, 5 and 6** (§10's banner) — do not
+   schedule it. The rail margin is an accepted unknown; the logger's supply telemetry (§10 step 4)
+   is the only rail evidence.
+
+### Former §9 status paragraphs
+
+**Fitted on the board**: the power zone *(owner, 2026-09-07)* — `U1` HW-384 buck module, USB-A
+port removed and pins soldered in; `C12` 100 µF output electrolytic — powered since, never
+measured. The sensor zone *(assembled 2026-09-09)* — the PCA9548A mux, the BME280 and the
+pull-ups of channels 0–4, `R11` and `R12` — and the five SDP810s *(2026-09-19, soldered directly,
+no headers)*. The Pi 4B runs on it and the four DS18B20s are enrolled.
+
+**On hand, unused:** **MP1584 module — superseded by the HW-384, a spare.**
+
+**Delivered 2026-09-17**: 4 × SDP810-500Pa, 1 × SDP810-125Pa. **All five are fitted and read
+correctly** (2026-09-19, §5 has the serials). `TVS1` was never fitted and the supply was never
+benched into a dummy load, so **plan risk 14's precondition was bypassed for all five, not just
+the first** — and on **2026-09-20 the owner retired it rather than repaying it**, so §10 steps 2–3
+are closed unperformed. **`F1` is fitted**, at the car's fuse box. Nothing on the supply side
+remains to buy.
+
+> **⚠ The single SDP810-125Pa was required to be CONNECTORISED, not hard-soldered** (plan open
+> item 38, closed rev 67e). **That was not done: all five SDP810s, this one included, are soldered
+> directly to the board with no `J7`–`J12` headers** (owner, 2026-09-23). **The requirement is
+> retired unmet and plan open item 38 stays closed** (owner, 2026-09-23): the ±125 Pa is fixed to
+> `P2`, and its two duties become a scheduling constraint. The reason it was required: the part is
+> time-shared between two duties in different measurement phases — Step 11 item 1a's logged
+> core-exit velocity probe, and rev 46's parallel high-resolution shadow channel on a Cp tap
+> pair — because the owner declined to buy a sixth sensor and the plan reallocates sensors between
+> phases rather than buying more, so it had to be movable between mux channels and tube pairs
+> without desoldering. As built, moving it means desoldering it. Record per session which duty it
+> was on and on which mux channel.
+
+### Former §10 — build and bring-up order, as executed
+
+
+Do not deviate from this order. Risk register 14 is a single-supply-kills-everything risk, so
+the supply is qualified alone, first, and the expensive parts go on last.
+
+> **⚠ STEPS 2, 3, 5 AND 6 ARE CLOSED UNPERFORMED — OWNER DECISION, 2026-09-20.** The electrical
+> qualification and bring-up programme is retired rather than owed. **`F1` is NOT part of this: it
+> is fitted, at the car's fuse box** (step 1). **Do not schedule any of it,
+> and do not read the BYPASSED markers below as outstanding work** — they are the record of what
+> was skipped, kept because the reasoning is worth having, not a task list.
+> **The grounds:** this is a test-and-research installation, not a production one. The board has
+> since run a **38.09-hour continuous session** and two track days with the Pi and all five
+> SDP810s fitted and reading correctly, and the owner judges that enough. **The accepted
+> consequence is that a supply fault destroys the whole rig** — a fault inside the rig, that is;
+> the feed run itself is fused at the car's fuse box.
+> `../../ndLouvers/CFD-Learning-Plan.md` risk 14 and Step 0b item 5 own the decision; its §7.1
+> open item 1a-ii is the closure record and `CFD-Learning-Plan.history.md` §1 holds what each
+> retired check was for.
+
+1. **Build the power zone only. DONE** *(owner, 2026-09-07)* — `U1` and `C12` are soldered.
+   **`F1` IS FITTED, at the car's fuse box** (owner, confirmed 2026-09-20), so the feed conductor
+   is protected over its whole length. **`TVS1`/`C1` will NOT be fitted** (2026-09-20) and have
+   left the §9 list; the input has no load-dump clamp and that is accepted. The §3a.7 power rows
+   were not run on the bare board; that opportunity has passed, since the board is now powered and
+   populated.
+2. **~~Measure the output into a dummy load~~ — BYPASSED 2026-09-07, then CLOSED UNPERFORMED
+   2026-09-20.** The supply was powered and the Pi connected without it, and the measurement is
+   not scheduled. **What that gives up:** there is no number for what the rail sits
+   at, at `TP2` or at the Pi's USB-C end, so the margin against the Pi's 4.63 V undervoltage flag
+   is unknown — and a fixed-output HW-384 has no pot to trim it with. **That margin is not
+   academic:** plan open item 48 measured the rail crossing that flag on roughly 2 boots in 10
+   during power-on inrush. See §7 check 2 for what the check was.
+3. **~~Transient-check the supply before it ever sees the Pi~~ — BYPASSED 2026-09-07, then CLOSED
+   UNPERFORMED 2026-09-20.** It looked for two things and neither will be looked for: the cranking
+   dip that reboots a logger mid-session, and — because `TVS1` is not fitted, though `F1` is — any
+   sign that switch-off or load-dump transients reach the output (§3a.5 item 8). **The cranking half has one
+   piece of evidence in its favour and it is not a substitute:** plan open item 48 dated the
+   undervoltage latch to the first 13.2 s of *boot*, never mid-session, across 38 hours of running
+   including all track running.
+4. **Add the Pi alone**, through `J1`. **Done** — the Pi runs from the module, and
+   `throttled=0x0` was read at idle on 2026-09-09 (`pi-headless-setup.md` step 1). **`vcgencmd
+   get_throttled` (`0x0` is clean; bit 0 = undervoltage now, bit 16 = it has occurred)** is the
+   check, and under load it is now the logger's supply telemetry — item 5.7, and the only rail
+   evidence since step 2 was retired unperformed, so there is no step-2 margin for it to confirm.
+   A power-on latch on roughly 2 boots in 10 is on record (plan open item 48, closed). If it ever
+   flags *during* a run, the fix is the pigtail and connectors, not the module.
+5. **Build the sensor zone, run the remaining §3a.7 rows, then add the mux and BME280.**
+   **DONE** (build); **its bring-up checks CLOSED UNPERFORMED 2026-09-20.** Assembled 2026-09-09; both devices answer (`0x70` and `0x77`) since the `~RESET`
+   resolder, and as of 2026-09-10 the **BME280 is read end to end** — chip ID `0x60`, calibration
+   block read, 300 valid cycles out of 300 with zero read errors. The scan on 2026-09-09 returned
+   **`0x77` only**, not the `0x70` and `0x76` this step expected. §2's measured note owns both discrepancies: the
+   BME280 is on `0x77`, and the mux was silent — **not** because it was unpopulated, but because
+   `~RESET` had been soldered to header pin 9 instead of pin 11; resoldered the same day, it now
+   answers at `0x70` with control register `0x00` (§2 note 2). **Host precondition — MET**: `/dev/i2c-1` needs *both* `dtparam=i2c_arm=on` in
+   `config.txt` and the `i2c-dev` module, neither of which the stock image has. `KnurLogger`'s
+   `SystemSetup/harden-headless.sh` sets both plus the 100 kHz baudrate of §6, and it has been
+   run. So a bus result here is now genuinely this board's news rather than an ambiguity: if
+   `i2cdetect` reports *no such device*, that is the host; anything else is this board.
+   **Use bus 1 only** — `/dev/i2c-20` and `/dev/i2c-21` also exist and are the VC4 display DDC
+   buses, nothing to do with this perfboard.
+   **A SINGLE FAILED TRANSFER IS NOT AN ABSENT PART ON THIS BOARD, AND THIS STEP IS WHERE THAT
+   MATTERS** (§2 note 3, `../../ndLouvers/CFD-Learning-Plan.md` open item 44). The first transfer
+   after an idle bus is refused on some boots, so **repeat every read here several times before
+   concluding anything** — `i2ctransfer -y 1 w1@0x77 0xd0 r1`, not once. This applies to the five
+   SDP810s, delivered 2026-09-17: they sit on the same `SDA_MAIN`/`SCL_MAIN` through the mux, and a
+   mux channel switch followed by a sensor read is two transfers of which the first is the one
+   after idle.
+6. **Add the four DS18B20s** *(plan item 2 of the thermal section)* — **done in practice, and this
+   step's remaining checks CLOSED UNPERFORMED 2026-09-20**; all four are enrolled and the loaded
+   star reads CRC-clean. The build rule below stands for any future probe: **one probe at a
+   time** —
+   cable colours vary by vendor and a reversed supply destroys the probe (§3a.5 item 4). All four
+   must then enumerate together.
+   **This is no longer bench work: the probes are installed on the car** (owner, 2026-09-09) on
+   printed stalks at the four role positions, with their full 5 m cables routed. The plan's
+   thermal section holds the position record. So the first time this bus is loaded is now the
+   first time it is loaded **in the car**, which is a worse place to meet a reflection problem
+   than a bench was — that is the accepted cost of skipping the ESP32 star run, and it is why the
+   §3a.5 item 5 fallbacks should be to hand before this step starts, not sourced afterwards. If they do not, try
+   the series resistors of §3a.5 item 5 and only then split to GPIO27 as a second bus; the star
+   topology is the suspect, not the sensors. **All four probes were individually verified on the
+   ESP32 bench rig on 2026-09-08** (`../../ndLouvers/step0b-rig/racechrono_ble_test/`), which is what makes that
+   last sentence an inference rather than an assumption — each probe is known good on its own, so
+   a failure here is this board, the star or the pull-up. Note the star itself was **not** proven
+   there either: the probes were run singly, so a four-probe failure is still a live possibility
+   and is not evidence against the sensors.
+   **Count `28-*` entries in `/sys/bus/w1/devices/`, and never `w1_master_slave_count`.** With
+   the overlay loaded and nothing wired, this box lists a **churning set of phantom `00-*`
+   devices** beside `w1_bus_master1`. Measured across 35 s on 2026-09-09 with this zone unbuilt:
+   `00-800000000000` alone, then `00-dc0000000000` + `00-3c0000000000`, then `00-3c0000000000` +
+   `00-bc0000000000`, with the count going `1`, `2`, `2`. They are bus-search results read off a
+   floating line. Family `00` is not a valid 1-Wire family and a DS18B20 is family `28`.
+   So the slave count is **unstable, not merely off by one** — do not expect "four plus one" and
+   do not branch on it — and a `00-*` ROM ID must never be written into §5a's table or pinned to
+   a `temp` channel. An *empty* devices directory is the real failure signal, since a working bus
+   always registers its master. Rescan is every 10 s (`w1_master_timeout = 10`).
+
+   **This step is now the first test of the star, by owner decision (2026-09-09).** The ESP32
+   four-probe bench run is **skipped**; the probes were verified singly there and the loaded bus
+   is assumed to work until this step says otherwise. If all four do not enumerate CRC-clean, the
+   §3a.5 item 5 fallbacks — series resistors, then splitting to GPIO27 as a second bus — are
+   perfboard rework at this point rather than a bench finding, which is the accepted cost.
+
+   **The channel assignment happens here too, and the logger does it.** Plug the probes in **one
+   at a time, lowest channel first**, with the logger in its enrollment mode: it binds each new
+   `28-*` ROM ID to the next free channel and persists it, so §5a's table is filled from the
+   logger's own record rather than by transcription. Marking the probe bodies is moot for the
+   installed four (§5a item 2): each lead is identified at the logger end, and warming one probe
+   confirms it. Requirements are in `../one-wire-probes.md`.
+7. **Add one SDP810** as P0 on mux channel 0. Confirm it appears only when channel 0 is
+   selected and vanishes when it is not. **This single test proves the mux isolation** the plan requires.
+   **Done in substance** — the first SDP810 was brought up on the mux 2026-09-18.
+8. **Add the remaining four**, one at a time, re-testing isolation after each. **Done in
+   substance** — all five fitted and read correctly 2026-09-19, each channel isolated behind a
+   `~RESET` when probed (§5). Whether the isolation test was run exactly as written in steps 7–8 is
+   not recorded.
+9. **Assign every DS18B20 ROM ID to a channel `temp0`–`temp3`.** **Done 2026-09-10** — enrolled at
+   the car with the probes already installed, so the probe bodies were not marked (§5a item 2). Which
+   location each channel serves is a session record, not a channel name (§5a).
+10. **Only then** commission against the plan: item 2's boot identification and CRC, item 3's
+    compensation start, item 4's logging fields, item 5a's BLE link check, item 5b's SD logging.
+    **Item 5.3's continuous-draw measurement and thermal derating were DROPPED 2026-09-20** and do
+    not belong here any more — the ~275 mA figure is an estimate.
+
+**Stop and go back to the plan at step 10.** Everything up to there is assembly; commissioning
+is a plan activity with acceptance criteria this file does not restate.
