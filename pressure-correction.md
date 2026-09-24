@@ -46,6 +46,6 @@ Measurement dependencies retain their own progress owners; do not duplicate thei
 | Work | Status | Dependency |
 |---|---|---|
 | Resolve direction wording and live-input behavior | blocked | Owner decision and missing behavior above |
-| Complete line-resistance input | See run sheet | [Run sheet](../ndLouvers/step0b-rig/line-resistance-runsheet.md) owns execution status |
+| Complete line-resistance input | done 2026-09-24 | Parameters in [ndLouvers pressure-testing.md §3.3a](../ndLouvers/pressure-testing.md#33a-the-tubing) |
 | Configure, implement and verify correction | not started | Accepted equation, measured routes and fitted inputs |
 | Installed acceptance | See measurement progress | Measurement procedure §2.4 step 5 owns the test |

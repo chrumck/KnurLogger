@@ -89,7 +89,7 @@ that sensor's span and the barometric term, which is why the one attempt at meas
    compared at matched `d`, which cancels tare, datum and meniscus equally but returns
    `(1 + ε)(1 − f̄)` rather than `(1 + ε)`, because the line loss changes with load. A rebuild that
    wanted the check back needs a load path reachable from outside the skirt — a hook below the rim,
-   or a pan that clears the tub floor by a hand's width. Plan open item 57.
+   or a pan that clears the tub floor by a hand's width. Plan open item 57 (closed 2026-09-24).
 
 > **⚠ REVS A–E ARE SUPERSEDED. DO NOT BUILD ANY OF THEM.**
 > **Rev A** floated the bell free with the masses on a tray on top. It capsizes — confirmed on the
