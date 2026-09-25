@@ -452,9 +452,9 @@ named for where it sits: **P0 … P5**. Which measurement a channel serves is a 
 channel name would leave every later scheme translating through an obsolete one, and would make a
 wiring fault and a mapping fault look alike.
 
-**The P→role mapping is deliberately not decided here.** It is fixed when the testing scheme is
-final, recorded per session and logged at boot alongside the sensor serials (commissioning
-item 2). Reassigning a channel is then a tube move plus one line in the session mapping — never a
+**The P→role mapping is not decided here**; ndLouvers `instrumentation-spec.md` Step 0b owns it, and
+has fixed it for A1+A2+A3. It is recorded per session and is to be logged at boot alongside the
+sensor serials (commissioning item 2, not yet implemented). Reassigning a channel is then a tube move plus one line in the session mapping — never a
 relabelled board.
 
 Every product number, serial and scale factor below was read back over I2C, not taken from a
