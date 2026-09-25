@@ -80,7 +80,8 @@ Tools/                offline diagnostics; nothing here runs on the box
                         baseline and raw readings, and check the stale-hold events
 
 3DPrinting/           every printed part for both boxes — enclosure, sensor holders, boom
-                      tip, and the calibration bell (calibrationBell.md owns its constants)
+                      tip, the calibration bell (calibrationBell.md owns its constants) and
+                      the hood tap's surface static button (surfaceStaticButton.md)
 
 bellTesting.xlsx      the bell-session spreadsheet
 

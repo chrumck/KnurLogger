@@ -17,6 +17,8 @@ document below. [README.md](README.md) is the human task map.
    addresses and sensor allocation. Its §3a.4 net list is authoritative over its diagram views.
 10. [3DPrinting/calibrationBell.md](3DPrinting/calibrationBell.md): fixture geometry and as-built
     constants. The as-built record governs the existing bell; the nominal drawing is a different build.
+10a. [3DPrinting/surfaceStaticButton.md](3DPrinting/surfaceStaticButton.md): the hood tap's
+    geometry, build and brass line resistance.
 11. [pressure-correction.md](pressure-correction.md): the pressure-correction decisions and implementation plan.
 12. [ndLouvers instrumentation specification](../ndLouvers/instrumentation-spec.md): measurement
     requirements and acceptance. This repository owns no measurement decision.

@@ -176,7 +176,9 @@ corrected decipascals.
 ## Step 8 — Route lengths (after the lines are cut on the car)
 
 1. Enter each slot's measured `p{}LineLengthHighM`/`p{}LineLengthLowM` into `~/bin/KnurLogger.ini`,
-   restart the service, back the file up, commit.
+   restart the service, back the file up, commit. A port ending in a pickup other than a wand
+   adds that pickup's equivalent length — the hood tap's is in
+   [surfaceStaticButton.md](3DPrinting/surfaceStaticButton.md#line-resistance).
 2. Run the installed smoke test (ndLouvers `pressure-testing.md` §2.4 step 5).
 
 **Acceptance:** every installed channel passes the smoke test; the session header's `R_path` per
