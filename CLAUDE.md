@@ -3,6 +3,8 @@
 Read [software-contract.md](software-contract.md) before changing code, then the subsystem
 document below. [README.md](README.md) is the human task map.
 
+This file is a router: it points to the documents that own each topic and holds no facts itself.
+
 ## Document ownership
 
 1. [software-contract.md](software-contract.md): architecture, durable logging and implementation invariants.
@@ -29,7 +31,8 @@ These add to the global instructions (numbered lists, naming, comments, the hist
 the sync pass); they do not restate them.
 
 1. Name channels positionally: `P0`–`P5` and `temp0`–`temp3`. Never rename a channel for a test
-   role. The pitot probes are `T1`/`T2`; pressure role allocation belongs to the measurement project.
+   role. Probe names and pressure role allocation belong to the measurement project's
+   [phases and dedicated pressure paths](../ndLouvers/instrumentation-spec.md#phases-and-dedicated-pressure-paths).
 2. Update the owning document when behavior changes. Keep numbers and measured status in their
    owners; do not grow this router or README into another specification or progress report.
 3. The history trail is [CLAUDE.history.md](CLAUDE.history.md). Do not rebuild the router's old
