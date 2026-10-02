@@ -106,7 +106,7 @@ Five things this table is carrying rather than repeating:
    is unpopulated — its pull-ups are footprints only and addressing it hangs the bus — so the
    worker never enables it and `0x606` bytes 2–3 carry the `−32768` sentinel permanently. An
    undefined field inside a *subscribed* packet costs nothing: `0x606` is sent for its other three
-   channels and the phone simply discards these two bytes. **This is not the open item 47 mistake
+   channels and the phone simply discards these two bytes. **This is not the item 47 mistake
    and must not be filed as one** — that was an undefined byte on a frame nobody could see was
    missing, carrying data that existed. Here the packet is visible, the field is a constant, and
    the logger's own `0x607` byte 0 states that channel 5 is disabled. **If mux channel 5 is ever
@@ -400,7 +400,7 @@ wraps at 65535 every **1.9 h** rather than the 18.2 h those two take at 1 Hz.
 **Channel names are positional and mean nothing.** `P0`–`P5` are fixed by mux position. **The
 role→channel mapping belongs to `../ndLouvers/`** (`instrumentation-spec.md` Step 0b, open item 30a) — and these
 channels are published independently of any role on purpose, so the phone-side definitions can be
-built and verified **before** the rig is, which is the only way to stop open item 47 repeating on the
+built and verified **before** the rig is, which is the only way to stop item 47 repeating on the
 pressure side. Recording which *part* sits on which channel (the `pressureBaseline` record, and
 `SystemSetup/logger-perfboard-wiring.md` §5) is not deciding which *role* it serves.
 

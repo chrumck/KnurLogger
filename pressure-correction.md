@@ -178,7 +178,8 @@ corrected decipascals.
 1. Enter each slot's measured `p{}LineLengthHighM`/`p{}LineLengthLowM` into `~/bin/KnurLogger.ini`,
    restart the service, back the file up, commit. A port ending in a pickup other than a wand
    adds that pickup's equivalent length — the hood tap's is in
-   [surfaceStaticButton.md](3DPrinting/surfaceStaticButton.md#line-resistance).
+   [surfaceStaticButton.md](3DPrinting/surfaceStaticButton.md#line-resistance) — and each coupler
+   in a line adds its own, 0.17 m per 2.5 × 28 mm coupler (ndLouvers `pressure-testing.md` §3.3a).
 2. Run the installed smoke test (ndLouvers `pressure-testing.md` §2.4 step 5).
 
 **Acceptance:** every installed channel passes the smoke test; the session header's `R_path` per

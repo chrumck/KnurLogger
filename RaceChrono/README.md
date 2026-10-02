@@ -24,7 +24,7 @@ Re-export after any change.
 fields were entered on 2026-09-19 and verified the same day — the sentinel check with the sensors
 disconnected, every channel negative, and `0x606`'s free-running counter stepping +1 — so all eight
 of box 2's packets are now subscribed. It also carries the `0x420` byte 7 channel that
-`../../ndLouvers/` open item 47 had been waiting for.
+`../../ndLouvers/` item 47 had been waiting for.
 
 > **⚠ A `git diff` OF THIS FILE IS NOT A REVIEW OF IT.** RaceChrono emits `customChannels` in an
 > order that shifts as entries are added, so a re-export rewrites lines that did not change — this
@@ -63,7 +63,7 @@ than an omission:
    permanent sentinel inside a packet that is subscribed anyway. `../racechrono-channels.md` slot-map note 5
    owns it, including what to do if channel 5 is ever populated.
 2. **`0x420` byte 7 is now defined**, as `H-40` on predefined channel 10031, alongside byte 0's
-   existing `A-40` on 10026. That is the outside-air temperature of `../../ndLouvers/` open item 47.
+   existing `A-40` on 10026. That is the outside-air temperature of `../../ndLouvers/` item 47.
    Defining it fixes nothing retrospectively — no past recording can be reprocessed — so it counts
    only from the first session recorded after this export.
 
