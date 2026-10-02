@@ -5,7 +5,11 @@ acceptance belong to [ndLouvers instrumentation-spec.md](../../ndLouvers/instrum
 [pressure-testing.md §1.7](../../ndLouvers/pressure-testing.md#17-a3--the-hood-surface-static-button)
 owns the method, its bias qualification and its role in A3.
 
-[surfaceStaticButton.svg](surfaceStaticButton.svg) is the rev A drawing. No STL exists yet.
+[surfaceStaticButton.svg](surfaceStaticButton.svg) is the rev A drawing. **The printed body is
+`surfaceButton.stl`** (with `surfaceButton.3mf`, owner, 2026-09-28), and **as built it governs**.
+Read from the STL, it matches rev A in every dimension but one: **the flat top is Ø10.0, not
+Ø12.0**, so the ramp runs straight from the 0.4 edge at Ø30.0 to the top at 2.0, about 9.1°. Base,
+height, edge and the 2.2 slot from 4.0 ahead of centre to the aft edge are as drawn.
 
 ## Design
 
