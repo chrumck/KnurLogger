@@ -14,10 +14,11 @@ height, edge and the 2.2 slot from 4.0 ahead of centre to the aft edge are as dr
 ## Design
 
 1. **The pressure path is brass; the printed body is a fairing.** A Ø2.0/1.3 mm brass tube lies
-   on the hood in a slot through the body, its crown flush with the Ø12 flat top, and the Ø0.8
+   on the hood in a slot through the body, its crown flush with the Ø10 flat top, and the Ø0.8
    sensing hole is drilled in that crown. Brass is there for a clean, square-edged hole, not for
    porosity, which is accepted at this pickup (`pressure-testing.md` §1.2).
-2. **Body:** Ø30.0 base, Ø12.0 flat top at 2.0, a straight ramp to a 0.4 edge (about 10°). The
+2. **Body:** Ø30.0 base, Ø10.0 flat top at 2.0 (Ø12.0 on drawing rev A), a straight ramp to a 0.4
+   edge (about 9.1°). The
    slot is 2.2 wide and full height, from 4.0 ahead of the hole to the aft edge.
 3. **Tube:** 30 long. The nose is closed with a rounded solder plug 3.0 ahead of the hole, the
    plug ending at least 1.0 ahead of the hole's edge. The tube runs aft to a 12.0 stub past the
