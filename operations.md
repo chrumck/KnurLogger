@@ -312,7 +312,8 @@ lived in the backup that way until it was replaced; `systemctl is-active KnurLog
     stop and mask separately: `disable --now` can refuse before stopping anything.
 11. Session filenames and wall clocks can be wrong offline. Follow [session-records.md](session-records.md)
     for time alignment and validity; record the physical mounting state separately for each run.
-12. CAN ambient and fan state arrive through box 1 and RaceChrono, not this logger's SD card.
+12. CAN ambient arrives through box 1 and RaceChrono, not this logger's SD card. Fan state is not
+    on CAN (ndLouvers open item 35) and needs its own channel.
     Define the phone channels before recording. A BLE gap can lose the alignment needed to interpret
     box-2 data against those inputs; local logging does not reconstruct an undefined CAN channel.
 
