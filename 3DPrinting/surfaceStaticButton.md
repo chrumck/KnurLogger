@@ -50,10 +50,13 @@ logger's `R_fixed` counts a wand (~0.85 × 10⁶) where this port has the button
 addition is ≈ 6.2 × 10⁶, **equivalent to about 2.0 m of car stock**. Uncorrected, it reads about
 4.5 % low at 70 Pa, which would fail the smoke test's light point.
 
-So until `pressure-testing.md` §2.4 step 2's bench A/B against a wand has measured it, enter the
-button's port length as its silicone length **plus 2.0 m** (KnurLogger
-[pressure-correction.md](../pressure-correction.md) step 8). The A/B's measured figure replaces
-the 2.0 m. The installed smoke test's light point then checks it end to end, since the test flow
+**Measured in place, this button needs ~4 m** (owner, 2026-10-02/03): about 2 m beyond the
+estimate, set at the heavy smoke-test rung and confirmed at the light one, and then localised by
+opening the line at the button's stub — with the port at its silicone length alone the expected
+readings returned, so the extra resistance is the button's own. That is ≈ 12 × 10⁶ net, about
+twice the Poiseuille figure: an effective bore of ~1.1 mm, or epoxy or solder in the bore or hole.
+Enter it as the silicone length **plus ~4 m** (KnurLogger [pressure-correction.md](../pressure-correction.md)
+step 8); a new button starts from the 2.0 m estimate until it is measured the same way. The installed smoke test's light point then checks it end to end, since the test flow
 crosses the brass.
 
 ## Rain

@@ -317,15 +317,13 @@ zero-drop measurement was made off those two.
 
 ### `0x605` and `0x606` — the six pressure channels
 
-**Nothing on these channels is a pressure measurement yet.** They carry what the five SDP810s
-report with every port open to whatever air is around them; the pneumatic rig — wands, tubing,
-filters, drainage — is not installed, and `../ndLouvers/pressure-testing.md` §2 is the
-qualification none of this discharges. What exists is the channel a measurement will travel down.
+**Since 2026-10-02, `P0`, `P1`, `P3` and `P4` carry installed pressure measurements**
+(`../ndLouvers/pressure-testing.md` §3.6); `P2` reads open air. Qualification is that project's
+§2, not this file's.
 
 **The value on the air is the corrected pressure, not the raw reading** (since 2026-09-24): the
 reading divided by the density factor `P_abs / 96 600 Pa` and by `(1 + ε±)`, plus the loss along the
-slot's lines. With every line length configured as 0, which it is until the routes are measured,
-only the density and span terms act. The equations below are unchanged; `pressure-correction.md`
+slot's lines. With the measured line lengths configured (since 2026-10-02), all three terms act. The equations below are unchanged; `pressure-correction.md`
 owns the correction and `session-records.md` the record fields that let a session recompute it.
 
 | Packet | Bytes | Channel | Equation | Invalid |
