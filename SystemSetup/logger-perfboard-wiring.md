@@ -523,8 +523,8 @@ Same rule as §5: **`temp0`–`temp3` are generic channel names and carry no loc
 meaning.** The role names — T_ambient, T_core_in, T_core_out, T_aft — are measurement quantities,
 not names for these four probes. The thermal role→channel map is decided and applied
 ([ndLouvers thermals §1.1](../../ndLouvers/thermals-testing.md#11-channels-roles-and-bindings));
-the pressure one is still open
-([ndLouvers open item 30a](../../ndLouvers/work-progress.md#item-30a)). Either is recorded per
+the pressure one is decided per phase but not yet logged at boot
+([ndLouvers `instrumentation-spec.md` Step 0b](../../ndLouvers/instrumentation-spec.md)). Either is recorded per
 session.
 
 **A thermal channel is defined by its ROM ID, not by a position.** The four DS18B20s share one

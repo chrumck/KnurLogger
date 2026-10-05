@@ -396,7 +396,7 @@ rig, so this counter is more necessary here than on `0x601` or `0x603`. At the m
 wraps at 65535 every **1.9 h** rather than the 18.2 h those two take at 1 Hz.
 
 **Channel names are positional and mean nothing.** `P0`–`P5` are fixed by mux position. **The
-role→channel mapping belongs to `../ndLouvers/`** (`instrumentation-spec.md` Step 0b, open item 30a) — and these
+role→channel mapping belongs to `../ndLouvers/`** (`instrumentation-spec.md` Step 0b) — and these
 channels are published independently of any role on purpose, so the phone-side definitions can be
 built and verified **before** the rig is, which is the only way to stop item 47 repeating on the
 pressure side. Recording which *part* sits on which channel (the `pressureBaseline` record, and

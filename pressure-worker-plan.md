@@ -39,6 +39,6 @@ entry on removing document citations. The current schema is implemented in the l
 ## Boundaries
 
 1. Acquisition delivery qualifies no pressure channel. The measurement project owns acceptance.
-2. Pressure role allocation remains [ndLouvers open item 30a](../ndLouvers/work-progress.md).
+2. Pressure role allocation belongs to ndLouvers [`instrumentation-spec.md`](../ndLouvers/instrumentation-spec.md) Step 0b.
 3. Automatic mux reset on exhausted transfers requires its own owner decision; do not infer it
    from the diagnostic reset procedure. The idle-bus physical cause remains open item 44.
