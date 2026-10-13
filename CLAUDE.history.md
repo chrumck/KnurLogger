@@ -2701,3 +2701,23 @@ is a plan activity with acceptance criteria this file does not restate.
    byte-identical to `build/KnurLogger.ini`. The earlier production comments cited documents.
 3. Sessions recorded before this build carry the raw reading on the air and have no `correction`.
 
+
+## 2026-10-09 — third track day: the supply latched nothing, and the cavity Cp record grew
+
+Written up 2026-10-12 from `20261009_most_knurek_ae30.rcz` (seven sessions, Most). The measurement
+findings belong to `../ndLouvers/`; what changed here is three statements of fact about the box.
+
+1. **`0x604` byte 1 read 0 in all seven sessions.** Both earlier track days latched 5 at boot, and
+   `racechrono-channels.md` recorded that as what the field shows. It is not inevitable. Open
+   item 48 stays closed — the latch was dated to a power-on transient and that is unchanged.
+2. **The link lost 2–4 notifications per session, once each, out of ~0.03 % of samples**, across
+   2.4 hours and seven sessions. Previous track sessions measured zero drops, so "zero" was the
+   observation and not the specification; the free-running counters are what made the difference
+   visible either way.
+3. **One BME280 cycle sent all three `0x600` fields invalid together** with the read-error counter
+   correctly at 0. Re-reading the earlier archives for the same signature found it on the first
+   road drive of 2026-10-02 too, unnoticed at the time, so the `0x601` warning box's "measured
+   once in the field" became **three sightings, each a single cycle**. The box's claim was true
+   when written and had simply never been re-tested; nothing was looking for it.
+4. The cavity-pressure narrative under `0x600` now cites three track days and thirteen sessions,
+   and says that Poznań's q-only fits and Most's elevation-corrected ones are different quantities.

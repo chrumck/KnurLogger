@@ -154,9 +154,10 @@ easy to point at the wrong thing:
    and is speed-correlated so it does not average out of a speed sweep. **That is not the only cavity
    record, and the records disagree**: a second cavity record from the third drive
    corroborates the sign and order without being a Cp point, because the route's elevation change
-   is the same order as the signal and no altitude channel was exported. **Two track days then add
-   SEVEN sessions and they CONTRADICT the first drive** — Cp −0.108 to −0.144, flat to within ±0.006
-   from 40 to 200 km/h, on circuits with 8–14 m of altitude span and the altitude channel present;
+   is the same order as the signal and no altitude channel was exported. **Three track days then add
+   THIRTEEN sessions and they CONTRADICT the first drive** — Cp −0.108 to −0.144 at Poznań, flat to
+   within ±0.006 from 40 to 200 km/h, and −0.102 to −0.174 at Most with its 15–19 m of elevation
+   fitted explicitly;
    `../ndLouvers/` open item 49 owns the disagreement, where the plan's rev 92 review arithmetic
    (12 Pa per metre of GPS altitude error against a 94 Pa signal at 45 km/h) recommends the track
    result, and it is not yet decided. The second drive's box
@@ -187,13 +188,18 @@ temperature and pressure legitimately sit still for minutes, so a frozen `0x600`
 evidence of anything. Byte 4–5 advances every cycle regardless of what the part reports, which is
 what separates a dead worker from a still cavity.
 
-> **⚠ BYTE 0 IS WHAT CATCHES A SKIPPED MEASUREMENT, AND BYTES 2–3 DELIBERATELY DO NOT.** Measured
-> once in the field, 2026-09-14: one cycle sent all three `0x600` values as their invalid sentinels
-> together — which is the `t_fine` rule, a skipped temperature invalidating pressure and humidity —
-> and **byte 0 dropped 31 → 3**, keeping only *present* and *calibration read*. **The read-error
-> counter correctly stayed at 0**: the transfer succeeded and `lastReadMs` was normal, so nothing
-> failed to read. **A cumulative read-error count of 0 is therefore not evidence that every sample
-> was valid.** First time byte 0 has read anything but 31 in the field.
+> **⚠ BYTE 0 IS WHAT CATCHES A SKIPPED MEASUREMENT, AND BYTES 2–3 DELIBERATELY DO NOT.** Seen
+> three times in the field — 2026-09-14, the first road drive of 2026-10-02, and one session of the
+> 2026-10-09 track day — each time for **one cycle**: all three `0x600` values go out as their
+> invalid sentinels together, which is the `t_fine` rule, a skipped temperature invalidating
+> pressure and humidity, and **byte 0 drops 31 → 3**, keeping only *present* and *calibration
+> read*. **The read-error counter correctly stayed at 0 every time**: the transfer succeeded and
+> `lastReadMs` was normal, so nothing failed to read. **A cumulative read-error count of 0 is
+> therefore not evidence that every sample was valid.**
+>
+> **It was recorded as a once-only event until 2026-10-12**, when reading every archive with the
+> same tool found the 2026-10-02 one. Nothing had looked; the count was a count of sightings, not
+> of occurrences, which is the trap in any "measured once" written against data nobody re-reads.
 
 ### `0x602` — the four thermal channels
 
@@ -284,7 +290,7 @@ errors 0, sample cycles ramping at 1 Hz, conversion 0 ms.
 | Bytes | Content | Equation |
 |---|---|---|
 | 0 | low nibble = live throttle bits; bit 4 = records dropped; bit 5 = enrollment mode | `bytesToUint(raw, 0, 1)` |
-| 1 | sticky throttle bits, latched since **boot** not since session start — **observed at 5 across both track days**, `undervoltage` + `throttled`, dated from the SD file to the first 13.2 s after boot | `bytesToUint(raw, 1, 1)` |
+| 1 | sticky throttle bits, latched since **boot** not since session start — **observed at 5 across the first two track days**, `undervoltage` + `throttled`, dated from the SD file to the first 13.2 s after boot; **0 in all seven sessions of the third** (2026-10-09), so the latch is not inevitable | `bytesToUint(raw, 1, 1)` |
 | 2 | undervoltage comparator; **255 = could not be read**, not "no alarm" | `bytesToUint(raw, 2, 1)` |
 | 3–4 | SoC core millivolts — **NOT the supply rail** | `bytesToUint(raw, 3, 2)` |
 | 5–6 | SoC temperature | `bytesToInt(raw, 5, 2) / 100` |
@@ -306,6 +312,9 @@ the SD session file only. **That is exactly the case the track days produced, an
 file is what settled it:** `stickyAtSessionStart` was already 5 at `bootUs` 13.17 s, so the latch
 is a power-on transient inside the first 13 seconds (`../ndLouvers/` open item 48, closed). The general
 lesson is the one to keep — **a non-zero byte 1 is a question the phone cannot answer.**
+**The 2026-10-09 track day read 0 in all seven sessions**, which is the first track record with no
+latch; it does not re-open item 48, and it does mean a zero here is a real observation rather than
+a channel that never moves.
 
 **Byte 7 is the channel to watch while the link is live.** Every other field here is a physical
 quantity allowed to sit still — SoC core voltage reads a constant 840 mV on an
@@ -318,7 +327,8 @@ zero-drop measurement was made off those two.
 ### `0x605` and `0x606` — the six pressure channels
 
 **Since 2026-10-02, `P0`, `P1`, `P3` and `P4` carry installed pressure measurements**
-(`../ndLouvers/pressure-testing.md` §3.6); `P2` reads open air. Qualification is that project's
+(`../ndLouvers/pressure-testing.md` §3.6, §3.7); `P2` reads open air — and its speed-correlated
+floor is measured, not assumed (that file's §3.7). Qualification is that project's
 §2, not this file's.
 
 **The value on the air is the corrected pressure, not the raw reading** (since 2026-09-24): the

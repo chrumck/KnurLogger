@@ -72,6 +72,10 @@ build/KnurLogger.ini  config TEMPLATE; the deployed copy is ~/bin/KnurLogger.ini
 Tools/                offline diagnostics; nothing here runs on the box
   rcz-channels.py       decode a RaceChrono .rcz's channel slots and flag a mistyped
                         equation — the phone's channel list, audited without the phone
+  rcz-reduce.py         reduce a driven .rcz to per-session inventory, instrument health,
+                        channel validity, pressure against dynamic pressure, per-lap
+                        thermals, a cavity fit and standstill — channels stay positional,
+                        so the measurement roles are named on the command line
   bell-marks.py         evaluate calibration-bell marks against one pressure channel of a
                         session, on the as-built bell constants and the barometric factor
   ladder-fit.py         re-derive every ladder mark in force and fit each sensor's span

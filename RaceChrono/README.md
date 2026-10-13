@@ -56,6 +56,14 @@ and `0x7F0`.** Check a proposed new packet ID against that list here, in this fi
 against either box's source: the two devices share one channel set, so an ID free on one of them is
 not necessarily free.
 
+**Three of those IDs have three different authorities, and an equation cannot tell you which.**
+`0x600`–`0x607` are box 2's, specified in `../racechrono-channels.md`. `0x78`, `0x202`, `0x420` and
+`0x4FA` are **the car's**, and what their bytes mean is the owner's CAN decoding work, not
+anything in this repository. **`0x7F0` is neither** — box 1 builds it from its own ADC sensors in
+`setAdcCanFrame` (KnurDash, `sensorWorker.c`), so that function is the only thing that can settle
+what its six bytes carry, and an equation here is downstream of it.
+`../../ndLouvers/thermals-testing.md` §1.5a holds the byte table and the reason it was written.
+
 Two of those 49 are not in the slot map and are worth naming, because each is a decision rather
 than an omission:
 
