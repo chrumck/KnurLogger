@@ -22,3 +22,8 @@ boot-audit-*.txt
 
 # Office lock files.
 ~$*
+
+# Byte-compiled caches. Tools/ is a set of standalone scripts run by path, but
+# importing one as a module - which is how its reduction gets reused - leaves
+# these behind.
+__pycache__/
