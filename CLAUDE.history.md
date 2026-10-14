@@ -2721,3 +2721,26 @@ findings belong to `../ndLouvers/`; what changed here is three statements of fac
    when written and had simply never been re-tested; nothing was looking for it.
 4. The cavity-pressure narrative under `0x600` now cites three track days and thirteen sessions,
    and says that Poznań's q-only fits and Most's elevation-corrected ones are different quantities.
+
+
+### 2026-10-14 — `Tools/cavity-refit.py`
+
+Added for ndLouvers open item 49, which needed the first drive's altitude correction re-derived
+rather than re-applied. It pairs a logger SD session with the RaceChrono archive of the same
+drive — the two do not share a clock, so it aligns them by cross-correlating cavity temperature
+against low-passed GPS speed, the method `thermals-testing.md` §2.3 describes — and fits
+`p = p0 + c1·ρg·Δh + c2·q` instead of assuming `c1 = −1`.
+
+**The point of fitting it is that `c1` is a diagnostic**: its physical value is −1, and anything
+closer to zero is the fraction of the GPS altitude variance that is error, by errors-in-variables
+attenuation. On the first drive it returns −0.352, so a reduction that forced −1 over-corrected by
+2.8×. The tool prints that reading, the three reductions side by side, the per-band mean altitude
+that shows where a forced correction puts its error, and an alignment sweep, because the
+cross-correlation aligns bulk groupings rather than transients.
+
+The cavity channel is not in the drive's `.rcz` at all — the pressure channels were not defined
+until 2026-09-19 — which is why the session file is a required input rather than a convenience.
+
+**Known defect, not repaired:** `rcz-reduce.py` raises a `TypeError` on that archive. It has eight
+fragments, several with no logger channels, so `secondWindows` returns `None` and the "no density
+term" guard indexes it. That is the case the clock fallback was added for.

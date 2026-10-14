@@ -22,6 +22,10 @@ This file is a router: it points to the documents that own each topic and holds 
 10a. [3DPrinting/surfaceStaticButton.md](3DPrinting/surfaceStaticButton.md): the hood tap's
     geometry, build and brass line resistance.
 11. [pressure-correction.md](pressure-correction.md): the pressure-correction decisions and implementation plan.
+11a. `Tools/`: the reduction scripts. `rcz-reduce.py` reads a session, `cavity-refit.py` fits a
+    cavity Cp against speed and GPS altitude without assuming the altitude term, `ladder-fit.py`
+    and `bell-marks.py` serve the bench ladder, and `pressure-correction-check.py` audits a
+    session's correction. They own no measurement decision; ndLouvers reads their output.
 12. [ndLouvers instrumentation specification](../ndLouvers/instrumentation-spec.md): measurement
     requirements and acceptance. This repository owns no measurement decision.
 
