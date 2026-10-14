@@ -29,8 +29,8 @@ the rest of that subsystem, along with a fifth that was implemented and then **r
   (owner decision, 2026-09-09, item 5b — this **reverses** the earlier "SD primary, BLE
   secondary", so do not reinstate that from memory or from git history; `CLAUDE.history.md` §2.1). The analysis
   record is RaceChrono's consolidated log, because RaceChrono is what collects box 1's CAN
-  broadcast, box 2's channels and the phone's GPS and stamps them into one frame set on one
-  timebase. Box 2's channels have to reach the phone to be useful.
+  broadcast, box 2's channels and the external 10 Hz GPS receiver and stamps them into one frame set
+  on one timebase. Box 2's channels have to reach the phone to be useful.
   **The local file is still mandatory, on three narrower grounds** — and each one is a thing the
   BLE path physically cannot do:
   1. **Link-level loss cannot be signalled over BLE.** *Channel*-level invalidity can: send

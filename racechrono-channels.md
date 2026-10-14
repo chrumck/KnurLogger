@@ -149,23 +149,15 @@ is: RaceChrono holds the last value it received indefinitely.
 easy to point at the wrong thing:
 
 1. **Pressure is ENCLOSURE pressure and never a static reference.** The cavity is
-   aerodynamically live: **measured at 156 Pa below stationary at a mean 116 km/h on the first
-   drive (Cp ≈ −0.25)**, which is still 2–3× the 45–90 Pa measurands, is not a single constant Cp,
-   and is speed-correlated so it does not average out of a speed sweep. **That is not the only cavity
-   record, and the records disagree**: a second cavity record from the third drive
-   corroborates the sign and order without being a Cp point, because the route's elevation change
-   is the same order as the signal and no altitude channel was exported. **Three track days then add
-   THIRTEEN sessions and they CONTRADICT the first drive** — Cp −0.108 to −0.144 at Poznań, flat to
-   within ±0.006 from 40 to 200 km/h, and −0.102 to −0.174 at Most with its 15–19 m of elevation
-   fitted explicitly;
-   `../ndLouvers/` open item 49 owns the disagreement, where the plan's rev 92 review arithmetic
-   (12 Pa per metre of GPS altitude error against a 94 Pa signal at 45 km/h) recommends the track
-   result, and it is not yet decided. The second drive's box
-   was on the passenger seat, so its
-   speed-correlated pressure record is a cabin record and was withdrawn.
+   aerodynamically live and speed-correlated, so its offset does not average out of a speed sweep,
+   and it runs 2–3× the 45–90 Pa measurands at road speed. **Tolerable as a density term,
+   disqualifying as a reference.** How large it is — the first drive re-derives to Cp ≈ −0.27 and
+   thirteen track sessions give ≈ −0.13 — is `../ndLouvers/` open item 49's, and
+   `../ndLouvers/thermals-testing.md` §3.6 owns the figures. **Do not restate them here.**
    **This field is named for where the box is designed to sit, not for where it actually sat**, and
-   nothing in the session file says which. Record the mounting state per session. It is tolerable as a
-   density term and disqualifying as a reference (`../ndLouvers/thermals-testing.md` §3.6).
+   nothing in the session file says which. Record the mounting state per session: one drive's
+   record was written up as a cavity result before the owner said the box had been on the
+   passenger seat.
 2. **Temperature is the cavity thermometer** (plan item 1d, the hot-day envelope), with Pi SoC temperature on `0x604`
    as a cross-check rather than the primary proxy. **It is not the inlet density term** — that is
    `T_ambient`'s DS18B20 on `0x602` byte 0–1.
