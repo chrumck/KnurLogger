@@ -2738,8 +2738,10 @@ attenuation. On the first drive it returns −0.352, so a reduction that forced 
 that shows where a forced correction puts its error, and an alignment sweep, because the
 cross-correlation aligns bulk groupings rather than transients.
 
-The cavity channel is not in the drive's `.rcz` at all — the pressure channels were not defined
-until 2026-09-19 — which is why the session file is a required input rather than a convenience.
+The cavity channel is not in that drive's `.rcz` at all, which is why the session file is a
+required input rather than a convenience. **Not because it was undefined** — it is 52499341 on
+PID `0x600` and the archive's short fragments carry it — but because box 2's BLE link was dead for
+the drive, delivering two samples per thermal channel in 45 minutes and no cavity samples at all.
 
 **Known defect, not repaired:** `rcz-reduce.py` raises a `TypeError` on that archive. It has eight
 fragments, several with no logger channels, so `secondWindows` returns `None` and the "no density
