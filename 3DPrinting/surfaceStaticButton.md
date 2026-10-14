@@ -55,7 +55,10 @@ addition is ≈ 6.2 × 10⁶, **equivalent to about 2.0 m of car stock**. Uncorr
 **Measured in place, this button needs ~4 m** (owner, 2026-10-02/03): about 2 m beyond the
 estimate, set at the heavy smoke-test rung and confirmed at the light one, and then localised by
 opening the line at the button's stub — with the port at its silicone length alone the expected
-readings returned, so the extra resistance is the button's own. That is ≈ 12 × 10⁶ net, about
+readings returned, so the extra resistance is the button's own. **Because it is the button's own,
+it travels with the part**: moving this button to another hood station carries the ~4 m over and
+owes no fresh pickup A/B, and only the silicone length changes
+([pressure-testing.md §1.7](../../ndLouvers/pressure-testing.md#17-a3--the-hood-surface-static-button)). That is ≈ 12 × 10⁶ net, about
 twice the Poiseuille figure: an effective bore of ~1.1 mm, or epoxy or solder in the bore or hole.
 Enter it as the silicone length **plus ~4 m** (KnurLogger [pressure-correction.md](../pressure-correction.md)
 step 8); a new button starts from the 2.0 m estimate until it is measured the same way. The installed smoke test's light point then checks it end to end, since the test flow
