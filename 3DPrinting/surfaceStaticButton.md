@@ -30,9 +30,11 @@ height, edge and the 2.2 slot from 4.0 ahead of centre to the aft edge are as dr
 
 ## Build
 
-1. Print three — two for §1.7's side-by-side bias check and a spare. Base down, 0.1 layers,
-   ironing on the top, 100 % infill, ASA or PETG: a hood in sun exceeds PLA's softening point.
-   Adjust the slot in the slicer until the tube drops in; do not file it.
+1. Print three. **Where each goes is [pressure-testing.md §1.7](../../ndLouvers/pressure-testing.md#17-a3--the-hood-surface-static-button)'s, not this file's** — it puts
+   two on the hood, one of them outside the panel outline so that a reference survives the louver
+   installation, and keeps a spare. Base down, 0.1 layers, ironing on the top, 100 % infill, ASA or
+   PETG: a hood in sun exceeds PLA's softening point. Adjust the slot in the slicer until the tube
+   drops in; do not file it.
 2. Cut the tube to 30, close the nose with solder and round it. Drill the Ø0.8 hole 3.0 behind
    the nose end, square to what will be the base, and deburr inside without enlarging or
    countersinking it.
